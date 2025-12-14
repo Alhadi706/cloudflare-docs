@@ -1,0 +1,416 @@
+---
+pcx_content_type: navigation
+title: Build a Task Runner Agent
+sidebar:
+  order: 8
+description: Build an AI agent that executes background tasks with real-time progress updates using the task system and Cloudflare Workflows
+---
+
+import { Details, Render, PackageManagers, WranglerConfig, TypeScriptExample } from "~/components";
+
+## Build an AI Agent with Background Task Execution
+
+This guide will show you how to build and deploy an AI agent on Cloudflare Workers that demonstrates the task system with two execution modes:
+
+1. **Quick tasks** (`@task()`) - Run in the Agent (Durable Object), suitable for operations under 30 seconds
+2. **Durable tasks** (`workflow()`) - Run in Cloudflare Workflows, ideal for long-running operations that can take hours or days
+
+Your task runner agent will be able to:
+
+- Execute background operations with real-time progress updates
+- Track and manage multiple concurrent tasks
+- Support task cancellation
+- Persist task state across agent restarts (for durable tasks)
+- Broadcast updates to all connected WebSocket clients
+
+You can view the full code for this example in the [agents repository](https://github.com/cloudflare/agents/tree/main/examples/task-runner).
+
+## Prerequisites
+
+Before you begin, you will need:
+
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up)
+- [Node.js](https://nodejs.org/) installed (v18 or later)
+- An [OpenAI API key](https://platform.openai.com/api-keys) (or another LLM provider)
+
+## 1. Create your project
+
+1. Create a new directory for your task runner agent:
+
+```sh
+mkdir task-runner && cd task-runner
+```
+
+2. Initialize a new Node.js project:
+
+<PackageManagers type="init" />
+
+3. Install the required dependencies:
+
+<PackageManagers
+  type="add"
+  pkg="@cloudflare/agents openai react react-dom"
+  dev={false}
+/>
+
+4. Install development dependencies:
+
+<PackageManagers
+  type="add"
+  pkg="@cloudflare/vite-plugin @cloudflare/workers-types @types/react @types/react-dom typescript vite wrangler"
+  dev={true}
+/>
+
+## 2. Configure your Worker
+
+Create a `wrangler.jsonc` file in your project root:
+
+<WranglerConfig>
+
+```json
+{
+  "name": "task-runner",
+  "main": "src/server.ts",
+  "compatibility_date": "2024-12-01",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TaskRunner",
+        "class_name": "TaskRunner"
+      }
+    ]
+  },
+  "workflows": [
+    {
+      "name": "analysis-workflow",
+      "binding": "ANALYSIS_WORKFLOW",
+      "class_name": "AnalysisWorkflow"
+    }
+  ]
+}
+```
+
+</WranglerConfig>
+
+## 3. Set up environment variables
+
+Create a `.dev.vars` file with your API keys:
+
+```sh
+OPENAI_API_KEY=sk-...
+```
+
+## 4. Create the Agent
+
+Create `src/server.ts` with your task runner agent:
+
+<TypeScriptExample>
+
+```ts
+import { Agent, task, callable, type TaskContext } from "@cloudflare/agents";
+import { routeAgentRequest } from "@cloudflare/agents/rpc";
+
+type Input = { repoUrl: string; branch: string };
+type Result = {
+  repoUrl: string;
+  branch: string;
+  summary: string;
+  architecture: string;
+  techStack: string[];
+  suggestions: string[];
+  fileCount: number;
+  analyzedAt: string;
+};
+
+export class TaskRunner extends Agent<Env> {
+  // Quick task - runs in the Durable Object
+  @task({ timeout: "5m" })
+  async quickAnalysis(input: Input, ctx: TaskContext): Promise<Result> {
+    ctx.emit("phase", { name: "fetching" });
+    ctx.setProgress(10);
+
+    // Simulate fetching repository files
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const fileCount = 42;
+    ctx.setProgress(40);
+
+    ctx.emit("phase", { name: "analyzing" });
+
+    // Simulate analysis
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    ctx.setProgress(80);
+
+    const result: Result = {
+      repoUrl: input.repoUrl,
+      branch: input.branch,
+      summary: "This is a TypeScript project with React frontend",
+      architecture: "Monorepo with multiple packages",
+      techStack: ["TypeScript", "React", "Vite"],
+      suggestions: ["Add unit tests", "Improve documentation"],
+      fileCount,
+      analyzedAt: new Date().toISOString(),
+    };
+
+    ctx.setProgress(100);
+    return result;
+  }
+
+  // Durable task - runs in Cloudflare Workflows
+  @callable()
+  async deepAnalysis(input: Input) {
+    return this.workflow("ANALYSIS_WORKFLOW", input);
+  }
+
+  // Helper methods for task management
+  @callable()
+  async getTask(taskId: string) {
+    return this.tasks.get(taskId);
+  }
+
+  @callable()
+  async abortTask(taskId: string) {
+    await this.tasks.cancel(taskId, "User requested");
+  }
+}
+
+export default {
+  fetch(req, env) {
+    return routeAgentRequest(req, env);
+  },
+};
+```
+
+</TypeScriptExample>
+
+## 5. Create the Workflow
+
+Create `src/workflows/analysis.ts` for long-running durable tasks:
+
+<TypeScriptExample>
+
+```ts
+import { AgentWorkflow, type WorkflowTaskContext } from "@cloudflare/agents";
+
+type Input = { repoUrl: string; branch: string };
+type Result = {
+  repoUrl: string;
+  branch: string;
+  summary: string;
+  architecture: string;
+  techStack: string[];
+  suggestions: string[];
+  fileCount: number;
+  analyzedAt: string;
+};
+
+export class AnalysisWorkflow extends AgentWorkflow<Env, Input, Result> {
+  async run(ctx: WorkflowTaskContext<Input>): Promise<Result> {
+    // Step 1: Fetch repository (checkpointed)
+    const files = await ctx.step("fetch-repo", async () => {
+      ctx.emit("phase", { name: "fetching" });
+      ctx.setProgress(20);
+
+      // Simulate fetching - in production, fetch actual files
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return { count: 42, files: [] };
+    });
+
+    // Step 2: Durable sleep for rate limiting
+    await ctx.sleep("rate-limit", "10s");
+
+    // Step 3: Analyze files (checkpointed)
+    const analysis = await ctx.step("analyze", async () => {
+      ctx.emit("phase", { name: "analyzing" });
+      ctx.setProgress(60);
+
+      // Simulate AI analysis
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      return {
+        summary: "Deep analysis of repository structure",
+        architecture: "Microservices architecture with event-driven design",
+        techStack: ["TypeScript", "React", "Cloudflare Workers", "Workflows"],
+        suggestions: [
+          "Consider adding integration tests",
+          "Improve error handling in workflows",
+          "Add monitoring and observability",
+        ],
+      };
+    });
+
+    ctx.setProgress(100);
+
+    return {
+      repoUrl: ctx.params.repoUrl,
+      branch: ctx.params.branch,
+      ...analysis,
+      fileCount: files.count,
+      analyzedAt: new Date().toISOString(),
+    };
+  }
+}
+```
+
+</TypeScriptExample>
+
+## 6. Create the React client
+
+Create `src/App.tsx` for the frontend:
+
+<TypeScriptExample>
+
+```tsx
+import { useState, useCallback } from "react";
+import { useAgent } from "@cloudflare/agents/react";
+
+type TaskResult = {
+  repoUrl: string;
+  branch: string;
+  summary: string;
+  architecture: string;
+  techStack: string[];
+  suggestions: string[];
+  fileCount: number;
+  analyzedAt: string;
+};
+
+type TaskStatus = "pending" | "running" | "completed" | "failed" | "aborted";
+
+interface TaskData {
+  id: string;
+  status: TaskStatus;
+  progress?: number;
+  result?: TaskResult;
+  error?: string;
+}
+
+function App() {
+  const [tasks, setTasks] = useState<Map<string, TaskData>>(new Map());
+  const [repoUrl, setRepoUrl] = useState("https://github.com/cloudflare/agents");
+  const [branch, setBranch] = useState("main");
+
+  const agent = useAgent({
+    agent: "task-runner",
+    name: "default",
+    onMessage: (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "CF_AGENT_TASK_UPDATE") {
+          const { taskId, task } = data;
+          setTasks((prev) => {
+            const next = new Map(prev);
+            if (task === null) {
+              next.delete(taskId);
+            } else {
+              next.set(taskId, task);
+            }
+            return next;
+          });
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    },
+  });
+
+  const startQuickAnalysis = useCallback(async () => {
+    const handle = await agent.call("quickAnalysis", [{ repoUrl, branch }]);
+    const taskId = (handle as { id: string }).id;
+    setTasks((prev) => {
+      const next = new Map(prev);
+      next.set(taskId, { id: taskId, status: "pending" });
+      return next;
+    });
+  }, [agent, repoUrl, branch]);
+
+  const startDeepAnalysis = useCallback(async () => {
+    const handle = await agent.call("deepAnalysis", [{ repoUrl, branch }]);
+    const taskId = (handle as { id: string }).id;
+    setTasks((prev) => {
+      const next = new Map(prev);
+      next.set(taskId, { id: taskId, status: "pending" });
+      return next;
+    });
+  }, [agent, repoUrl, branch]);
+
+  const abortTask = useCallback(
+    async (taskId: string) => {
+      await agent.call("abortTask", [taskId]);
+    },
+    [agent]
+  );
+
+  return (
+    <div>
+      <h1>Task Runner</h1>
+      <input
+        type="text"
+        value={repoUrl}
+        onChange={(e) => setRepoUrl(e.target.value)}
+        placeholder="Repository URL"
+      />
+      <input
+        type="text"
+        value={branch}
+        onChange={(e) => setBranch(e.target.value)}
+        placeholder="Branch"
+      />
+      <button onClick={startQuickAnalysis}>Quick Analysis</button>
+      <button onClick={startDeepAnalysis}>Deep Analysis (Workflow)</button>
+
+      <div>
+        {Array.from(tasks.values()).map((task) => (
+          <div key={task.id}>
+            <h3>Task {task.id}</h3>
+            <p>Status: {task.status}</p>
+            {task.progress !== undefined && <p>Progress: {task.progress}%</p>}
+            {task.status === "running" && (
+              <button onClick={() => abortTask(task.id)}>Abort</button>
+            )}
+            {task.result && (
+              <div>
+                <h4>Result:</h4>
+                <pre>{JSON.stringify(task.result, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default App;
+```
+
+</TypeScriptExample>
+
+## 7. Deploy your Agent
+
+Deploy your task runner agent to Cloudflare:
+
+```sh
+npx wrangler deploy
+```
+
+## Key concepts
+
+### Quick tasks vs Durable tasks
+
+| Feature    | @task()             | workflow()               |
+| ---------- | ------------------- | ------------------------ |
+| Duration   | Seconds to minutes  | Minutes to days          |
+| Execution  | In Durable Object   | Separate Workflow engine |
+| Durability | Lost on DO eviction | Survives restarts        |
+| Retries    | Manual              | Automatic per-step       |
+| Sleep      | Not durable         | Durable (can wait hours) |
+
+### Real-time updates
+
+Both task types automatically broadcast updates to connected WebSocket clients through the `CF_AGENT_TASK_UPDATE` message type. This provides a unified client experience regardless of execution mode.
+
+## Related resources
+
+- [Tasks](/agents/concepts/tasks/)
+- [Durable Tasks](/agents/concepts/durable-tasks/)
+- [Cloudflare Workflows](/workflows/)
+- [Durable Objects](/durable-objects/)
