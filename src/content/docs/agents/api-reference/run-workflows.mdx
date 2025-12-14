@@ -106,3 +106,51 @@ You can also call a Workflow that is defined in a different Workers script from 
 </WranglerConfig>
 
 Refer to the [cross-script calls](/workflows/build/workers-api/#cross-script-calls) section of the Workflows documentation for more examples.
+
+## Trigger Workflows with the Task System
+
+The Agents SDK provides a higher-level task system that integrates Workflows with automatic progress tracking and real-time updates. Use `this.workflow()` to dispatch a workflow that is automatically tracked as a task:
+
+<TypeScriptExample>
+
+```ts
+class MyAgent extends Agent<Env> {
+  @callable()
+  async startAnalysis(input: { repoUrl: string }) {
+    // Dispatches a workflow and returns a task handle
+    return this.workflow("ANALYSIS_WORKFLOW", input);
+  }
+}
+```
+
+</TypeScriptExample>
+
+For workflows that need to send progress updates back to the agent, extend `AgentWorkflow`:
+
+<TypeScriptExample>
+
+```ts
+import { AgentWorkflow, type WorkflowTaskContext } from "agents";
+
+export class AnalysisWorkflow extends AgentWorkflow<Env, { repoUrl: string }> {
+  async run(ctx: WorkflowTaskContext<{ repoUrl: string }>) {
+    // Each step is checkpointed and survives restarts
+    const files = await ctx.step("fetch", async () => {
+      ctx.emit("phase", { name: "fetching" });
+      return fetchRepoFiles(ctx.params.repoUrl);
+    });
+
+    // Durable sleep
+    await ctx.sleep("rate-limit", "1h");
+
+    return await ctx.step("analyze", async () => {
+      ctx.setProgress(50);
+      return analyzeFiles(files);
+    });
+  }
+}
+```
+
+</TypeScriptExample>
+
+The workflow is automatically tracked as a task, and progress updates are broadcast to connected clients. Refer to [Tasks](/agents/api-reference/tasks/) and [Durable tasks](/agents/concepts/durable-tasks/) for more details.
