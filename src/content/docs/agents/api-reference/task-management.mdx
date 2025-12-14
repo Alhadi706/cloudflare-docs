@@ -1,0 +1,162 @@
+---
+title: Task management
+pcx_content_type: concept
+sidebar:
+  order: 6
+
+---
+
+import { MetaInfo, Render, Type, TypeScriptExample, WranglerConfig } from "~/components";
+
+Tasks are tracked background operations with progress updates, cancellation support, and real-time synchronization to connected clients. Use the `@task()` decorator to mark methods as tracked tasks that provide visibility into long-running operations.
+
+## Quick Start
+
+Use the `@task()` decorator to mark a method as a tracked task:
+
+<TypeScriptExample>
+
+```ts
+import { Agent, task, type TaskContext } from "agents";
+
+class MyAgent extends Agent<Env> {
+  @task({ timeout: "5m" })
+  async processData(input: { url: string }, ctx: TaskContext) {
+    ctx.emit("started", { url: input.url });
+    ctx.setProgress(25);
+
+    const data = await fetch(input.url);
+    ctx.setProgress(75);
+
+    return { processed: true };
+  }
+}
+```
+
+</TypeScriptExample>
+
+The client receives real-time updates automatically via WebSocket.
+
+## TaskContext
+
+Every task method receives a `TaskContext` as the second parameter with:
+
+- `emit(type, data)` - Send custom events to connected clients
+- `setProgress(n)` - Set progress percentage (0-100)
+- `signal` - [AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) for cancellation detection
+
+<TypeScriptExample>
+
+```ts
+@task({ timeout: "2m" })
+async analyze(input: Input, ctx: TaskContext) {
+  ctx.emit("phase", { name: "fetching" });
+
+  if (ctx.signal.aborted) {
+    throw new Error("Cancelled");
+  }
+
+  ctx.setProgress(50);
+  // ...
+}
+```
+
+</TypeScriptExample>
+
+## Managing Tasks
+
+Access tasks via `this.tasks` within your Agent methods:
+
+<TypeScriptExample>
+
+```ts
+// Get a specific task
+const task = this.tasks.get(taskId);
+
+// List all tasks
+const all = this.tasks.list();
+
+// List tasks by status
+const running = this.tasks.list({ status: "running" });
+
+// Cancel a task
+await this.tasks.cancel(taskId, "User requested");
+
+// Delete a completed task
+this.tasks.delete(taskId);
+```
+
+</TypeScriptExample>
+
+## Client Updates
+
+Tasks broadcast updates to all connected WebSocket clients via the `CF_AGENT_TASK_UPDATE` message type:
+
+<TypeScriptExample>
+
+```ts
+// React client
+const agent = useAgent({ agent: "my-agent", name: "default" });
+
+agent.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === "CF_AGENT_TASK_UPDATE") {
+    const { taskId, task } = data;
+    // Access: task.status, task.progress, task.events, task.result
+  }
+});
+```
+
+</TypeScriptExample>
+
+## Task Options
+
+Configure task behavior with decorator options:
+
+<TypeScriptExample>
+
+```ts
+@task({
+  timeout: "5m",      // Cancel if exceeds duration
+})
+async myTask(input: Input, ctx: TaskContext) {
+  // ...
+}
+```
+
+</TypeScriptExample>
+
+Timeout accepts duration strings (`"30s"`, `"5m"`, `"1h"`) or milliseconds as a number.
+
+## Task Status
+
+Tasks transition through these states:
+
+- `pending` - Created, waiting to run
+- `running` - Currently executing
+- `completed` - Finished successfully
+- `failed` - Threw an error
+- `aborted` - Cancelled or timed out
+
+## Durable Tasks
+
+For long-running operations that need to survive agent restarts, use durable tasks backed by [Cloudflare Workflows](/workflows/):
+
+<TypeScriptExample>
+
+```ts
+@task({ durable: true })
+async longProcess(input: Input, ctx: TaskContext) {
+  // Durable step - survives restarts
+  const data = await ctx.step("fetch", () => fetchData(input));
+
+  // Durable sleep - can sleep for days
+  await ctx.sleep("rate-limit", "1h");
+
+  return await ctx.step("process", () => process(data));
+}
+```
+
+</TypeScriptExample>
+
+Refer to [Durable Tasks](/agents/api-reference/durable-tasks/) for setup and details.
