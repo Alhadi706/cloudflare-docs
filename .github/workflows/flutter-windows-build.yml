@@ -7,6 +7,10 @@ on:
         description: DSF API base URL
         required: false
         default: https://dev.d-me.ly
+      dev_portal_key:
+        description: Optional dev portal key for quick-login fallback
+        required: false
+        default: ''
       deploy_to_server:
         description: Upload artifact to server and activate Flutter download
         required: false
@@ -47,10 +51,18 @@ jobs:
         shell: pwsh
         run: |
           $api = '${{ github.event.inputs.api_base_url }}'
+          $devKey = '${{ github.event.inputs.dev_portal_key }}'
           if ([string]::IsNullOrWhiteSpace($api)) {
             $api = 'https://dev.d-me.ly'
           }
-          flutter build windows --release --dart-define=DSF_API_BASE_URL=$api
+
+          $defines = @("--dart-define=DSF_API_BASE_URL=$api")
+          if (-not [string]::IsNullOrWhiteSpace($devKey)) {
+            $defines += "--dart-define=DSF_DEV_PORTAL_KEY=$devKey"
+            Write-Host "Using DSF_DEV_PORTAL_KEY for dev fallback login." -ForegroundColor Yellow
+          }
+
+          flutter build windows --release $defines
 
       - name: Package Release
         shell: pwsh
