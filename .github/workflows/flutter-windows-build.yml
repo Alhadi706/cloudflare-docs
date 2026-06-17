@@ -1,0 +1,130 @@
+name: Flutter Windows Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: DSF API base URL
+        required: false
+        default: https://dev.d-me.ly
+      deploy_to_server:
+        description: Upload artifact to server and activate Flutter download
+        required: false
+        type: boolean
+        default: true
+  push:
+    paths:
+      - flutter_dsf/**
+      - .github/workflows/flutter-windows-build.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: flutter_dsf
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter Doctor
+        run: flutter doctor -v
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build Windows Release
+        shell: pwsh
+        run: |
+          $api = '${{ github.event.inputs.api_base_url }}'
+          if ([string]::IsNullOrWhiteSpace($api)) {
+            $api = 'https://dev.d-me.ly'
+          }
+          flutter build windows --release --dart-define=DSF_API_BASE_URL=$api
+
+      - name: Package Release
+        shell: pwsh
+        run: |
+          $bundlePath = 'build/windows/x64/runner/Release'
+          if (!(Test-Path $bundlePath)) {
+            throw "Windows release bundle not found: $bundlePath"
+          }
+          New-Item -Path dist -ItemType Directory -Force | Out-Null
+          
+          # Create launcher script
+          $launchBat = "$bundlePath/START_DSF_GATEWAY.bat"
+          @"
+          @echo off
+          REM DSF Gateway Launcher
+          cd /d "%~dp0"
+          start "" dsf_gateway_flutter.exe
+          "@ | Out-File -Encoding ASCII -FilePath $launchBat
+          
+          # Compress to ZIP
+          $zipPath = 'dist/dsf_gateway_flutter-windows-x64.zip'
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path "$bundlePath/*" -DestinationPath $zipPath
+          
+          Write-Host "✅ Package created: $zipPath" -ForegroundColor Green
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsf-gateway-flutter-windows-x64
+          path: flutter_dsf/dist/dsf_gateway_flutter-windows-x64.zip
+          if-no-files-found: error
+
+  deploy-to-server:
+    runs-on: ubuntu-latest
+    needs: build-windows
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_to_server == true }}
+
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dsf-gateway-flutter-windows-x64
+          path: artifact
+
+      - name: Upload ZIP to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: artifact/dsf_gateway_flutter-windows-x64.zip
+          target: ${{ secrets.SERVER_PATH }}
+          overwrite: true
+
+      - name: Activate Flutter Download and Restart App
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            cd /home/alhadi/digital-dashboard
+            if grep -q '^NEXT_PUBLIC_WINDOWS_FLUTTER_READY=' .env.local; then
+              sed -i 's/^NEXT_PUBLIC_WINDOWS_FLUTTER_READY=.*/NEXT_PUBLIC_WINDOWS_FLUTTER_READY=1/' .env.local
+            else
+              echo 'NEXT_PUBLIC_WINDOWS_FLUTTER_READY=1' >> .env.local
+            fi
+            ./runbook.sh restart
+            ls -lh public/downloads/dsf_gateway_flutter-windows-x64.zip
+
+      - name: Deployment Summary
+        run: |
+          echo "Windows Flutter artifact built and deployed to server."
+          echo "Download button was enabled automatically."
