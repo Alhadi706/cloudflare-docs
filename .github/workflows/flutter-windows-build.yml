@@ -105,6 +105,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           source: artifact/dsf_gateway_flutter-windows-x64.zip
           target: ${{ secrets.SERVER_PATH }}
+          strip_components: 1
           overwrite: true
 
       - name: Activate Flutter Download and Restart App
@@ -122,7 +123,7 @@ jobs:
               echo 'NEXT_PUBLIC_WINDOWS_FLUTTER_READY=1' >> .env.local
             fi
             ./runbook.sh restart
-            ls -lh public/downloads/dsf_gateway_flutter-windows-x64.zip
+            ls -lh public/downloads/dsf_gateway_flutter-windows-x64.zip || ls -lh public/downloads/artifact/dsf_gateway_flutter-windows-x64.zip
 
       - name: Deployment Summary
         run: |
