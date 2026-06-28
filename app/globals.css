@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY FIX LIVE — v3
+   Base: 16px | Hierarchy: clear | No text smaller than 13px anywhere
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 15, 23, 42;
+  --background-end-rgb: 15, 23, 42;
+
+  /* ── مقياس الخطوط المرجعي (rem على أساس 16px) ── */
+  --text-badge:   0.8125rem; /* 13px — الشارات الصغيرة كحد أدنى */
+  --text-meta:    0.875rem;  /* 14px — نصوص مساعدة ثانوية */
+  --text-body:    1rem;      /* 16px — جسم النص والجداول */
+  --text-label:   1.0625rem; /* 17px — التسميات */
+  --text-card:    1.125rem;  /* 18px — عناوين البطاقات */
+  --text-section: 1.25rem;   /* 20px — عناوين الأقسام */
+  --text-page:    1.875rem;  /* 30px — عناوين الصفحات */
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* ── Tables — minimum readable size ───────────────────────────────────────── */
+table {
+  font-size: 0.9375rem; /* 15px */
+}
+th {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+td {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+/* ── Badge glow for active alerts ─────────────────────────────────────────── */
+.badge-alert {
+  animation: badge-pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+}
+@keyframes badge-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); }
+  60%  { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+.badge-alert-red {
+  animation: badge-pulse-red 2s ease-in-out infinite;
+}
+@keyframes badge-pulse-red {
+  0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  60%  { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in {
+  animation: slide-in 0.22s ease-out both;
+}

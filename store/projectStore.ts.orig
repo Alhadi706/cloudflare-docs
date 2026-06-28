@@ -1,0 +1,70 @@
+import { create } from 'zustand';
+import { workspaceApi } from './apiService';
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  owner: string;
+  organization?: string;
+  start_date?: string;
+  created_at: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+interface ProjectState {
+  projects: Project[];
+  activeProjectId: string | null;
+  addProject: (project: Omit<Project, 'id' | 'created_at'>) => void;
+  setActiveProject: (id: string) => void;
+  deleteProject: (id: string) => Promise<void>;
+  loadProjects: () => Promise<void>;
+}
+
+export const useProjectStore = create<ProjectState>((set) => ({
+  projects: [],
+  activeProjectId: null,
+  deleteProject: async (id) => {
+    try {
+      await workspaceApi.deleteProject(id);
+      set(state => ({
+        projects: state.projects.filter(p => p.id !== id),
+        activeProjectId: state.activeProjectId === id ? (state.projects.filter(p => p.id !== id)[0]?.id || null) : state.activeProjectId
+      }));
+    } catch(e) {
+      console.error(e);
+    }
+  },
+  loadProjects: async () => {
+    try {
+      console.log('🔄 جاري تحميل المشاريع...');
+      const response = await workspaceApi.getProjects();
+      console.log('✅ RAW PROJECT RESPONSE from API:', response);
+      let projectsArray = Array.isArray(response) ? response : (response && response.projects ? response.projects : []);
+      console.log(`✅ EXAMINING fetched projects: isArray=${Array.isArray(projectsArray)}, length=${projectsArray.length}`);
+      if(projectsArray.length > 0) {
+         set({ projects: projectsArray, activeProjectId: projectsArray[0].id });
+      } else {
+         set({ projects: [] }); 
+      }
+    } catch (e) { 
+      console.error('❌ خطأ في تحميل المشاريع:', e);
+    }
+  },
+  addProject: (proj) => {
+    workspaceApi.createProject(proj).catch(console.error);
+    set((state) => {
+    const newProj = {
+      ...proj,
+      id: `proj-${Date.now()}`,
+      created_at: new Date().toISOString()
+    };
+    return {
+      projects: [newProj, ...state.projects],
+      activeProjectId: newProj.id
+    };
+  });
+  },
+  setActiveProject: (id) => set({ activeProjectId: id })
+}));

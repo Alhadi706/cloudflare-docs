@@ -1,0 +1,1081 @@
+'use client';
+// ─── CorridorMap (MNT-S13.8-VIS) ──────────────────────────────────────────────
+// High-fidelity geospatial visualization:
+//   TASK 1 — GPU canvas heatmap (ol/layer/Heatmap) weighted by anomaly_score
+//   TASK 2 — Emission point markers: size + color = severity, hover tooltip
+//   TASK 3 — Optical zone polygons with breathing animation for high-confidence
+//   TASK 4 — Precision mode overlay at zoom ≥ 16
+//   TASK 5 — Temporal year filter: show only zones active in selected year
+//   TASK 7 — flyTo / focusZone with smooth easing
+// ──────────────────────────────────────────────────────────────────────────────
+
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import { Layers, Minus, Plus, RotateCcw, Target, Flame } from 'lucide-react';
+
+// ── Basemaps ──────────────────────────────────────────────────────────────────
+const SAT_URL   = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const LABEL_URL = 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+const OSM_URL   = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MAX_ZOOM     = 23;
+const S2_EOX_URL   = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg';
+const S2_MAX_ZOOM  = 15;
+const OSM_MAX_ZOOM = 19;
+
+type BasemapKey = 'satellite' | 'sentinel2' | 'osm';
+const BASEMAP_META: Record<BasemapKey, { label: string; attr: string; maxZoom: number }> = {
+  satellite: { label: 'إيزري — صور فضائية',   attr: '© Esri World Imagery',         maxZoom: MAX_ZOOM    },
+  sentinel2: { label: 'سنتينيل-2 (EOX 2023)', attr: '© EOX IT Services, CC BY 4.0', maxZoom: S2_MAX_ZOOM },
+  osm:       { label: 'خريطة OpenStreetMap',  attr: '© OpenStreetMap contributors',  maxZoom: OSM_MAX_ZOOM },
+};
+const BASEMAP_CYCLE: Record<BasemapKey, BasemapKey> = {
+  satellite: 'sentinel2', sentinel2: 'osm', osm: 'satellite',
+};
+
+const DEFAULT_LON = 13.18;
+const DEFAULT_LAT = 32.89;
+
+// ── Detection point types ─────────────────────────────────────────────────────
+export type DetectionType = 'leak' | 'encroachment' | 'stress';
+
+export interface DetectionPoint {
+  id: string; lon: number; lat: number;
+  type: DetectionType; label: string;
+  details?: Record<string, any>;
+}
+
+// ── MNT-S13.8-VIS: Emission Point ────────────────────────────────────────────
+export interface EmissionPoint {
+  point_id:            string;
+  lon:                 number;
+  lat:                 number;
+  anomaly_score:       number;
+  color_code?:         string;   // 'RED' | 'ORANGE' | 'YELLOW' | 'BLUE'
+  unmixed_water_frac?: number;
+  is_longitudinal?:    boolean;
+  description_ar?:     string;
+  mndwi_peak?:         number;
+}
+
+// ── MNT-S13.3 Leak Candidate Zone ─────────────────────────────────────────────
+export type CandidateConfidence = 'weak' | 'moderate' | 'high';
+
+export interface CandidateEvidence {
+  type: string; description_ar: string;
+  value?: number; years?: number[]; note?: string;
+}
+
+export interface CandidateZone {
+  candidate_id:            string;
+  geometry_polygon:        [number, number][];
+  center_lat:              number;
+  center_lon:              number;
+  distance_to_corridor_m:  number;
+  first_seen:              string;
+  last_seen:               string;
+  confidence:              CandidateConfidence;
+  precision_level:         string;
+  evidence:                CandidateEvidence[];
+  score:                   number;
+  recommended_action:      string;
+  label_ar:                string;
+  honest_note:             string;
+  anomaly_type:            string;
+  patch_id:                number;
+  frac_along_corridor:     number;
+}
+
+const ZONE_STYLE: Record<CandidateConfidence, { fill: string; stroke: string; width: number }> = {
+  high:     { fill: 'rgba(239,68,68,0.22)',  stroke: '#ef4444', width: 2.5 },
+  moderate: { fill: 'rgba(245,158,11,0.18)', stroke: '#f59e0b', width: 2.0 },
+  weak:     { fill: 'rgba(59,130,246,0.14)', stroke: '#60a5fa', width: 1.5 },
+};
+const ZONE_STYLE_SEL: Record<CandidateConfidence, { fill: string; stroke: string; width: number }> = {
+  high:     { fill: 'rgba(239,68,68,0.55)',  stroke: '#fca5a5', width: 4.5 },
+  moderate: { fill: 'rgba(245,158,11,0.50)', stroke: '#fde68a', width: 4.0 },
+  weak:     { fill: 'rgba(59,130,246,0.45)', stroke: '#93c5fd', width: 3.5 },
+};
+
+// TASK 2 — emission point fill colors keyed by backend color_code
+// Backend sends: 'critical-red' | 'high-orange' | 'medium-yellow' | 'flow-blue'
+const EMIT_COLORS: Record<string, string> = {
+  'critical-red':   'rgba(220,38,38,0.95)',
+  'high-orange':    'rgba(234,88,12,0.95)',
+  'medium-yellow':  'rgba(234,179,8,0.92)',
+  'flow-blue':      'rgba(37,99,235,0.88)',
+  // legacy fallbacks
+  RED:    'rgba(220,38,38,0.95)',
+  ORANGE: 'rgba(234,88,12,0.95)',
+  YELLOW: 'rgba(234,179,8,0.92)',
+  BLUE:   'rgba(37,99,235,0.88)',
+};
+
+export interface CorridorData {
+  id: string; name: string;
+  coords: [number, number][]; bufferMeters: number;
+}
+
+export interface CorridorMapHandle {
+  fitToCorridor: () => void;
+  clearDraw: () => void;
+  focusPoint: (lat: number, lon: number, zoom?: number) => void;
+  focusZone: (zone: CandidateZone) => void;
+  setHeatmapVisible: (v: boolean) => void;
+  getMapSnapshot: () => string | null;
+}
+
+interface CorridorMapProps {
+  corridor:        CorridorData | null;
+  detections:      DetectionPoint[];
+  drawActive:      boolean;
+  onCorridorDrawn: (coords: [number, number][]) => void;
+  onPointClick:    (pt: DetectionPoint) => void;
+  candidateZones?: CandidateZone[];
+  onZoneClick?:    (zone: CandidateZone) => void;
+  selectedDetectionId?: string;
+  selectedZoneId?:      string;
+  // MNT-S13.8-VIS
+  emissionPoints?: EmissionPoint[];
+  showHeatmap?:    boolean;
+  temporalYear?:   number | null;
+  // Slideshow highlight — renders a blazing ring around the active zone
+  slideshowHighlightId?: string | null;
+}
+
+const DET_COLORS: Record<DetectionType, { fill: string; stroke: string }> = {
+  leak:         { fill: 'rgba(59,130,246,0.85)',  stroke: '#93c5fd' },
+  encroachment: { fill: 'rgba(239,68,68,0.85)',   stroke: '#fca5a5' },
+  stress:       { fill: 'rgba(234,179,8,0.85)',   stroke: '#fde68a' },
+};
+
+export const CorridorMap = forwardRef<CorridorMapHandle, CorridorMapProps>(
+  function CorridorMap({
+    corridor, detections, drawActive, onCorridorDrawn, onPointClick,
+    candidateZones, onZoneClick, selectedDetectionId, selectedZoneId,
+    emissionPoints, showHeatmap = false, temporalYear, slideshowHighlightId,
+  }, ref) {
+    const slideshowHighlightIdRef = useRef<string | null>(null);
+
+    const mapDiv        = useRef<HTMLDivElement>(null);
+    const mapRef        = useRef<any>(null);
+    const lineSourceRef = useRef<any>(null);
+    const bufSourceRef  = useRef<any>(null);
+    const detSourceRef  = useRef<any>(null);
+    const zoneSourceRef = useRef<any>(null);
+    const heatSrcRef      = useRef<any>(null);
+    const emitSrcRef      = useRef<any>(null);
+    const heatLayerRef    = useRef<any>(null);
+    const emitLayerRef    = useRef<any>(null);
+    const animTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+    const emitAnimTimerRef = useRef<ReturnType<typeof setInterval> | null>(null); // pulse
+    const leakCenterSrcRef   = useRef<any>(null);   // estimated leak center marker
+    const leakCenterLayerRef = useRef<any>(null);
+    const leakCenterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const leakCenterSrcRef   = useRef<any>(null);   // estimated leak center marker
+    const leakCenterLayerRef = useRef<any>(null);
+    const leakCenterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const labLayerRef     = useRef<any>(null);
+    const drawIntRef    = useRef<any>(null);
+    const styleRef      = useRef<any>(null);
+    const fromLonLatRef = useRef<((c: [number, number]) => number[]) | null>(null);
+
+    const candidateZonesRef = useRef<CandidateZone[]>([]);
+    const onZoneClickRef    = useRef<((z: CandidateZone) => void) | undefined>(undefined);
+    const selectedDetIdRef  = useRef<string | null>(null);
+    const selectedZoneIdRef = useRef<string | null>(null);
+
+    const [ready,         setReady]         = useState(false);
+    const [focusLabel,    setFocusLabel]    = useState<string | null>(null);
+    const [mapError,      setMapError]      = useState<string | null>(null);
+    const [showLabels,    setShowLabels]    = useState(true);
+    const [basemap,       setBasemap]       = useState<BasemapKey>('satellite');
+    const [zoomLevel,     setZoomLevel]     = useState<number>(9);
+    const [localHeatmap,  setLocalHeatmap]  = useState(showHeatmap);
+    const [emitTooltip,   setEmitTooltip]  = useState<{ text: string; x: number; y: number } | null>(null);
+
+    const xyzRef       = useRef<any>(null);
+    const s2SourceRef  = useRef<any>(null);
+    const osmSourceRef = useRef<any>(null);
+    const baseLayerRef = useRef<any>(null);
+
+    // ─── OL Initialization ────────────────────────────────────────────────────
+    useEffect(() => {
+      let cancelled = false;
+
+      async function boot() {
+        if (!mapDiv.current) return;
+        try {
+          const [
+            { default: Map },
+            { default: View },
+            { default: TileLayer },
+            { default: XYZ },
+            { default: VectorLayer },
+            { default: VectorSource },
+            { Style, Fill, Stroke, Circle: CircleStyle },
+            { fromLonLat },
+            { defaults: defaultControls },
+            { default: Heatmap },
+          ] = await Promise.all([
+            import('ol/Map'),
+            import('ol/View'),
+            import('ol/layer/Tile'),
+            import('ol/source/XYZ'),
+            import('ol/layer/Vector'),
+            import('ol/source/Vector'),
+            import('ol/style'),
+            import('ol/proj'),
+            import('ol/control'),
+            import('ol/layer/Heatmap'),
+          ]);
+
+          if (cancelled || !mapDiv.current) return;
+
+          const { Style, Fill, Stroke, Circle: CircleStyle, Text, RegularShape } = await import('ol/style') as any;
+          styleRef.current      = { Style, Fill, Stroke, CircleStyle, Text, RegularShape };
+          fromLonLatRef.current = fromLonLat;
+
+          // Basemap sources (pre-created for instant switching)
+          const xyzSource = new XYZ({ url: SAT_URL,    attributions: '© Esri',                     maxZoom: MAX_ZOOM    });
+          const s2Source  = new XYZ({ url: S2_EOX_URL, attributions: '© EOX IT Services CC BY 4.0', maxZoom: S2_MAX_ZOOM });
+          const osmSource = new XYZ({ url: OSM_URL,    attributions: '© OpenStreetMap contributors', maxZoom: OSM_MAX_ZOOM });
+          xyzRef.current = xyzSource; s2SourceRef.current = s2Source; osmSourceRef.current = osmSource;
+          const baseLayer = new TileLayer({ source: xyzSource });
+          baseLayerRef.current = baseLayer;
+
+          const lblLayer = new TileLayer({
+            source: new XYZ({ url: LABEL_URL, attributions: '© Esri', maxZoom: MAX_ZOOM }),
+            opacity: 0.75, zIndex: 2, visible: true,
+          });
+          labLayerRef.current = lblLayer;
+
+          // Corridor line
+          const lineSource = new VectorSource();
+          lineSourceRef.current = lineSource;
+          const lineLayer = new VectorLayer({
+            source: lineSource, zIndex: 5,
+            style: new Style({ stroke: new Stroke({ color: '#f97316', width: 3, lineDash: [10, 4] }) }),
+          });
+
+          // Buffer polygon
+          const bufSource = new VectorSource();
+          bufSourceRef.current = bufSource;
+          const bufLayer = new VectorLayer({
+            source: bufSource, zIndex: 4,
+            style: new Style({
+              fill:   new Fill({ color: 'rgba(249,115,22,0.10)' }),
+              stroke: new Stroke({ color: 'rgba(249,115,22,0.40)', width: 1.5 }),
+            }),
+          });
+
+          // TASK 3 — Candidate zone polygons with breathing animation
+          const zoneSource = new VectorSource();
+          zoneSourceRef.current = zoneSource;
+          const zoneLayer = new VectorLayer({
+            source: zoneSource, zIndex: 6,
+            style: (feature: any) => {
+              const conf: CandidateConfidence = feature.get('zone_conf') ?? 'weak';
+              const zid   = feature.get('zone_id');
+              const isSel = selectedZoneIdRef.current === zid;
+              const isSlide = slideshowHighlightIdRef.current === zid;
+              const s     = (isSel || isSlide) ? ZONE_STYLE_SEL[conf] : ZONE_STYLE[conf];
+              let strokeWidth = s.width;
+              if (isSlide) {
+                // Blazing ring: fast bright pulse for slideshow
+                const t = (Date.now() % 800) / 800;
+                strokeWidth = 6 + Math.sin(t * Math.PI * 2) * 3;
+                return new Style({
+                  fill:   new Fill({ color: 'rgba(250,204,21,0.18)' }),
+                  stroke: new Stroke({ color: '#facc15', width: strokeWidth }),
+                });
+              }
+              // Normal breathing for high-conf zones
+              if (conf === 'high' && !isSel) {
+                const t = (Date.now() % 2000) / 2000;
+                strokeWidth = s.width + (Math.sin(t * Math.PI * 2) + 1) * 1.8;
+              }
+              return new Style({
+                fill:   new Fill({ color: s.fill }),
+                stroke: new Stroke({ color: s.stroke, width: strokeWidth }),
+              });
+            },
+          });
+
+          // Detection points
+          const detSource = new VectorSource();
+          detSourceRef.current = detSource;
+          const detLayer = new VectorLayer({
+            source: detSource, zIndex: 8,
+            style: (feature: any) => {
+              const type: DetectionType = feature.get('det_type') ?? 'stress';
+              const { fill, stroke } = DET_COLORS[type];
+              const isSel = selectedDetIdRef.current === feature.get('det_id');
+              return new Style({
+                image: new CircleStyle({
+                  radius: isSel ? 13 : 8,
+                  fill:   new Fill({ color: fill }),
+                  stroke: new Stroke({ color: isSel ? '#ffffff' : stroke, width: isSel ? 3 : 2 }),
+                }),
+              });
+            },
+          });
+
+          // TASK 1 — GPU Canvas Heatmap (ol/layer/Heatmap uses WebGL canvas internally)
+          const heatSource = new VectorSource();
+          heatSrcRef.current = heatSource;
+          const heatLayer = new (Heatmap as any)({
+            source:   heatSource,
+            blur:     28,
+            radius:   18,
+            weight:   (f: any) => f.get('weight') ?? 0.5,
+            // Turbo-inspired gradient: cool → warm → hot
+            gradient: ['#1e3a8a', '#1d4ed8', '#06b6d4', '#10b981', '#84cc16', '#facc15', '#f97316', '#ef4444', '#7f1d1d'],
+            zIndex:   9,
+            visible:  showHeatmap,
+          });
+          heatLayerRef.current = heatLayer;
+
+          // TASK 2 — Emission point markers (size + color reflect severity, with pulse animation)
+          const emitSource = new VectorSource();
+          emitSrcRef.current = emitSource;
+          const emitLayer = new VectorLayer({
+            source: emitSource, zIndex: 10,
+            visible: showHeatmap,
+            style: (feature: any) => {
+              const score    = feature.get('anomaly_score') ?? 0.5;
+              const code     = feature.get('color_code') ?? 'flow-blue';
+              const fill     = EMIT_COLORS[code] ?? EMIT_COLORS['flow-blue'];
+              const baseR    = Math.max(5, Math.round(score * 16));
+              const isHigh   = score >= 0.5;
+              // Pulsing radius for high-anomaly points
+              const pulse    = isHigh
+                ? Math.sin((Date.now() % 1400) / 1400 * Math.PI * 2) * 3
+                : 0;
+              const radius   = baseR + pulse;
+              const isLong   = feature.get('is_longitudinal') ?? false;
+              return new Style({
+                image: new CircleStyle({
+                  radius: Math.max(4, radius),
+                  fill:   new Fill({ color: fill }),
+                  stroke: new Stroke({
+                    color: isHigh ? '#ffffff' : 'rgba(255,255,255,0.55)',
+                    width: isHigh ? 2.5 : 1.5,
+                  }),
+                }),
+              });
+          // ── Estimated leak center layer ────────────────────────────────
+          const leakCenterSrc = new VectorSource();
+          leakCenterSrcRef.current = leakCenterSrc;
+          const leakCenterLayer = new VectorLayer({
+            source: leakCenterSrc,
+            zIndex: 20, // above all other layers
+            style: (feature: any) => {
+              // Animated halo: large pulsing circle behind the X
+              const t = (Date.now() % 900) / 900;
+              const haloR = 18 + Math.sin(t * Math.PI * 2) * 7;
+              return [
+                // Outer glow ring
+                new Style({
+                  image: new CircleStyle({
+                    radius: haloR + 6,
+                    fill:   new Fill({ color: 'rgba(239,68,68,0.12)' }),
+                    stroke: new Stroke({ color: 'rgba(239,68,68,0.35)', width: 1.5 }),
+                  }),
+                }),
+                // Inner bright ring
+                new Style({
+                  image: new CircleStyle({
+                    radius: haloR,
+                    fill:   new Fill({ color: 'rgba(239,68,68,0.20)' }),
+                    stroke: new Stroke({ color: '#ef4444', width: 2.5 }),
+                  }),
+                }),
+                // Core dot
+                new Style({
+                  image: new CircleStyle({
+                    radius: 7,
+                    fill:   new Fill({ color: '#ef4444' }),
+                    stroke: new Stroke({ color: '#ffffff', width: 2.5 }),
+                  }),
+                  text: new (styleRef.current?.Text ?? Object)({
+                    text: '✕',
+                    font: 'bold 13px sans-serif',
+                    fill: new Fill({ color: '#ffffff' }),
+                    offsetY: 0,
+                  }),
+                }),
+                // Label below
+                new Style({
+                  text: new (styleRef.current?.Text ?? Object)({
+                    text: 'مصدر التسريب المقدّر',
+                    font: 'bold 11px Cairo, sans-serif',
+                    fill: new Fill({ color: '#fca5a5' }),
+                    stroke: new Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
+                    offsetY: 28,
+                    textAlign: 'center',
+                  }),
+                }),
+              ];
+            },
+          });
+          leakCenterLayerRef.current = leakCenterLayer;
+
+            },
+          });
+          emitLayerRef.current = emitLayer;
+
+          // ── Estimated leak center layer ────────────────────────────────
+          const leakCenterSrc = new VectorSource();
+          leakCenterSrcRef.current = leakCenterSrc;
+          const leakCenterLayer = new VectorLayer({, leakCenterLayer
+            source: leakCenterSrc,
+            zIndex: 20, // above all other layers
+            style: (feature: any) => {
+              // Animated halo: large pulsing circle behind the X
+              const t = (Date.now() % 900) / 900;
+              const haloR = 18 + Math.sin(t * Math.PI * 2) * 7;
+              return [
+                // Outer glow ring
+                new Style({
+                  image: new CircleStyle({
+                    radius: haloR + 6,
+                    fill:   new Fill({ color: 'rgba(239,68,68,0.12)' }),
+                    stroke: new Stroke({ color: 'rgba(239,68,68,0.35)', width: 1.5 }),
+                  }),
+                }),
+                // Inner bright ring
+                new Style({
+                  image: new CircleStyle({
+                    radius: haloR,
+                    fill:   new Fill({ color: 'rgba(239,68,68,0.20)' }),
+                    stroke: new Stroke({ color: '#ef4444', width: 2.5 }),
+                  }),
+                }),
+                // Core dot
+                new Style({
+                  image: new CircleStyle({
+                    radius: 7,
+                    fill:   new Fill({ color: '#ef4444' }),
+                    stroke: new Stroke({ color: '#ffffff', width: 2.5 }),
+                  }),
+                  text: new (styleRef.current?.Text ?? Object)({
+                    text: '✕',
+                    font: 'bold 13px sans-serif',
+                    fill: new Fill({ color: '#ffffff' }),
+                    offsetY: 0,
+                  }),
+                }),
+                // Label below
+                new Style({
+                  text: new (styleRef.current?.Text ?? Object)({
+                    text: 'مصدر التسريب المقدّر',
+                    font: 'bold 11px Cairo, sans-serif',
+                    fill: new Fill({ color: '#fca5a5' }),
+                    stroke: new Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
+                    offsetY: 28,
+                    textAlign: 'center',
+                  }),
+                }),
+              ];
+            },
+          });
+          leakCenterLayerRef.current = leakCenterLayer;
+
+          const view = new View({
+            center: fromLonLat([DEFAULT_LON, DEFAULT_LAT]),
+            zoom: 9, maxZoom: MAX_ZOOM,
+          });
+
+          const map = new Map({
+            target: mapDiv.current,
+            layers: [baseLayer, lblLayer, bufLayer, lineLayer, zoneLayer, heatLayer, emitLayer, detLayer, leakCenterLayer],
+            view,
+            controls: defaultControls({ attribution: false, zoom: false, rotate: false }),
+          });
+          mapRef.current = map;
+
+          // TASK 1 — Adaptive heatmap radius based on zoom level
+          view.on('change:resolution', () => {
+            const z = view.getZoom();
+            if (z !== undefined) {
+              setZoomLevel(Math.round(z * 10) / 10);
+              if (heatLayerRef.current) {
+                heatLayerRef.current.setRadius(Math.max(8, Math.round(z * 2.5)));
+                heatLayerRef.current.setBlur(Math.max(12, Math.round(z * 4)));
+              }
+            }
+          });
+
+          // TASK 7 — Click: select detection OR zone → camera easing
+          map.on('click', (evt: any) => {
+            const feat = map.forEachFeatureAtPixel(evt.pixel, (f: any) => f, { hitTolerance: 8 });
+            if (!feat) return;
+            const detId = feat.get('det_id');
+            if (detId) {
+              const pt = detections.find(d => d.id === detId);
+              if (pt) onPointClick(pt);
+            }
+            const zoneId = feat.get('zone_id');
+            if (zoneId && onZoneClickRef.current) {
+              const zone = candidateZonesRef.current.find(z => z.candidate_id === zoneId);
+              if (zone) onZoneClickRef.current(zone);
+            }
+          });
+
+          // TASK 2 — Pointermove: cursor + emission tooltip
+          map.on('pointermove', (evt: any) => {
+            if (evt.dragging) { setEmitTooltip(null); return; }
+            const feat = map.forEachFeatureAtPixel(evt.pixel, (f: any) => f, { hitTolerance: 6 });
+            (mapDiv.current as any).style.cursor = feat ? 'pointer' : '';
+            const emitId = feat?.get('emit_id');
+            if (emitId) {
+              const score  = feat.get('anomaly_score') ?? 0;
+              const wf     = feat.get('unmixed_water_frac');
+              const isLong = feat.get('is_longitudinal') ?? false;
+              const descAr = feat.get('description_ar') ?? '';
+              let tip = `شذوذ: ${Math.round(score * 100)}%`;
+              if (wf != null) tip += ` | ماء: ${Math.round(wf * 100)}%`;
+              if (isLong) tip += ' | نمط طولي ✓';
+              if (descAr) tip += `\n${descAr}`;
+              setEmitTooltip({ text: tip, x: evt.pixel[0], y: evt.pixel[1] });
+            } else {
+              setEmitTooltip(null);
+            }
+          });
+
+          setReady(true);
+        } catch (e: any) {
+          if (!cancelled) setMapError(e.message ?? 'OL init failed');
+        }
+      }
+
+      boot();
+      return () => { cancelled = true; };
+    }, []); // eslint-disable-line
+
+    useEffect(() => { labLayerRef.current?.setVisible(showLabels); }, [showLabels]);
+
+    useEffect(() => {
+      if (!baseLayerRef.current) return;
+      const src = basemap === 'satellite' ? xyzRef.current
+                : basemap === 'sentinel2' ? s2SourceRef.current
+                : osmSourceRef.current;
+      if (src) baseLayerRef.current.setSource(src);
+    }, [basemap]);
+
+    useEffect(() => {
+      if (!ready || !mapRef.current) return;
+      let cancelled = false;
+      async function toggleDraw() {
+        const map = mapRef.current;
+        if (drawIntRef.current) { map.removeInteraction(drawIntRef.current); drawIntRef.current = null; }
+        if (!drawActive) return;
+        const { default: Draw }         = await import('ol/interaction/Draw');
+        const { default: VectorSource } = await import('ol/source/Vector');
+        const { Style, Stroke, Fill }   = await import('ol/style');
+        const { toLonLat }              = await import('ol/proj');
+        if (cancelled) return;
+        const drawInt = new Draw({
+          source: new VectorSource(), type: 'LineString',
+          style: new Style({
+            stroke: new Stroke({ color: '#f97316', width: 2.5, lineDash: [6, 4] }),
+            fill:   new Fill({ color: 'rgba(249,115,22,0.15)' }),
+          }),
+        });
+        drawInt.on('drawend', (evt: any) => {
+          const coords3857 = evt.feature.getGeometry().getCoordinates();
+          const lonLat: [number, number][] = coords3857.map((c: number[]) => {
+            const ll = toLonLat(c);
+            return [ll[0], ll[1]] as [number, number];
+          });
+          onCorridorDrawn(lonLat);
+          setTimeout(() => map.removeInteraction(drawInt), 50);
+        });
+        map.addInteraction(drawInt);
+        drawIntRef.current = drawInt;
+      }
+      toggleDraw();
+      return () => { cancelled = true; };
+    }, [drawActive, ready]); // eslint-disable-line
+
+    useEffect(() => {
+      if (!ready || !lineSourceRef.current) return;
+      (async () => {
+        const { default: Feature }    = await import('ol/Feature');
+        const { default: LineString } = await import('ol/geom/LineString');
+        const { default: Polygon }    = await import('ol/geom/Polygon');
+        const { fromLonLat }          = await import('ol/proj');
+        lineSourceRef.current.clear();
+        bufSourceRef.current.clear();
+        if (!corridor || corridor.coords.length < 2) return;
+        const pts3857 = corridor.coords.map(([lon, lat]) => fromLonLat([lon, lat]));
+        lineSourceRef.current.addFeature(new Feature({ geometry: new LineString(pts3857) }));
+        function perpOffset(ax: number, ay: number, bx: number, by: number, d: number): [[number,number],[number,number]] {
+          const dx = bx - ax, dy = by - ay;
+          const len = Math.sqrt(dx*dx + dy*dy);
+          if (len === 0) return [[ax, ay], [bx, by]];
+          const nx = -dy/len * d, ny = dx/len * d;
+          return [[ax+nx, ay+ny], [bx+nx, by+ny]];
+        }
+        const left: [number,number][] = [], right: [number,number][] = [];
+        const buf = corridor.bufferMeters;
+        for (let i = 0; i < pts3857.length - 1; i++) {
+          const [ax, ay] = pts3857[i], [bx, by] = pts3857[i+1];
+          const [lA, lB] = perpOffset(ax, ay, bx, by, buf);
+          const [rA, rB] = perpOffset(ax, ay, bx, by, -buf);
+          if (i === 0) { left.push(lA); right.push(rA); }
+          left.push(lB); right.push(rB);
+        }
+        bufSourceRef.current.addFeature(new Feature({ geometry: new Polygon([[...left, ...[...right].reverse(), left[0]]]) }));
+      })();
+    }, [corridor, ready]);
+
+    useEffect(() => {
+      if (!ready || !detSourceRef.current) return;
+      (async () => {
+        const { default: Feature } = await import('ol/Feature');
+        const { default: Point }   = await import('ol/geom/Point');
+        const { fromLonLat }       = await import('ol/proj');
+        detSourceRef.current.clear();
+        for (const pt of detections) {
+          const f = new Feature({ geometry: new Point(fromLonLat([pt.lon, pt.lat])) });
+          f.set('det_id', pt.id); f.set('det_type', pt.type); f.set('label', pt.label);
+          detSourceRef.current.addFeature(f);
+        }
+      })();
+    }, [detections, ready]);
+
+    useEffect(() => { candidateZonesRef.current        = candidateZones ?? []; }, [candidateZones]);
+    useEffect(() => { onZoneClickRef.current            = onZoneClick;           }, [onZoneClick]);
+    usleakCenterLayerRef.current?.setVisible(showHeatmap);
+      setLocalHeatmap(showHeatmap);
+    }, [showHeatmap]);
+
+    // ── Estimated Leak Center — compute + render ──────────────────────────
+    useEffect(() => {
+      if (!ready || !leakCenterSrcRef.current) return;
+      leakCenterSrcRef.current.clear();
+      const pts = emissionPoints ?? [];
+      if (pts.length === 0) return;
+
+      // Sort by anomaly_score descending
+      const sorted = [...pts].sort((a, b) => (b.anomaly_score ?? 0) - (a.anomaly_score ?? 0));
+      const peak   = sorted[0];
+
+      // Cluster centroid: take all points within 1.5× median distance of peak
+      // (identifies tight cluster vs scattered points)
+      let centerLon = peak.lon;
+      let centerLat = peak.lat;
+
+      if (sorted.length >= 3) {
+        // Compute distances from peak
+        const dists = sorted.map(p => {
+          const dlat = p.lat - peak.lat;
+          const dlon = p.lon - peak.lon;
+          return Math.sqrt(dlat * dlat + dlon * dlon);
+        });
+        const median = dists.slice().sort((a, b) => a - b)[Math.floor(dists.length / 2)];
+        const threshold = median * 2.0;
+        const cluster = sorted.filter((_, i) => dists[i] <= threshold);
+        if (cluster.length >= 2) {
+          centerLon = cluster.reduce((s, p) => s + p.lon, 0) / cluster.length;
+          centerLat = cluster.reduce((s, p) => s + p.lat, 0) / cluster.length;
+        }
+      }
+
+      (async () => {
+        const { default: Feature } = await import('ol/Feature');
+        const { default: Point }   = await import('ol/geom/Point');
+        const { fromLonLat }       = await import('ol/proj');
+        const f = new Feature({ geometry: new Point(fromLonLat([centerLon, centerLat])) });
+        f.set('leak_center', true);
+        f.set('peak_score',  peak.anomaly_score);
+        leakCenterSrcRef.current.addFeature(f);
+      })();
+    }, [emissionPoints, ready]);
+
+    // Halo animation timer for leak center
+    useEffect(() => {
+      const hasCenter = (emissionPoints ?? []).length > 0 && showHeatmap;
+      if (leakCenterTimerRef.current) { clearInterval(leakCenterTimerRef.current); leakCenterTimerRef.current = null; }
+      if (!hasCenter || !ready) return;
+      leakCenterTimerRef.current = setInterval(() => { leakCenterSrcRef.current?.changed(); }, 45);
+      return () => { if (leakCenterTimerRef.current) clearInterval(leakCenterTimerRef.current); };
+    }, [emissionPoints, ready, ideshowHighlightIdRef.current = slideshowHighlightId ?? null;
+      zoneSourceRef.current?.changed();
+    }, [slideshowHighlightId]);
+
+    // TASK 5 — Zone polygons with temporal filter
+    useEffect(() => {
+      if (!ready || !zoneSourceRef.current) return;
+      (async () => {
+        const { default: Feature } = await import('ol/Feature');
+        const { default: Polygon } = await import('ol/geom/Polygon');
+        const { fromLonLat }       = await import('ol/proj');
+        zoneSourceRef.current.clear();
+        const filtered = (candidateZones ?? []).filter(zone => {
+          if (!temporalYear) return true;
+          const fy = parseInt(zone.first_seen) || 0;
+          const ly = parseInt(zone.last_seen)  || 9999;
+          return fy <= temporalYear && temporalYear <= ly;
+        });
+        for (const zone of filtered) {
+          if (!zone.geometry_polygon || zone.geometry_polygon.length < 3) continue;
+          const ring3857 = zone.geometry_polygon.map(([lon, lat]) => fromLonLat([lon, lat]));
+          const f = new Feature({ geometry: new Polygon([ring3857]) });
+          f.set('zone_id',    zone.candidate_id);
+          f.set('zone_conf',  zone.confidence);
+          f.set('zone_label', zone.label_ar);
+          zoneSourceRef.current.addFeature(f);
+        }
+      })();
+    }, [candidateZones, ready, temporalYear]);
+
+    // TASK 1 + 2 — Render emission points into heatmap + marker layers
+    useEffect(() => {
+      if (!ready || !heatSrcRef.current || !emitSrcRef.current) return;
+      (async () => {
+        const { default: Feature } = await import('ol/Feature');
+        const { default: Point }   = await import('ol/geom/Point');
+        const { fromLonLat }       = await import('ol/proj');
+        heatSrcRef.current.clear();
+        emitSrcRef.current.clear();
+        for (const ep of (emissionPoints ?? [])) {
+          const coords = fromLonLat([ep.lon, ep.lat]);
+          const hf = new Feature({ geometry: new Point(coords) });
+          hf.set('weight', ep.anomaly_score);
+          heatSrcRef.current.addFeature(hf);
+          const mf = new Feature({ geometry: new Point(coords) });
+          mf.set('emit_id',            ep.point_id);
+          mf.set('anomaly_score',      ep.anomaly_score);
+          mf.set('color_code',         ep.color_code ?? 'BLUE');
+          mf.set('is_longitudinal',    ep.is_longitudinal ?? false);
+          mf.set('unmixed_water_frac', ep.unmixed_water_frac ?? null);
+          mf.set('description_ar',     ep.description_ar ?? '');
+          emitSrcRef.current.addFeature(mf);
+        }
+      })();
+    }, [emissionPoints, ready]);
+
+    // TASK 1 — Sync heatmap visibility prop → layer visibility
+    useEffect(() => {
+      heatLayerRef.current?.setVisible(showHeatmap);
+      emitLayerRef.current?.setVisible(showHeatmap);
+      leakCenterLayerRef.current?.setVisible(showHeatmap);
+      setLocalHeatmap(showHeatmap);
+    }, [showHeatmap]);
+
+    // ── Estimated Leak Center — compute + render ──────────────────────────
+    useEffect(() => {
+      if (!ready || !leakCenterSrcRef.current) return;
+      leakCenterSrcRef.current.clear();
+      const pts = emissionPoints ?? [];
+      if (pts.length === 0) return;
+
+      // Sort by anomaly_score descending
+      const sorted = [...pts].sort((a, b) => (b.anomaly_score ?? 0) - (a.anomaly_score ?? 0));
+      const peak   = sorted[0];
+
+      // Cluster centroid: take all points within 1.5× median distance of peak
+      // (identifies tight cluster vs scattered points)
+      let centerLon = peak.lon;
+      let centerLat = peak.lat;
+
+      if (sorted.length >= 3) {
+        // Compute distances from peak
+        const dists = sorted.map(p => {
+          const dlat = p.lat - peak.lat;
+          const dlon = p.lon - peak.lon;
+          return Math.sqrt(dlat * dlat + dlon * dlon);
+        });
+        const median = dists.slice().sort((a, b) => a - b)[Math.floor(dists.length / 2)];
+        const threshold = median * 2.0;
+        const cluster = sorted.filter((_, i) => dists[i] <= threshold);
+        if (cluster.length >= 2) {
+          centerLon = cluster.reduce((s, p) => s + p.lon, 0) / cluster.length;
+          centerLat = cluster.reduce((s, p) => s + p.lat, 0) / cluster.length;
+        }
+      }
+
+      (async () => {
+        const { default: Feature } = await import('ol/Feature');
+        const { default: Point }   = await import('ol/geom/Point');
+        const { fromLonLat }       = await import('ol/proj');
+        const f = new Feature({ geometry: new Point(fromLonLat([centerLon, centerLat])) });
+        f.set('leak_center', true);
+        f.set('peak_score',  peak.anomaly_score);
+        leakCenterSrcRef.current.addFeature(f);
+      })();
+    }, [emissionPoints, ready]);
+
+    // Halo animation timer for leak center
+    useEffect(() => {
+      const hasCenter = (emissionPoints ?? []).length > 0 && showHeatmap;
+      if (leakCenterTimerRef.current) { clearInterval(leakCenterTimerRef.current); leakCenterTimerRef.current = null; }
+      if (!hasCenter || !ready) return;
+      leakCenterTimerRef.current = setInterval(() => { leakCenterSrcRef.current?.changed(); }, 45);
+      return () => { if (leakCenterTimerRef.current) clearInterval(leakCenterTimerRef.current); };
+    }, [emissionPoints, ready, showHeatmap]);
+
+    // TASK 3 — Breathing animation: setInterval to redraw zone style at ~12fps
+    useEffect(() => {
+      const hasHigh = (candidateZones ?? []).some(z => z.confidence === 'high');
+      if (animTimerRef.current) { clearInterval(animTimerRef.current); animTimerRef.current = null; }
+      if (!hasHigh || !ready) return;
+      animTimerRef.current = setInterval(() => { zoneSourceRef.current?.changed(); }, 80);
+      return () => {
+        if (animTimerRef.current) { clearInterval(animTimerRef.current); animTimerRef.current = null; }
+      };
+    }, [candidateZones, ready]);
+
+    // TASK 2 — Pulse animation for high-anomaly emission markers
+    useEffect(() => {
+      const hasHighEmit = (emissionPoints ?? []).some(ep => (ep.anomaly_score ?? 0) >= 0.5);
+      if (emitAnimTimerRef.current) { clearInterval(emitAnimTimerRef.current); emitAnimTimerRef.current = null; }
+      if (!hasHighEmit || !ready || !showHeatmap) return;
+      emitAnimTimerRef.current = setInterval(() => { emitSrcRef.current?.changed(); }, 60);
+      return () => {
+        if (emitAnimTimerRef.current) { clearInterval(emitAnimTimerRef.current); emitAnimTimerRef.current = null; }
+      };
+    }, [emissionPoints, ready, showHeatmap]);
+
+    useEffect(() => {
+      selectedDetIdRef.current = selectedDetectionId ?? null;
+      detSourceRef.current?.changed();
+    }, [selectedDetectionId]);
+
+    useEffect(() => {
+      selectedZoneIdRef.current = selectedZoneId ?? null;
+      zoneSourceRef.current?.changed();
+    }, [selectedZoneId]);
+
+    useImperativeHandle(ref, () => ({
+      fitToCorridor() {
+        if (!mapRef.current || !lineSourceRef.current) return;
+        const ext = lineSourceRef.current.getExtent();
+        if (ext[0] === Infinity) return;
+        mapRef.current.getView().fit(ext, { padding: [80, 80, 80, 80], maxZoom: 19, duration: 600 });
+      },
+      clearDraw() {
+        lineSourceRef.current?.clear();
+        bufSourceRef.current?.clear();
+      },
+      focusPoint(lat: number, lon: number, zoom = 15) {
+        if (!mapRef.current || !fromLonLatRef.current) return;
+        mapRef.current.getView().animate({ center: fromLonLatRef.current([lon, lat]), zoom, duration: 600 });
+        setFocusLabel('جارٍ التركيز على الموقع');
+        setTimeout(() => setFocusLabel(null), 2200);
+      },
+      // TASK 7 — focusZone: deeper zoom for optical precision, smooth easing
+      focusZone(zone: CandidateZone) {
+        if (!mapRef.current || !fromLonLatRef.current) return;
+        const zoomMap: Record<string, number> = {
+          'sub-patch-optical': 18,
+          'patch-level':       17,
+          'sector-level':      14,
+          'corridor-level':    12,
+        };
+        const targetZoom = zoomMap[zone.precision_level] ?? 15;
+        if (zoneSourceRef.current) {
+          const feat = (zoneSourceRef.current.getFeatures() as any[])
+            .find((f: any) => f.get('zone_id') === zone.candidate_id);
+          if (feat) {
+            const ext = feat.getGeometry().getExtent();
+            if (ext[0] !== Infinity) {
+              mapRef.current.getView().fit(ext, {
+                padding: [60, 60, 60, 60],
+                maxZoom: Math.min(targetZoom + 2, 20),
+                duration: 750,
+              });
+              setFocusLabel('جارٍ التركيز على المنطقة المرشّحة');
+              setTimeout(() => setFocusLabel(null), 2200);
+              return;
+            }
+          }
+        }
+        mapRef.current.getView().animate({
+          center: fromLonLatRef.current([zone.center_lon, zone.center_lat]),
+          zoom: targetZoom, duration: 750,
+        });
+        setFocusLabel('جارٍ التركيز على الموقع');
+        setTimeout(() => setFocusLabel(null), 2200);
+      },
+      setHeatmapVisible(v: boolean) {
+        heatLayerRef.current?.setVisible(v);
+        emitLayerRef.current?.setVisible(v);
+        setLocalHeatmap(v);
+      },
+      getMapSnapshot(): string | null {
+        if (!mapRef.current) return null;
+        try {
+          // Force OL to render all canvases then composite them
+          mapRef.current.renderSync();
+          const mapEl = mapRef.current.getTargetElement() as HTMLElement;
+          const canvases = mapEl.querySelectorAll('canvas') as NodeListOf<HTMLCanvasElement>;
+          if (!canvases.length) return null;
+          const first = canvases[0];
+          const w = first.width;
+          const h = first.height;
+          const out = document.createElement('canvas');
+          out.width  = w;
+          out.height = h;
+          const ctx = out.getContext('2d')!;
+          canvases.forEach(c => { try { ctx.drawImage(c, 0, 0); } catch { /* tainted cross-origin */ } });
+          return out.toDataURL('image/png');
+        } catch {
+          return null;
+        }
+      },
+    }));
+
+    function zoomIn()    { mapRef.current?.getView().setZoom((mapRef.current.getView().getZoom() ?? 10) + 1); }
+    function zoomOut()   { mapRef.current?.getView().setZoom((mapRef.current.getView().getZoom() ?? 10) - 1); }
+    function resetView() { mapRef.current?.getView().animate({ zoom: 9, duration: 400 }); }
+
+    const precisionMode = zoomLevel >= 16;
+
+    return (
+      <div className="relative w-full h-full flex flex-col">
+        <div ref={mapDiv} className="w-full h-full" />
+
+        {!ready && !mapError && (
+          <div className="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center gap-3 z-50">
+            <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-slate-400">تحميل الخريطة الفضائية…</p>
+          </div>
+        )}
+
+        {mapError && (
+          <div className="absolute inset-0 bg-slate-950/90 flex items-center justify-center z-50">
+            <div className="text-center">
+              <p className="text-red-400 font-semibold">فشل تحميل الخريطة</p>
+              <p className="text-xs text-slate-500 mt-1">{mapError}</p>
+            </div>
+          </div>
+        )}
+
+        {/* TASK 4 — Precision mode overlay */}
+        {ready && precisionMode && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 px-3 py-1.5 bg-cyan-900/85 border border-cyan-500/50 rounded-xl text-cyan-300 text-xs font-semibold pointer-events-none backdrop-blur-sm shadow-lg">
+            🔬 وضع الدقة العالية — مركز التسرب المُقدَّر ضمن النطاق المرئي
+          </div>
+        )}
+
+        {/* TASK 2 — Emission point tooltip on hover */}
+        {emitTooltip && (
+          <div
+            className="absolute z-50 pointer-events-none"
+            style={{ left: emitTooltip.x + 16, top: emitTooltip.y - 12 }}
+          >
+            <div className="bg-slate-900/96 border border-orange-500/50 rounded-xl px-3 py-2 text-xs text-white whitespace-pre-line max-w-[210px] shadow-2xl" dir="rtl">
+              <p className="text-orange-300 font-bold mb-1.5">🔥 نقطة انبعاث</p>
+              <p className="text-slate-200 leading-relaxed">{emitTooltip.text}</p>
+            </div>
+          </div>
+        )}
+
+        {drawActive && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 px-4 py-2 bg-orange-500/90 rounded-xl text-white text-sm font-bold shadow-lg animate-pulse pointer-events-none">
+            ✏️ انقر على الخريطة لرسم مسار الممر — انقر مرتين للإنهاء
+          </div>
+        )}
+
+        {!drawActive && focusLabel && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 px-4 py-2 bg-teal-700/90 border border-teal-500/50 rounded-xl text-white text-sm font-semibold shadow-lg pointer-events-none">
+            📍 {focusLabel}
+          </div>
+        )}
+
+        {/* Zoom controls */}
+        <div className="absolute bottom-6 right-4 z-30 flex flex-col gap-1.5">
+          <button onClick={zoomIn}    className="w-9 h-9 bg-slate-900/90 border border-slate-700 hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-300 transition-colors"><Plus  className="w-4 h-4" /></button>
+          <button onClick={zoomOut}   className="w-9 h-9 bg-slate-900/90 border border-slate-700 hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-300 transition-colors"><Minus className="w-4 h-4" /></button>
+          <button onClick={resetView} className="w-9 h-9 bg-slate-900/90 border border-slate-700 hover:bg-slate-700 rounded-xl flex items-center justify-center text-slate-300 transition-colors"><RotateCcw className="w-3.5 h-3.5" /></button>
+        </div>
+
+        {/* Bottom-left map controls */}
+        <div className="absolute bottom-6 left-4 z-30 flex flex-col gap-1.5">
+          <button
+            onClick={() => setBasemap(b => BASEMAP_CYCLE[b])}
+            title={BASEMAP_META[basemap].attr}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900/90 border border-slate-700 hover:bg-slate-700 rounded-xl text-xs text-slate-300 transition-colors"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            {BASEMAP_META[basemap].label}
+          </button>
+          {basemap === 'sentinel2' && (
+            <div className="px-2 py-1 bg-emerald-950/80 border border-emerald-800/50 rounded-lg text-[10px] text-emerald-400 leading-snug max-w-[160px]">
+              🛰️ دقة 10م — حتى Z15<br />
+              <span className="text-emerald-600">© EOX / CC BY 4.0</span>
+            </div>
+          )}
+          <button
+            onClick={() => setShowLabels(v => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs transition-colors ${showLabels ? 'bg-blue-900/50 border-blue-600/50 text-blue-300' : 'bg-slate-900/90 border-slate-700 text-slate-400'}`}
+          >
+            <Target className="w-3.5 h-3.5" />
+            التسميات
+          </button>
+          {/* TASK 1 — Heatmap toggle button */}
+          <button
+            onClick={() => {
+              const next = !localHeatmap;
+              heatLayerRef.current?.setVisible(next);
+              emitLayerRef.current?.setVisible(next);
+              setLocalHeatmap(next);
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+              localHeatmap
+                ? 'bg-orange-900/60 border-orange-500/60 text-orange-300'
+                : 'bg-slate-900/90 border-slate-700 text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5" />
+            {localHeatmap ? 'إخفاء الحراري' : 'خريطة حرارية'}
+          </button>
+        </div>
+
+        {/* Zoom + precision indicator */}
+        {ready && (
+          <div className="absolute top-3 right-3 z-30 flex items-center gap-1 px-2 py-0.5 bg-slate-900/80 border border-slate-700 rounded-lg text-[11px] text-slate-400 font-mono tabular-nums select-none">
+            Z {zoomLevel.toFixed(1)} / {BASEMAP_META[basemap].maxZoom}
+            {precisionMode && <span className="text-cyan-400 ml-1">🔬</span>}
+          </div>
+        )}
+
+        {/* TASK 1 — Minimal heatmap indicator (replaces large legend bar) */}
+        {localHeatmap && (emissionPoints?.length ?? 0) > 0 && (
+          <div className="absolute top-3 left-3 z-30 bg-slate-900/85 border border-slate-700/80 rounded-xl px-2.5 py-2 flex items-center gap-2 backdrop-blur-sm shadow-lg">
+            <div className="flex items-center gap-0.5">
+              {['#1e3a8a','#06b6d4','#10b981','#facc15','#f97316','#ef4444'].map((c, i) => (
+                <div key={i} className="w-3.5 h-3.5 first:rounded-l-md last:rounded-r-md" style={{ background: c }} />
+              ))}
+            </div>
+            <span className="text-[10px] text-slate-300 font-semibold">حرارة التسرب</span>
+            <span className="text-[9px] text-slate-600">({emissionPoints?.length} نقطة)</span>
+          </div>
+        )}
+
+        {/* Default legend (when heatmap is off) — only show confidence categories */}
+        {!localHeatmap && (candidateZones?.length ?? 0) > 0 && (
+          <div className="absolute top-3 left-3 z-30 bg-slate-900/90 rounded-xl border border-slate-700 p-2.5 space-y-1.5">
+            {(['high','moderate','weak'] as CandidateConfidence[]).map(c => {
+              const has = (candidateZones ?? []).some(z => z.confidence === c);
+              if (!has) return null;
+              const meta = { high: ['bg-red-500','مرشّح أولوية'], moderate: ['bg-amber-500','متوسط'], weak: ['bg-blue-400','ضعيف'] }[c]!;
+              return (
+                <div key={c} className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded border ${meta[0]} opacity-70`} />
+                  <span className="text-xs text-slate-400">{meta[1]}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="absolute bottom-1 right-16 z-20 text-[10px] text-slate-600">
+          {BASEMAP_META[basemap].attr}
+        </div>
+      </div>
+    );
+  }
+);

@@ -79,7 +79,7 @@ export default function EntryPage() {
     const normalizedPath = redirectPath.split('?')[0] || '';
     const effectiveScope = scope !== 'all'
       ? scope
-      : normalizeAppScope(localStorage.getItem('launch_app') || process.env.NEXT_PUBLIC_APP_SCOPE || '');
+      : normalizeAppScope(localStorage.getItem('launch_app') || '');
 
     if (normalizedPath.startsWith('/dashboard') && canAccessPathForScope(normalizedPath, effectiveScope)) {
       localStorage.setItem('post_login_redirect', redirectPath);
@@ -95,6 +95,14 @@ export default function EntryPage() {
 
   /* Auth guard → redirect if already logged in, else show panel */
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const allowAutoRedirect = params.get('auto') === '1';
+
+    if (!allowAutoRedirect) {
+      setTimeout(() => setShow(true), 220);
+      return;
+    }
+
     const token = localStorage.getItem('auth_token');
     if (!token) { setTimeout(() => setShow(true), 220); return; }
 
@@ -187,6 +195,13 @@ export default function EntryPage() {
               >
                 <ArrowDownToLine className="w-4 h-4" />
                 تحميل تطبيق الهاتف
+              </a>
+              <a
+                href="/entry/install"
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white border border-emerald-400/35 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all"
+              >
+                <Building2 className="w-4 h-4" />
+                تحميل تطبيقات الإدارات
               </a>
               <a
                 href="#platform-login"

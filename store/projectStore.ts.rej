@@ -1,0 +1,16 @@
+--- projectStore.ts
++++ projectStore.ts
+@@ -29,11 +29,13 @@
+       console.log('🔄 جاري تحميل المشاريع...');
+       const response = await workspaceApi.getProjects();
+       console.log('✅ RAW PROJECT RESPONSE from API:', response);
+       let projectsArray = Array.isArray(response) ? response : (response && response.projects ? response.projects : []);
+       console.log(`✅ EXAMINING fetched projects: isArray=${Array.isArray(projectsArray)}, length=${projectsArray.length}`);
++      // Ensure all IDs are strings, the backend might return integers which break string comparisons later
++      projectsArray = projectsArray.map((p: any) => ({ ...p, id: String(p.id) }));
+       if(projectsArray.length > 0) {
+          set({ projects: projectsArray, activeProjectId: String(projectsArray[0].id) });
+       } else {
+          set({ projects: [] }); 
+       }
+ 

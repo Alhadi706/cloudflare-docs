@@ -1,0 +1,157 @@
+{
+  "name": "digital-dashboard-v2",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.js",
+  "build": {
+    "appId": "ly.d-me.dsf-gateway",
+    "productName": "DSF Gateway",
+    "copyright": "Copyright © 2026 DSF",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "!node_modules"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.png",
+      "category": "Office"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "electron/assets/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DSF Gateway"
+    }
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "electron:dev": "electron electron/main.js",
+    "electron:build:win": "electron-builder --win --x64",
+    "electron:build:linux": "electron-builder --linux --x64",
+    "electron:build:mac": "electron-builder --mac",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:appimage": "tauri build --bundles appimage",
+    "tauri:build:deb": "tauri build --bundles deb",
+    "tauri:dev:corrosion": "TAURI_APP_SCOPE=corrosion tauri dev",
+    "tauri:dev:maintenance": "TAURI_APP_SCOPE=maintenance tauri dev",
+    "tauri:dev:finance": "TAURI_APP_SCOPE=finance tauri dev",
+    "tauri:dev:admin-affairs": "TAURI_APP_SCOPE=admin-affairs tauri dev",
+    "tauri:dev:materials": "TAURI_APP_SCOPE=materials tauri dev",
+    "tauri:dev:services": "TAURI_APP_SCOPE=services tauri dev",
+    "tauri:dev:remote-sensing": "TAURI_APP_SCOPE=remote-sensing tauri dev",
+    "tauri:build:corrosion": "TAURI_APP_SCOPE=corrosion tauri build --bundles appimage --config '{\"identifier\":\"ly.d-me.dsf-gateway-corrosion\",\"productName\":\"DSF — إدارة التآكل\"}'",
+    "tauri:build:maintenance": "TAURI_APP_SCOPE=maintenance tauri build --bundles appimage --config '{\"identifier\":\"ly.d-me.dsf-gateway-maintenance\",\"productName\":\"DSF — إدارة الصيانة\"}'",
+    "tauri:build:finance": "TAURI_APP_SCOPE=finance tauri build --bundles appimage --config '{\"identifier\":\"ly.d-me.dsf-gateway-finance\",\"productName\":\"DSF — الإدارة المالية\"}'",
+    "tauri:build:admin-affairs": "TAURI_APP_SCOPE=admin-affairs tauri build --bundles appimage --config '{\"identifier\":\"ly.d-me.dsf-gateway-admin-affairs\",\"productName\":\"DSF — الشؤون الإدارية\"}'",
+    "tauri:build:materials": "TAURI_APP_SCOPE=materials tauri build --bundles appimage --config '{\"identifier\":\"ly.d-me.dsf-gateway-materials\",\"productName\":\"DSF — إدارة المواد\"}'",
+    "tauri:build:services": "TAURI_APP_SCOPE=services tauri build --bundles appimage --config '{\"identifier\":\"ly.d-me.dsf-gateway-services\",\"productName\":\"DSF — الذكاء والخدمات\"}'",
+    "tauri:build:remote-sensing": "TAURI_APP_SCOPE=remote-sensing tauri build --bundles appimage --config '{\"identifier\":\"ly.d-me.dsf-gateway-remote-sensing\",\"productName\":\"DSF — الاستشعار عن بعد\"}'",
+    "tauri:icon": "tauri icon electron/assets/icon.png",
+    "check:tenant-security": "node scripts/check-tenant-security.js",
+    "check:asset-governance": "node scripts/check-asset-governance.js",
+    "audit:ops": "node scripts/ops-reports-audit.js",
+    "cleanup:ops:dry": "node scripts/ops-reports-clean-duplicates.js",
+    "cleanup:ops:apply": "node scripts/ops-reports-clean-duplicates.js --apply",
+    "cleanup:ops:critical:dry": "node scripts/ops-reports-clean-critical.js",
+    "cleanup:ops:critical:apply": "node scripts/ops-reports-clean-critical.js --apply",
+    "normalize:ops:dry": "node scripts/ops-reports-normalize.js",
+    "normalize:ops:apply": "node scripts/ops-reports-normalize.js --apply",
+    "sanitize:ops:dry": "node scripts/ops-reports-sanitize-replace.js",
+    "sanitize:ops:apply": "node scripts/ops-reports-sanitize-replace.js --apply",
+    "test:governance": "tsx --test tests/governance-core.test.ts",
+    "test:asset360": "tsx --test tests/asset360-utils.test.ts",
+    "test:project360": "tsx --test tests/project360-utils.test.ts"
+  },
+  "dependencies": {
+    "@tmcw/togeojson": "^7.1.2",
+    "@types/nodemailer": "^8.0.0",
+    "@types/pg": "^8.20.0",
+    "@types/plotly.js": "^3.0.10",
+    "@types/three": "^0.184.0",
+    "@xmldom/xmldom": "^0.9.10",
+    "axios": "^1.15.2",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.0.3",
+    "geotiff": "^3.0.5",
+    "gsap": "^3.15.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "jszip": "^3.10.1",
+    "lucide-react": "^1.11.0",
+    "maplibre-gl": "^5.20.1",
+    "next": "14.1.0",
+    "nodemailer": "^8.0.5",
+    "ol": "^10.8.0",
+    "pg": "^8.20.0",
+    "plotly.js-dist-min": "^3.5.1",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-plotly.js": "^2.6.0",
+    "recharts": "^2.12.0",
+    "tailwind-merge": "^3.5.0",
+    "three": "^0.184.0",
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/node": "^20",
+    "@types/ol": "^6.5.3",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
+    "electron": "^41.7.1",
+    "electron-builder": "^26.8.1",
+    "electron-updater": "^6.8.3",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5",
+    "tsx": "^4.20.6"
+  }
+}
