@@ -4,46 +4,110 @@
  * دخول بـ username + password للمستخدمين المدعوّين (مديرو الإدارات والأقسام).
  * يختلف عن OTP flow المخصص للمؤسسين والأعضاء.
  *
- * Body: { username: string, password: string }
- * Returns: { token, role, department_code, must_change_password, full_name }
+ * Body: { username, password, tenant_code?, tenant_id? }
+ * Returns: { token, role, department_code, section_id, home_route, ... }
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { makeAuthToken }             from '@/lib/auth-tokens';
-import { verifyPassword } from '@/lib/user-store';
-import {
-  authFindByEmail,
-  authFindByUsernameScoped,
-  authHasAnyActiveScope,
-  authHasAnyPendingScope,
-  authUpdateUser,
-} from '@/lib/auth-store-backend';
-import { getScopesForDepartmentCode } from '@/lib/appScope';
-import { getHomeRoute } from '@/lib/rbac';
+import { verifyPassword }            from '@/lib/user-store';
+import { pgPool }                    from '@/lib/db-pg';
+import { getHomeRoute }              from '@/lib/rbac';
 import type { UserRole, DepartmentCode } from '@/lib/user-store';
-import {
-  buildCredentialAttemptKey,
-  clearCredentialLoginFailures,
-  getCredentialLockState,
-  registerFailedCredentialLogin,
-} from '@/lib/credential-login-attempts';
 
-function normalizeHint(value?: string | null): string {
-  return String(value ?? '').trim().toLowerCase();
+// ── Simple brute-force guard (in-memory, resets on restart) ─────────────────
+const _attempts = new Map<string, { count: number; lockUntil: number }>();
+
+function checkLock(key: string): { locked: boolean; retryAfterSec?: number } {
+  const now = Date.now();
+  const s = _attempts.get(key);
+  if (s && s.lockUntil > now) {
+    return { locked: true, retryAfterSec: Math.ceil((s.lockUntil - now) / 1000) };
+  }
+  return { locked: false };
 }
 
-function inferTenantCodeFromIdentity(identity: string): string | null {
-  const normalized = normalizeHint(identity);
-  if (!normalized.includes('@')) return null;
-
-  const domain = normalized.split('@')[1] || '';
-  if (!domain) return null;
-
-  // manager.x@20-6.local -> 20-6
-  const firstLabel = domain.split('.')[0] || '';
-  const inferred = firstLabel.trim().toLowerCase();
-  return inferred || null;
+function recordFailure(key: string): { locked: boolean; retryAfterSec?: number } {
+  const now = Date.now();
+  const s = _attempts.get(key) ?? { count: 0, lockUntil: 0 };
+  s.count += 1;
+  if (s.count >= 5) {
+    s.lockUntil = now + 5 * 60 * 1000;
+    s.count = 0;
+    _attempts.set(key, s);
+    return { locked: true, retryAfterSec: 300 };
+  }
+  _attempts.set(key, s);
+  return { locked: false };
 }
 
+function clearFailures(key: string) { _attempts.delete(key); }
+
+// ── DB row type ──────────────────────────────────────────────────────────────
+interface AuthRow {
+  id: string;
+  email: string;
+  username: string | null;
+  role: string;
+  status: string;
+  full_name: string | null;
+  hashed_password: string | null;
+  password_salt: string | null;
+  must_change_password: boolean | null;
+  tenant_id: string | null;
+  tenant_code: string | null;
+  organization_name: string | null;
+  department_code: string | null;
+  section_id: string | null;
+  section_code: string | null;
+  is_founder: boolean | null;
+  onboarding_complete: boolean | null;
+}
+
+async function findUser(
+  identity: string,
+  tenantCode: string | null,
+  tenantId: string | null,
+): Promise<AuthRow | null> {
+  const SELECT = `
+    SELECT id, email, username, role, status, full_name,
+           hashed_password, password_salt, must_change_password,
+           tenant_id, tenant_code, organization_name, department_code,
+           section_id, section_code, is_founder, onboarding_complete
+    FROM   auth_users
+  `;
+
+  // Tenant-scoped lookup first
+  if (tenantId || tenantCode) {
+    let sql = SELECT + ` WHERE (LOWER(username) = $1 OR LOWER(email) = $1)`;
+    const params: (string)[] = [identity];
+    if (tenantId) {
+      params.push(tenantId);
+      sql += ` AND tenant_id = $${params.length}`;
+    } else if (tenantCode) {
+      params.push(tenantCode);
+      sql += ` AND LOWER(tenant_code) = $${params.length}`;
+    }
+    sql += ' LIMIT 1';
+    try {
+      const { rows } = await pgPool.query<AuthRow>(sql, params);
+      if (rows.length) return rows[0];
+    } catch (err) { console.error('[login-credentials] DB error (scoped):', err); }
+  }
+
+  // Fallback: any matching user
+  try {
+    const { rows } = await pgPool.query<AuthRow>(
+      SELECT + ` WHERE (LOWER(username) = $1 OR LOWER(email) = $1) LIMIT 1`,
+      [identity],
+    );
+    return rows[0] ?? null;
+  } catch (err) {
+    console.error('[login-credentials] DB error (unscoped):', err);
+    return null;
+  }
+}
+
+// ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   let body: { username?: string; password?: string; tenant_code?: string; tenant_id?: string };
   try {
@@ -53,162 +117,78 @@ export async function POST(req: NextRequest) {
   }
 
   const { username, password, tenant_code, tenant_id } = body;
-  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || '';
+  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+                   || req.headers.get('x-real-ip') || 'unknown';
+
   if (!username || !password) {
     return NextResponse.json(
       { detail: 'اسم المستخدم/الإيميل وكلمة المرور مطلوبان' },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
-  const normalizedIdentity = username.toLowerCase().trim();
-  const providedTenantCode = normalizeHint(tenant_code);
-  const inferredTenantCode = inferTenantCodeFromIdentity(normalizedIdentity);
-  const normalizedTenantCode = providedTenantCode || inferredTenantCode || null;
-  const normalizedTenantId = tenant_id?.trim() || null;
+  const normalizedIdentity   = username.toLowerCase().trim();
+  const normalizedTenantCode = (tenant_code ?? '').trim().toLowerCase() || null;
+  const normalizedTenantId   = (tenant_id  ?? '').trim() || null;
 
-  if (!normalizedTenantCode && !normalizedTenantId) {
-    return NextResponse.json(
-      { detail: 'رمز المؤسسة مطلوب. يمكنك لصق رمز المؤسسة من بطاقة الاعتماد أو استخدام بريد يحتوي على @tenant.local' },
-      { status: 400 }
-    );
-  }
-
-  const tenantHint = normalizedTenantCode || normalizedTenantId || 'unknown_tenant';
-  const attemptKey = buildCredentialAttemptKey(tenantHint, normalizedIdentity, clientIp);
-  const lockState = getCredentialLockState(attemptKey);
+  const lockKey = `${clientIp}:${normalizedIdentity}`;
+  const lockState = checkLock(lockKey);
   if (lockState.locked) {
     return NextResponse.json(
-      {
-        detail: 'تم تعليق محاولة الدخول مؤقتاً بعد عدة محاولات فاشلة',
-        retry_after_sec: lockState.retryAfterSec,
-      },
-      { status: 429 }
+      { detail: 'تم تعليق محاولة الدخول مؤقتاً بعد عدة محاولات فاشلة', retry_after_sec: lockState.retryAfterSec },
+      { status: 429 },
     );
   }
 
-  // ── Find user by username OR email (tenant-scoped) ─────────────────────
-  const scopedByTenant = (candidate: {
-    tenant_id?: string;
-    tenant_code?: string;
-    department_code?: string;
-    section_id?: string;
-  } | undefined): boolean => {
-    if (!candidate) return false;
-    if (!normalizedTenantId && !normalizedTenantCode) return true;
-    if (normalizedTenantId && candidate.tenant_id === normalizedTenantId) return true;
-    const candidateTenantCode = normalizeHint(candidate.tenant_code);
-    const candidateDeptCode = normalizeHint(candidate.department_code);
-    const candidateSectionId = normalizeHint(candidate.section_id);
-
-    if (normalizedTenantCode && candidateTenantCode === normalizedTenantCode) return true;
-
-    // Allow copy/paste of department or section code in the tenant field.
-    // This keeps login robust for credentials delivered in provisioning bundles.
-    if (normalizedTenantCode && (candidateDeptCode === normalizedTenantCode || candidateSectionId === normalizedTenantCode)) {
-      return true;
-    }
-
-    return false;
-  };
-
-  let user = await authFindByUsernameScoped(normalizedIdentity, {
-    tenant_code: normalizedTenantCode,
-    tenant_id: normalizedTenantId,
-  });
-
-  if (!user) {
-    // Second pass without tenant filter, then validate tenant/dept/section hint explicitly.
-    const byUsername = await authFindByUsernameScoped(normalizedIdentity);
-    if (scopedByTenant(byUsername)) {
-      user = byUsername;
-    }
-  }
-
-  if (!user && normalizedIdentity.includes('@')) {
-    const byEmail = await authFindByEmail(normalizedIdentity);
-    if (scopedByTenant(byEmail)) {
-      user = byEmail;
-    }
-  }
+  const user = await findUser(normalizedIdentity, normalizedTenantCode, normalizedTenantId);
 
   if (!user || !user.hashed_password || !user.password_salt) {
-    const state = registerFailedCredentialLogin(attemptKey);
+    const state = recordFailure(lockKey);
     if (state.locked) {
       return NextResponse.json(
-        {
-          detail: 'تم تعليق محاولة الدخول مؤقتاً بعد عدة محاولات فاشلة',
-          retry_after_sec: state.retryAfterSec,
-        },
-        { status: 429 }
+        { detail: 'تم تعليق محاولة الدخول مؤقتاً بعد عدة محاولات فاشلة', retry_after_sec: state.retryAfterSec },
+        { status: 429 },
       );
     }
-
-    // Same error message to avoid username enumeration
     return NextResponse.json(
       { detail: 'اسم المستخدم أو كلمة المرور غير صحيحة' },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
-  // ── Check account status ─────────────────────────────────────────────────
   if (user.status === 'suspended') {
     return NextResponse.json({ detail: 'الحساب موقوف. تواصل مع المسؤول.' }, { status: 403 });
   }
 
-  // ── Tenant department trust gate ─────────────────────────────────────────
-  if (user.tenant_id && user.department_code) {
-    const candidateScopes = getScopesForDepartmentCode(user.department_code);
-    const active = await authHasAnyActiveScope(user.tenant_id, candidateScopes);
-    if (!active) {
-      const pending = await authHasAnyPendingScope(user.tenant_id, candidateScopes);
-      return NextResponse.json(
-        {
-          detail: pending
-            ? 'تفعيل الإدارة قيد المراجعة الأمنية من الإدارة الأولى.'
-            : 'هذه الإدارة غير مفعلة بعد داخل المؤسسة.',
-          code: pending ? 'department_join_pending' : 'department_not_linked',
-        },
-        { status: 403 }
-      );
-    }
-  }
-
-  // ── Verify password ──────────────────────────────────────────────────────
   const valid = verifyPassword(password, user.hashed_password, user.password_salt);
   if (!valid) {
-    const state = registerFailedCredentialLogin(attemptKey);
+    const state = recordFailure(lockKey);
     if (state.locked) {
       return NextResponse.json(
-        {
-          detail: 'تم تعليق محاولة الدخول مؤقتاً بعد عدة محاولات فاشلة',
-          retry_after_sec: state.retryAfterSec,
-        },
-        { status: 429 }
+        { detail: 'تم تعليق محاولة الدخول مؤقتاً بعد عدة محاولات فاشلة', retry_after_sec: state.retryAfterSec },
+        { status: 429 },
       );
     }
-
     return NextResponse.json(
       { detail: 'اسم المستخدم أو كلمة المرور غير صحيحة' },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
-  clearCredentialLoginFailures(attemptKey);
+  clearFailures(lockKey);
 
-  // ── Update last_login and mark as verified if still 'invited' ────────────
-  const updates: Partial<typeof user> = { last_login: Date.now() };
-  if (user.status === 'invited') {
-    updates.status = 'verified';
-    updates.verified_at = Date.now();
-  }
-  await authUpdateUser(user.email, updates);
+  // Update last_login (non-blocking)
+  pgPool.query(
+    user.status === 'invited'
+      ? `UPDATE auth_users SET last_login=$1, status='verified', verified_at=$1 WHERE id=$2`
+      : `UPDATE auth_users SET last_login=$1 WHERE id=$2`,
+    [Date.now(), user.id],
+  ).catch(err => console.error('[login-credentials] last_login update failed:', err));
 
   const needsBootstrap =
     !user.onboarding_complete &&
     (user.role === 'founder' || user.role === 'admin' || !!user.is_founder);
 
-  // ── Issue auth token ─────────────────────────────────────────────────────
   const token = makeAuthToken(user.email, user.role, {
     full_name:            user.full_name,
     tenant_id:            user.tenant_id,
