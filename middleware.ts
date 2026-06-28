@@ -57,6 +57,41 @@ function requiresApiAuth(pathname: string): boolean {
  * Decode a Bearer JWT payload and return enriched Headers.
  * Returns null if no valid Bearer token with tenant_id is present.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Fallback: when no Bearer token is present, inject x-verified-* headers
+ * from the httpOnly session cookies set by /api/auth/session.
+ * Also falls back to the X-Tenant-ID request header sent by TenantFetchGuard
+ * (which reads from localStorage, itself falling back to NEXT_PUBLIC_TENANT_ID).
+ */
+function buildCookieVerifiedHeaders(request: NextRequest): Headers | null {
+  if (!request.cookies.has('auth_session')) return null;
+
+  // Primary: tenant_id from httpOnly session cookie
+  let tenantId = request.cookies.get('tenant_id')?.value?.trim() ?? '';
+
+  // Fallback: X-Tenant-ID header sent by TenantFetchGuard from localStorage
+  if (!tenantId) {
+    const headerTenant = request.headers.get('x-tenant-id') || '';
+    if (UUID_RE.test(headerTenant)) tenantId = headerTenant;
+  }
+
+  if (!tenantId) return null;
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-verified-tenant-id',  tenantId);
+  requestHeaders.set('x-verified-tenant-code', request.cookies.get('tenant_code')?.value ?? '');
+  requestHeaders.set('x-verified-role',        request.cookies.get('user_role')?.value   ?? '');
+  requestHeaders.set('x-verified-dept-code',   request.cookies.get('user_dept')?.value   ?? '');
+  requestHeaders.set('x-verified-email',       '');
+  requestHeaders.set('x-verified-full-name',   '');
+  requestHeaders.set('x-verified-employee-no', '');
+  requestHeaders.set('x-verified-section-id',  '');
+  requestHeaders.set('x-verified-section-code','');
+  return requestHeaders;
+}
+
 function buildVerifiedHeaders(request: NextRequest): Headers | null {
   const authHeader = request.headers.get('authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) return null;
@@ -75,12 +110,15 @@ function buildVerifiedHeaders(request: NextRequest): Headers | null {
     if (!claims.tenant_id) return null;
 
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-verified-tenant-id',   String(claims.tenant_id   ?? ''));
-    requestHeaders.set('x-verified-tenant-code',  String(claims.tenant_code ?? ''));
-    requestHeaders.set('x-verified-employee-no',  String(claims.employee_no ?? ''));
-    requestHeaders.set('x-verified-full-name',    String(claims.full_name   ?? ''));
-    requestHeaders.set('x-verified-email',        String(claims.email       ?? ''));
-    requestHeaders.set('x-verified-role',         String(claims.role        ?? ''));
+    requestHeaders.set('x-verified-tenant-id',   String(claims.tenant_id        ?? ''));
+    requestHeaders.set('x-verified-tenant-code',  String(claims.tenant_code      ?? ''));
+    requestHeaders.set('x-verified-employee-no',  String(claims.employee_no      ?? ''));
+    requestHeaders.set('x-verified-full-name',    String(claims.full_name        ?? ''));
+    requestHeaders.set('x-verified-email',        String(claims.email            ?? ''));
+    requestHeaders.set('x-verified-role',         String(claims.role             ?? ''));
+    requestHeaders.set('x-verified-dept-code',    String(claims.department_code  ?? ''));
+    requestHeaders.set('x-verified-section-id',   String(claims.section_id       ?? ''));
+    requestHeaders.set('x-verified-section-code',  String(claims.section_code     ?? ''));
 
     return requestHeaders;
   } catch {
@@ -149,23 +187,8 @@ export function middleware(request: NextRequest) {
     return res;
   };
 
-  // Already logged in, trying to visit /entry → send to correct app home
-  // Priority: ?app= query param (from Tauri/desktop launcher) > cookie scope
-  if (pathname === '/entry' && isAuthenticated) {
-    const urlAppParam = request.nextUrl.searchParams.get('app');
-    const resolvedScope = urlAppParam ? normalizeAppScope(urlAppParam) : normalizeAppScope(request.cookies.get('app_scope')?.value);
-    const destination = getDefaultRouteForScope(resolvedScope);
-    const redirectRes = NextResponse.redirect(new URL(destination, request.url));
-    // Update cookie so subsequent dashboard requests also respect the new scope
-    if (urlAppParam) {
-      const exp = new Date(Date.now() + 7 * 86400 * 1000).toUTCString();
-      redirectRes.headers.append(
-        'Set-Cookie',
-        `app_scope=${encodeURIComponent(resolvedScope)}; Path=/; Expires=${exp}; SameSite=Lax`
-      );
-    }
-    return withDashboardNoStore(redirectRes);
-  }
+  // Keep /entry as the universal first screen (login/dev-login entrypoint),
+  // even when a session already exists.
 
   // Always allow static assets and public paths
   if (PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {
@@ -197,10 +220,23 @@ export function middleware(request: NextRequest) {
 
   // ── RBAC enforcement (only for authenticated dashboard routes) ───────────
   if (isAuthenticated && pathname.startsWith('/dashboard')) {
-    const role     = (request.cookies.get('user_role')?.value ?? 'member') as UserRole;
-    const deptCode = (request.cookies.get('user_dept')?.value ?? null) as DepartmentCode | null;
-    const appScope = request.cookies.get('app_scope')?.value ?? process.env.NEXT_PUBLIC_APP_SCOPE ?? null;
+    const role        = (request.cookies.get('user_role')?.value ?? 'member') as UserRole;
+    const deptCode    = (request.cookies.get('user_dept')?.value ?? null) as DepartmentCode | null;
+    const appScope    = request.cookies.get('app_scope')?.value ?? null;
     const normalizedScope = normalizeAppScope(appScope);
+
+    // Extract section_code from the JWT claims (already parsed in buildVerifiedHeaders)
+    let sectionCode: string | null = null;
+    try {
+      const token = request.cookies.get('auth_session')?.value;
+      if (token) {
+        const dot = token.lastIndexOf('.');
+        const payload = dot >= 0 ? token.slice(0, dot) : token;
+        const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+        const claims = JSON.parse(json) as Record<string, unknown>;
+        sectionCode = (claims.section_id as string) || null;
+      }
+    } catch { /* ignore */ }
 
     if (pathname === '/dashboard' && normalizedScope !== 'all') {
       const scopeHome = getDefaultRouteForScope(normalizedScope);
@@ -218,15 +254,18 @@ export function middleware(request: NextRequest) {
       const allowed = canAccessRoute(role, deptCode, pathname);
       if (!allowed) {
         // Redirect to the user's appropriate home page
-        const home = getHomeRoute(role, deptCode, normalizedScope);
+        const home = getHomeRoute(role, deptCode, normalizedScope, sectionCode);
         return withDashboardNoStore(NextResponse.redirect(new URL(home, request.url)));
       }
     }
   }
 
-  // Pass the enriched request (with x-verified-* headers) to the route handler
-  if (enrichedHeaders) {
-    return NextResponse.next({ request: { headers: enrichedHeaders } });
+  // Pass the enriched request (with x-verified-* headers) to the route handler.
+  // Prefer Bearer-derived headers; fall back to cookie-derived headers for
+  // same-origin browser sessions that don't carry a Bearer token.
+  const headersToForward = enrichedHeaders ?? buildCookieVerifiedHeaders(request);
+  if (headersToForward) {
+    return NextResponse.next({ request: { headers: headersToForward } });
   }
   return NextResponse.next();
 }

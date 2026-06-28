@@ -3,6 +3,7 @@ class AuthSession {
   final String role;
   final String? tenantCode;
   final String? tenantId;
+  final String? departmentCode;
   final String homeRoute;
 
   const AuthSession({
@@ -11,5 +12,6 @@ class AuthSession {
     required this.homeRoute,
     this.tenantCode,
     this.tenantId,
+    this.departmentCode,
   });
 }

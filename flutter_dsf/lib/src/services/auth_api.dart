@@ -15,7 +15,10 @@ class AuthApi {
     required String username,
     required String password,
   }) async {
-    final normalizedTenantCode = tenantCode.trim().toLowerCase();
+    final normalizedTenantCode = _resolveTenantCode(
+      tenantCode: tenantCode,
+      username: username,
+    );
     final normalizedUsername = username.trim();
 
     final loginUri = Uri.parse('${Env.apiBaseUrl}/api/auth/login-credentials');
@@ -54,15 +57,26 @@ class AuthApi {
       headers: {'Authorization': 'Bearer $token'},
     );
 
-    String homeRoute = '/entry/install';
     String role = (loginBody['role'] ?? 'member').toString();
+    String? departmentCode = loginBody['department_code']?.toString();
+    String homeRoute = (loginBody['home_route'] ?? '').toString().trim();
+    if (homeRoute.isEmpty) {
+      homeRoute = _fallbackHomeRoute(
+        role: role,
+        departmentCode: departmentCode,
+      );
+    }
     String? tenantId = loginBody['tenant_id']?.toString();
     String? tenantCodeOut = loginBody['tenant_code']?.toString();
 
     if (meRes.statusCode >= 200 && meRes.statusCode < 300) {
       final meBody = _decode(meRes.body);
-      homeRoute = (meBody['home_route'] ?? homeRoute).toString();
+      final meHome = (meBody['home_route'] ?? '').toString().trim();
+      if (meHome.isNotEmpty) {
+        homeRoute = meHome;
+      }
       role = (meBody['role'] ?? role).toString();
+      departmentCode = meBody['department_code']?.toString() ?? departmentCode;
       tenantId = meBody['tenant_id']?.toString() ?? tenantId;
       tenantCodeOut = meBody['tenant_code']?.toString() ?? tenantCodeOut;
     }
@@ -73,7 +87,40 @@ class AuthApi {
       homeRoute: homeRoute,
       tenantCode: tenantCodeOut,
       tenantId: tenantId,
+      departmentCode: departmentCode,
     );
+  }
+
+  String _fallbackHomeRoute({required String role, String? departmentCode}) {
+    final r = role.trim().toLowerCase();
+    final dept = (departmentCode ?? '').trim().toUpperCase();
+
+    if (r == 'admin' || r == 'founder') return '/dashboard/admin-gateway/system';
+    if (dept == 'CORR') return '/dashboard/admin-gateway/corrosion';
+    if (dept == 'MAINT') return '/dashboard/admin-gateway/maintenance';
+    if (dept == 'HR') return '/dashboard/hr-center';
+    if (dept == 'FIN') return '/dashboard/finance-hub';
+    if (dept == 'ASSET') return '/dashboard/digital-assets';
+    if (dept == 'PROC') return '/dashboard/procurement';
+    if (dept == 'GIS') return '/dashboard/gis-sovereignty';
+    return '/entry/install';
+  }
+
+  String _resolveTenantCode({
+    required String tenantCode,
+    required String username,
+  }) {
+    final provided = tenantCode.trim().toLowerCase();
+    if (provided.isNotEmpty) {
+      return provided;
+    }
+
+    // Allow simple copy/paste flows: section.corrosion-2@20-6.local -> 20-6
+    final identity = username.trim().toLowerCase();
+    if (!identity.contains('@')) return '';
+    final domain = identity.split('@').last;
+    if (domain.isEmpty) return '';
+    return domain.split('.').first.trim();
   }
 
   Future<AuthSession?> _loginDevFallback({

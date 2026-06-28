@@ -97,7 +97,7 @@ flutter_dsf/
 
 ```
 POST /api/auth/login-credentials
-  → Body: { tenant_code, username, password }
+   → Body: { tenant_code, username, password }
   → Response: { token, ... }
 
 GET /api/auth/me
@@ -110,7 +110,7 @@ GET /api/auth/me
 يحفظ في SharedPreferences:
 - `auth_token` — Bearer token
 - `user_role` — Role من API
-- `tenant_code` — Department code
+- `tenant_code` — Institution/Tenant code (e.g. `20-6`), not section code
 - `tenant_id` — Department ID
 - `launch_app` — Current scope
 
