@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import InternalMailTab from '@/components/InternalMailTab';
 import {
   ArrowRight,
   Wrench,
@@ -297,6 +298,15 @@ export default function MaintenanceHubPage() {
             <ArrowRight className="w-3.5 h-3.5 shrink-0" />
             <span className="rounded-full border border-emerald-700/50 bg-emerald-900/20 px-2.5 py-0.5 text-emerald-300">رد + تقرير</span>
           </div>
+        </div>
+
+        {/* نظام المراسلات الموحد */}
+        <div className="shrink-0">
+          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+            <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+            <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
+          </div>
+          <InternalMailTab department="maintenance" title="نظام المراسلات الموحد - الصيانة والدعم الفني" />
         </div>
 
       </div>

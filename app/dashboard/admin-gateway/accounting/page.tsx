@@ -3,6 +3,7 @@
 import React from 'react';
 import { BookOpen, Building2, FileText, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
+import InternalMailTab from '@/components/InternalMailTab';
 
 export default function AccountingOverview() {
   const modules = [
@@ -91,6 +92,16 @@ export default function AccountingOverview() {
             النظام مُصمَّم وفق متطلبات القطاع العام الليبي — قيود متوازنة، ترحيل مُقفَل، مراكز تكلفة مرتبطة بمشاريع البنية التحتية.
           </div>
         </div>
+
+        {/* نظام المراسلات الداخلية الموحد */}
+        <div>
+          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+            <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+            <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
+          </div>
+          <InternalMailTab department="finance_manager" title="نظام المراسلات الموحد - إدارة الحسابات" />
+        </div>
+
       </div>
     </div>
   );

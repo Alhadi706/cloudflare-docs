@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Users, UserCheck, Building2, Award, Calendar, Clock, FileText, DollarSign, TrendingUp, ArrowRight, MapPin } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 import Link from 'next/link';
 import { useErpContextStore } from '@/store/erpContextStore';
 
@@ -198,6 +199,16 @@ export default function HRPage() {
             </Link>
           ))}
         </div>
+
+        {/* نظام المراسلات الداخلية الموحد */}
+        <div>
+          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+            <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+            <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
+          </div>
+          <InternalMailTab department="hr" title="نظام المراسلات الموحد - الموارد البشرية" />
+        </div>
+
       </div>
     </div>
   );

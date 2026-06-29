@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Database, Package, Activity, FileText, ChevronLeft, Building2, MapPin } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 import { useErpContextStore } from '@/store/erpContextStore';
 
 const submodules = [
@@ -144,6 +145,14 @@ export default function AssetsPage() {
               </Link>
             );
           })}
+        </div>
+        {/* نظام المراسلات الداخلية الموحد */}
+        <div>
+          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+            <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+            <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
+          </div>
+          <InternalMailTab department="assets_manager" title="نظام المراسلات الموحد - إدارة الأصول" />
         </div>
       </div>
     </div>

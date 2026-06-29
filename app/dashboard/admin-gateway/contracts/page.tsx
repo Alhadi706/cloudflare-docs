@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FileSignature, Users, FileText, TrendingUp, Clock, AlertTriangle } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 
 const getTenantId = (): string | null => {
   if (typeof window === 'undefined') return null;
@@ -133,6 +134,16 @@ export default function ContractsOverview() {
           </div>
         </div>
       )}
+
+      {/* نظام المراسلات الداخلية الموحد */}
+      <div className="px-4 pb-6 md:px-6">
+        <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+          <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+          <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
+        </div>
+        <InternalMailTab department="contracts_manager" title="نظام المراسلات الموحد - إدارة العقود" />
+      </div>
+
     </div>
   );
 }
