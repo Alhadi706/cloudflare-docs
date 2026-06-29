@@ -1,94 +1,119 @@
-import { resolveCompatibleAppScope } from '@/lib/appScope';
-import { useUserStore } from '@/store/useUserStore';
+/**
+ * client-auth-session.ts
+ * Client-side helpers for reading/writing the auth session.
+ * Called from LoginPanel, entry/page, and dashboard/layout.
+ */
 
-type SessionLikePayload = {
-  token: string;
-  role?: string | null;
-  full_name?: string | null;
-  email?: string | null;
+'use client';
+
+type SessionData = {
+  token?: string;
+  email?: string;
+  role?: string;
+  department_code?: string;
+  section_id?: string | null;
   tenant_id?: string | null;
   tenant_code?: string | null;
-  department_code?: string | null;
-  organization_name?: string | null;
+  app_scope?: string | null;
+  [key: string]: unknown;
 };
 
-export async function applyServerSession(token: string, appScope?: string | null): Promise<boolean> {
+const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
+
+function setCookie(name: string, value: string, maxAge: number = AUTH_COOKIE_MAX_AGE): void {
+  if (typeof document === 'undefined') return;
+  const exp = new Date(Date.now() + maxAge * 1000).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; expires=${exp}; SameSite=Lax`;
+}
+
+function deleteCookie(name: string): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+}
+
+/**
+ * syncClientAuthState — called after a successful login API response.
+ * Stores token, role, dept, section, tenant info in cookies and localStorage.
+ * Returns true on success, false on failure.
+ */
+export async function syncClientAuthState(data: SessionData): Promise<boolean> {
   try {
-    const res = await fetch('/api/auth/session', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ app_scope: appScope || null }),
-    });
-    return res.ok;
+    const token = data.token as string | undefined;
+    if (!token) return false;
+
+    // Store in cookies (for middleware/SSR)
+    setCookie('auth_session', token);
+    if (data.role)            setCookie('user_role', data.role as string);
+    if (data.department_code) setCookie('user_dept', data.department_code as string);
+    if (data.app_scope)       setCookie('app_scope', data.app_scope as string);
+    if (data.tenant_code)     setCookie('tenant_code', data.tenant_code as string);
+    if (data.section_id)      setCookie('section_id', data.section_id as string);
+
+    // Also store in localStorage (for client-side reads)
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('auth_token', token);
+      if (data.email)           localStorage.setItem('user_email', data.email as string);
+      if (data.role)            localStorage.setItem('user_role', data.role as string);
+      if (data.department_code) localStorage.setItem('dept_code', data.department_code as string);
+      if (data.tenant_code)     localStorage.setItem('tenant_code', data.tenant_code as string);
+      if (data.section_id)      localStorage.setItem('section_id', data.section_id as string);
+    }
+
+    return true;
   } catch {
     return false;
   }
 }
 
-export function persistClientAuthState(data: SessionLikePayload): string | null {
-  if (typeof window === 'undefined') return null;
-
-  localStorage.setItem('auth_token', data.token);
-  if (data.email) localStorage.setItem('user_email', data.email);
-  if (data.full_name) localStorage.setItem('user_name', data.full_name);
-  if (data.organization_name) localStorage.setItem('org_name', data.organization_name);
-  if (data.role) localStorage.setItem('user_role', data.role);
-
-  if (data.department_code) {
-    localStorage.setItem('dept_code', data.department_code);
-  } else {
-    localStorage.removeItem('dept_code');
-  }
-
-  if (data.tenant_id) {
-    localStorage.setItem('tenant_id', data.tenant_id);
-    localStorage.setItem('active_tenant_id', data.tenant_id);
-  }
-
-  if (data.tenant_code) {
-    localStorage.setItem('tenant_code', data.tenant_code);
-    localStorage.setItem('active_tenant_code', data.tenant_code);
-  }
-
-  const currentScope = localStorage.getItem('launch_app') || null;
-  const resolvedScope = resolveCompatibleAppScope(currentScope, data.department_code);
-
-  if (resolvedScope && resolvedScope !== 'all') {
-    localStorage.setItem('launch_app', resolvedScope);
-  } else if (resolvedScope === 'all') {
-    localStorage.removeItem('launch_app');
-  }
-
-  const currentUser = useUserStore.getState().current;
-  useUserStore.getState().setUser({
-    user_id: currentUser?.user_id || data.email || '',
-    tenant_id: data.tenant_id || currentUser?.tenant_id || '',
-    username: currentUser?.username || (data.email ? data.email.split('@')[0] : ''),
-    email: data.email || currentUser?.email || '',
-    full_name: data.full_name || currentUser?.full_name || '',
-    full_name_ar: currentUser?.full_name_ar || data.full_name || '',
-    roles: data.role ? [data.role] : (currentUser?.roles || []),
-    permissions: currentUser?.permissions || [],
-    name: data.full_name || currentUser?.name,
-    role: (data.role || currentUser?.role) as any,
-    token: data.token,
-  });
-
-  return resolvedScope === 'all' ? null : resolvedScope;
-}
-
-export async function syncClientAuthState(data: SessionLikePayload): Promise<boolean> {
-  const appScope = persistClientAuthState(data);
-  return applyServerSession(data.token, appScope);
-}
-
-export async function clearServerSession(): Promise<void> {
+/**
+ * applyServerSession — called after change-password flow.
+ * Applies a token + optional app_scope to session storage.
+ * Returns true on success, false on failure.
+ */
+export async function applyServerSession(token: string, appScope?: string | null): Promise<boolean> {
   try {
-    await fetch('/api/auth/session', { method: 'DELETE' });
+    if (!token) return false;
+
+    setCookie('auth_session', token);
+    if (appScope) {
+      setCookie('app_scope', appScope);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('launch_app', appScope);
+      }
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('auth_token', token);
+    }
+
+    return true;
   } catch {
-    // Ignore network failure during logout cleanup.
+    return false;
+  }
+}
+
+/**
+ * clearServerSession — called on logout.
+ * Removes all auth cookies and localStorage entries.
+ */
+export async function clearServerSession(): Promise<void> {
+  // Delete cookies
+  deleteCookie('auth_session');
+  deleteCookie('user_role');
+  deleteCookie('user_dept');
+  deleteCookie('app_scope');
+  deleteCookie('tenant_code');
+  deleteCookie('section_id');
+
+  // Clear localStorage
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('dept_code');
+    localStorage.removeItem('tenant_code');
+    localStorage.removeItem('section_id');
+    localStorage.removeItem('launch_app');
+    localStorage.removeItem('needs_bootstrap');
   }
 }

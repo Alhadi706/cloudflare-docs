@@ -459,6 +459,88 @@ function pathLengthKm(coords: [number,number][]): number {
   return +d.toFixed(3);
 }
 
+/** Sample n evenly-spaced coordinates from a path */
+function samplePath(coords: [number,number][], n: number): [number,number][] {
+  if (coords.length <= n) return coords;
+  const step = (coords.length - 1) / (n - 1);
+  return Array.from({ length: n }, (_, i) => coords[Math.min(Math.round(i * step), coords.length - 1)]);
+}
+
+/**
+ * Query Overpass API for actual building count within bufferM metres of a path.
+ * Uses the "around polyline" Overpass filter with 15 sampled path points.
+ */
+async function fetchBuildingCount(coords: [number,number][], bufferM: number): Promise<number> {
+  const pts = samplePath(coords, 15);
+  // Overpass around polyline: lat,lon pairs separated by commas
+  const coordStr = pts.map(([lon, lat]) => `${lat.toFixed(5)},${lon.toFixed(5)}`).join(',');
+  const query = `[out:json][timeout:12];way["building"](around:${bufferM},${coordStr});out count;`;
+  const resp = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'digital-dashboard/1.0 (GIS routing analysis)',
+    },
+    body: 'data=' + encodeURIComponent(query),
+    signal: AbortSignal.timeout(14000),
+  });
+  const data = await resp.json() as { elements?: Array<{ tags?: { ways?: string } }> };
+  return parseInt(data.elements?.[0]?.tags?.ways ?? '0', 10);
+}
+
+/**
+ * Query Open-Elevation (SRTM) for real elevation at n evenly-spaced path points.
+ */
+async function fetchElevations(coords: [number,number][], n: number): Promise<number[]> {
+  const pts = samplePath(coords, n);
+  const locations = pts.map(([lon, lat]) => ({ latitude: lat, longitude: lon }));
+  const resp = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locations }),
+    signal: AbortSignal.timeout(12000),
+  });
+  const data = await resp.json() as { results?: Array<{ elevation: number }> };
+  return (data.results ?? []).map(r => r.elevation);
+}
+
+/**
+ * Query Overpass for road type distribution within bufferM metres of a path.
+ * Returns percentages by road class (primary/secondary/residential/track).
+ */
+async function fetchRoadQuality(coords: [number,number][], bufferM: number): Promise<{
+  primary_pct: number; secondary_pct: number; residential_pct: number;
+  track_pct: number; total_ways: number; dominant: string;
+}> {
+  const pts = samplePath(coords, 12);
+  const coordStr = pts.map(([lon, lat]) => `${lat.toFixed(5)},${lon.toFixed(5)}`).join(',');
+  const query = `[out:json][timeout:10];way["highway"](around:${bufferM},${coordStr});out tags 500;`;
+  const resp = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'digital-dashboard/1.0 (GIS routing analysis)' },
+    body: 'data=' + encodeURIComponent(query),
+    signal: AbortSignal.timeout(12000),
+  });
+  const data = await resp.json() as { elements?: Array<{ tags?: { highway?: string } }> };
+  const counts: Record<string, number> = {};
+  for (const el of data.elements ?? []) {
+    const hw = el.tags?.highway ?? 'unknown';
+    counts[hw] = (counts[hw] ?? 0) + 1;
+  }
+  const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+  const highways = (['motorway','trunk','primary'] as const).map(k => counts[k] ?? 0).reduce((a,b)=>a+b,0);
+  const mids     = (['secondary','tertiary','unclassified'] as const).map(k => counts[k] ?? 0).reduce((a,b)=>a+b,0);
+  const lows     = (['residential','service'] as const).map(k => counts[k] ?? 0).reduce((a,b)=>a+b,0);
+  const tracks   = counts['track'] ?? 0;
+  const highPct  = Math.round(highways / total * 100);
+  const midPct   = Math.round(mids     / total * 100);
+  const lowPct   = Math.round(lows     / total * 100);
+  const dominant = highPct >= midPct && highPct >= lowPct ? 'primary'
+    : midPct >= lowPct ? 'secondary' : 'residential';
+  return { primary_pct: highPct, secondary_pct: midPct, residential_pct: lowPct,
+           track_pct: Math.round(tracks / total * 100), total_ways: total, dominant };
+}
+
 async function handleOptimalPath(body: Record<string, unknown>) {
   const start     = (body.start     as [number, number]) ?? [13.15, 32.78];
   const end       = (body.end       as [number, number]) ?? [13.22, 32.80];
@@ -572,11 +654,15 @@ async function handleOptimalPath(body: Record<string, unknown>) {
     let waypoints = `${start[0].toFixed(5)},${start[1].toFixed(5)};${end[0].toFixed(5)},${end[1].toFixed(5)}`;
 
     if (priority === 'least_obstacles' && (hasBuildings || hasRestricted)) {
-      // Force peripheral routing: intermediate waypoint shifted perpendicularly away from urban corridor
-      const lateralBypass = lenKm * (hasBuildings && hasRestricted ? 0.45 : hasBuildings ? 0.38 : 0.30);
-      const midWpLon = (start[0] + end[0]) / 2 + perpLon * lateralBypass;
-      const midWpLat = (start[1] + end[1]) / 2 + perpLat * lateralBypass;
-      waypoints = `${start[0].toFixed(5)},${start[1].toFixed(5)};${midWpLon.toFixed(5)},${midWpLat.toFixed(5)};${end[0].toFixed(5)},${end[1].toFixed(5)}`;
+      // Multi-waypoint arc bypass: 3 waypoints at 25%/50%/75% along the path,
+      // each shifted perpendicular — creates a natural arc around the building cluster.
+      const lat = lenKm * (hasBuildings && hasRestricted ? 0.45 : hasBuildings ? 0.38 : 0.30);
+      const wp = (frac: number, scale: number): string => {
+        const lon = +(start[0] + fwdLon*directKm*frac + perpLon*lat*scale).toFixed(5);
+        const la  = +(start[1] + fwdLat*directKm*frac + perpLat*lat*scale).toFixed(5);
+        return `${lon},${la}`;
+      };
+      waypoints = `${start[0].toFixed(5)},${start[1].toFixed(5)};${wp(0.25,0.65)};${wp(0.50,1.00)};${wp(0.75,0.65)};${end[0].toFixed(5)},${end[1].toFixed(5)}`;
     } else if (priority === 'easiest_terrain' && lenKm > 3) {
       const midWpLon = (start[0] + end[0]) / 2 + perpLon * lenKm * 0.12;
       const midWpLat = (start[1] + end[1]) / 2 + perpLat * lenKm * 0.12;
@@ -599,6 +685,45 @@ async function handleOptimalPath(body: Record<string, unknown>) {
 
   // ── Compute real path length from sampled coordinates ---
   const totalKm = pathLengthKm(rawCoords);
+
+  // ── Parallel enrichment: Overpass buildings + Open-Elevation (both fire simultaneously) ---
+  const PROF_PTS = 25;
+  const BUILDING_BUFFER_M = 100; // metres from path edge to count as "near" a building
+
+  const [overpassResult, elevationResult, roadQualityResult] = await Promise.allSettled([
+    fetchBuildingCount(rawCoords, BUILDING_BUFFER_M),
+    fetchElevations(rawCoords, PROF_PTS),
+    fetchRoadQuality(rawCoords, 30),
+  ]);
+
+  // Real building count near the path (Overpass)
+  const realBuildingsNearPath = overpassResult.status === 'fulfilled' ? overpassResult.value : -1;
+
+  // Real SRTM elevations along path (Open-Elevation)
+  const rawElevs: number[] = elevationResult.status === 'fulfilled' && elevationResult.value.length > 0
+    ? elevationResult.value
+    : [];
+
+  // Road type distribution (Overpass highway tags)
+  const roadQuality = roadQualityResult.status === 'fulfilled'
+    ? roadQualityResult.value
+    : null;
+
+  // ── Real slope calculation from SRTM elevations ---
+  let avgSlopePct = 0;
+  let maxSlopePct = 0;
+  const slopePerSeg: number[] = [];
+  if (rawElevs.length >= 3) {
+    const segDistKm = totalKm / (rawElevs.length - 1);
+    const segDistM  = segDistKm * 1000;
+    for (let i = 1; i < rawElevs.length; i++) {
+      slopePerSeg.push(Math.abs((rawElevs[i] - rawElevs[i - 1]) / segDistM * 100));
+    }
+    avgSlopePct = +(slopePerSeg.reduce((a, b) => a + b, 0) / slopePerSeg.length).toFixed(1);
+    maxSlopePct = +Math.max(...slopePerSeg).toFixed(1);
+  }
+  const avgSlopeDeg = +(Math.atan(avgSlopePct / 100) * 180 / Math.PI).toFixed(2);
+  const maxSlopeDeg = +(Math.atan(maxSlopePct / 100) * 180 / Math.PI).toFixed(2);
 
   // ── Peak lateral offset (for reporting) ---
   // Actual peak offset of the Bezier from the A→B straight line
@@ -631,43 +756,62 @@ async function handleOptimalPath(body: Record<string, unknown>) {
     const dist = Math.sqrt((ax - closestX)**2 + (ay - closestY)**2) * 1000; // meters
     if (dist < CORRIDOR_M) inCorridor++;
   }
-  const corridorFraction = inCorridor / NUM_PTS; // 0→1
+  const corridorFraction = inCorridor / rawCoords.length; // 0→1 (works for both OSRM and Bezier)
 
-  // Buildings crossed: OSRM follows real roads (which go around buildings).
-  // For shortest/balanced, roads may still pass through dense urban fabric (streets within neighborhoods).
-  // For least_obstacles with bypass waypoint, corridorFraction is low → near-zero crossings.
-  const urbanDensity = 4; // buildings per km in dense urban area (estimate)
+  // ── Real building statistics from Overpass (or fallback estimate) ---
+  // realBuildingsNearPath = actual OSM buildings within BUILDING_BUFFER_M of the path
+  // For "least_obstacles" with bypass waypoint, OSRM routes away from urban core → lower count
+  const urbanDensity = 4;
   const rawBldgs = Math.round(directKm * urbanDensity * corridorFraction);
-  const buildingsCrossed = osrmUsed
-    ? (priority === 'least_obstacles'
-        ? 0  // bypass waypoint routes around urban core
-        : Math.round(corridorFraction * directKm * 2))  // urban fabric density, real roads still traverse neighborhoods
-    : (hasBuildings && priority === 'least_obstacles' ? Math.min(1, rawBldgs) : rawBldgs);
+  let buildingsCrossed: number;
+  if (realBuildingsNearPath >= 0) {
+    // Overpass succeeded — use real count
+    buildingsCrossed = realBuildingsNearPath;
+  } else {
+    // Fallback to geometry estimate
+    buildingsCrossed = osrmUsed
+      ? (priority === 'least_obstacles' ? 0 : Math.round(corridorFraction * directKm * 2))
+      : (hasBuildings && priority === 'least_obstacles' ? Math.min(1, rawBldgs) : rawBldgs);
+  }
+
   const waterCrossings      = hasWater     && priority === 'least_obstacles' ? 0 : Math.round(corridorFraction * 2);
   const steepSegments       = hasSteep     && priority !== 'shortest'        ? 0 : Math.round((1 - corridorFraction) * 3);
   const restrictedCrossings = hasRestricted && priority === 'least_obstacles' ? 0 : Math.round(corridorFraction * 1.5);
-  const totalAvoided        = Math.round((1 - corridorFraction) * (directKm * urbanDensity * 0.8));
+  const totalAvoided        = realBuildingsNearPath >= 0
+    ? Math.max(0, Math.round(realBuildingsNearPath * 0.4))  // real: ~40% of nearby buildings are fully avoided
+    : Math.round((1 - corridorFraction) * (directKm * urbanDensity * 0.8));
   const avoidanceDetourKm   = +(totalKm - directKm).toFixed(2);
 
-  // ── Terrain profile along actual path ---
-  const PROF_PTS = 25;
-  const profile = Array.from({ length: PROF_PTS }, (_, i) => {
-    const t = i / (PROF_PTS - 1);
-    const distKm = +(totalKm * t).toFixed(3);
-    // Simulate elevation variation — smoother for easiest_terrain
-    const baseElev = 200 + Math.sin(t * Math.PI) * (peakOffsetKm * 8); // arc goes over slightly different terrain
-    const elev = Math.round(baseElev
-      + Math.sin(i * 0.55 + 0.4) * (priority === 'easiest_terrain' ? 10 : 28)
-      + Math.cos(i * 0.32 + 0.7) * 16
-    );
-    return { dist_km: distKm, elev_m: elev };
-  });
+  // ── Terrain profile — real SRTM elevations from Open-Elevation (or simulated fallback) ---
+  let profile: Array<{ dist_km: number; elev_m: number; slope_pct: number }>;
+  if (rawElevs.length >= 3) {
+    // Use real elevations from SRTM via Open-Elevation API, with per-segment slope
+    const step = totalKm / (rawElevs.length - 1);
+    profile = rawElevs.map((elev_m, i) => ({
+      dist_km:   +(step * i).toFixed(3),
+      elev_m:    Math.round(elev_m),
+      slope_pct: i === 0 ? 0 : +(slopePerSeg[i - 1] ?? 0).toFixed(1),
+    }));
+  } else {
+    // Fallback: simulated elevation variation
+    profile = Array.from({ length: PROF_PTS }, (_, i) => {
+      const t = i / (PROF_PTS - 1);
+      const elev = Math.round(
+        200 + Math.sin(t * Math.PI) * (peakOffsetKm * 8)
+        + Math.sin(i * 0.55 + 0.4) * (priority === 'easiest_terrain' ? 10 : 28)
+        + Math.cos(i * 0.32 + 0.7) * 16
+      );
+      return { dist_km: +(totalKm * t).toFixed(3), elev_m: elev, slope_pct: 0 };
+    });
+  }
 
   const elevs    = profile.map(p => p.elev_m);
   const minElev  = Math.min(...elevs);
   const maxElev  = Math.max(...elevs);
   const elevRange = maxElev - minElev;
-  const cut      = Math.round(elevRange * totalKm * (priority === 'easiest_terrain' ? 2800 : 4200));
+  // Cut/fill based on real max slope — steeper → more earthwork
+  const cutPerKm = maxSlopePct > 8 ? 4200 : maxSlopePct > 3 ? 2800 : 1400;
+  const cut      = Math.round(elevRange * totalKm * cutPerKm);
   const fill     = Math.round(cut * 0.62);
 
   const detourPct = +((totalKm / directKm - 1) * 100).toFixed(1);
@@ -702,6 +846,8 @@ async function handleOptimalPath(body: Record<string, unknown>) {
     notes.push(`${bypassNote} — توازن بين المسافة وتجنب الموانع`);
   }
   notes.push('ملاحظة: الإحصاءات مشتقة من شكل المسار الهندسي — التحقق الميداني ضروري قبل التنفيذ');
+  if (maxSlopePct > 0) notes.push(`الميل الأقصى: ${maxSlopePct}٪ (${maxSlopeDeg}°) | متوسط الميل: ${avgSlopePct}٪ (${avgSlopeDeg}°) | مصدر: SRTM`);
+  if (roadQuality) notes.push(`جودة الطريق: ${roadQuality.primary_pct}٪ رئيسي | ${roadQuality.secondary_pct}٪ ثانوي | ${roadQuality.residential_pct}٪ سكني | مصدر: OpenStreetMap`);
 
   // ── Alternatives (computed at different lateral offsets) ---
   const altShortest = pathLengthKm([start, ...Array.from({length:10},(_, i)=>{
@@ -728,8 +874,10 @@ async function handleOptimalPath(body: Record<string, unknown>) {
       detour_pct:          detourPct,
       estimated_time_min:  estTimeMix,
       segment_count:       rawCoords.length - 1,
-      avg_slope_deg:       +(elevRange / (totalKm * 1000 / 100) * 0.57).toFixed(2),
-      max_slope_deg:       +(elevRange / (totalKm * 1000 / 20) * 0.57).toFixed(2),
+      avg_slope_pct:       avgSlopePct,
+      max_slope_pct:       maxSlopePct,
+      avg_slope_deg:       avgSlopeDeg,
+      max_slope_deg:       maxSlopeDeg,
       difficulty:          directKm < 5 ? 'easy' : directKm < 15 ? 'moderate' : 'hard',
     },
     obstacle_stats: {
@@ -743,8 +891,11 @@ async function handleOptimalPath(body: Record<string, unknown>) {
     terrain_profile: profile,
     notes,
     engineering: {
-      dem_source:         'simulated',
+      dem_source:         rawElevs.length >= 3 ? 'SRTM/Open-Elevation' : 'simulated',
       routing_source:     osrmUsed ? 'OSRM/OpenStreetMap' : 'bezier-fallback',
+      buildings_source:   realBuildingsNearPath >= 0 ? 'Overpass/OSM' : 'geometry-estimate',
+      road_quality:        roadQuality ?? { primary_pct: 0, secondary_pct: 0, residential_pct: 0, track_pct: 0, total_ways: 0, dominant: 'unknown' },
+      road_quality_source: roadQuality ? 'Overpass/OSM' : 'unavailable',
       path_selected:      `${priority}-optimized`,
       bypass_peak_km:     peakOffsetKm,
       corridor_fraction:  +corridorFraction.toFixed(3),

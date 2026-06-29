@@ -19,13 +19,13 @@ type AppFile = { linux: string | null; windows: string | null; linuxSize: string
 // سيتم تحديث إلى Flutter binary عند الانتهاء من GitHub Actions build
 const APP_FILES: Record<string, AppFile> = {
   // ── الإدارات الرئيسية ──────────────────────────────────────────────────────
-  'maintenance':    { linux: null, windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '—', winSize: '38 MB' },
-  'corrosion':      { linux: null, windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '—', winSize: '38 MB' },
-  'admin-affairs':  { linux: null, windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '—', winSize: '38 MB' },
-  'finance':        { linux: null, windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '—', winSize: '38 MB' },
-  'materials':      { linux: null, windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '—', winSize: '38 MB' },
-  'services':       { linux: null, windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '—', winSize: '38 MB' },
-  'remote-sensing': { linux: null, windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '—', winSize: '38 MB' },
+  'maintenance':    { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '9.7 MB', winSize: '38 MB' },
+  'corrosion':      { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '9.7 MB', winSize: '38 MB' },
+  'admin-affairs':  { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '9.7 MB', winSize: '38 MB' },
+  'finance':        { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '9.7 MB', winSize: '38 MB' },
+  'materials':      { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '9.7 MB', winSize: '38 MB' },
+  'services':       { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '9.7 MB', winSize: '38 MB' },
+  'remote-sensing': { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: 'dsf_gateway_flutter-windows-x64.zip', linuxSize: '9.7 MB', winSize: '38 MB' },
 
   // ── أقسام الشؤون الإدارية ──────────────────────────────────────────────────
   'section-admin-affairs-hr':             { linux: null, windows: 'DSF-AdminHR_0.1.0_x64-setup.exe',             linuxSize: '—', winSize: '2.8 MB' },
@@ -97,6 +97,8 @@ function resolveFiles(appId: string, parentScopeId?: string): AppFile {
 
 export default function DownloadButtons({ appId, parentScopeId, accentBorder, accentText }: Props) {
   const [os, setOs] = useState<'linux' | 'windows' | 'unknown'>('unknown');
+  const [winAvailable, setWinAvailable] = useState<boolean | null>(null);
+  const [linuxAvailable, setLinuxAvailable] = useState<boolean | null>(null);
   const windowsFlutterReady = process.env.NEXT_PUBLIC_WINDOWS_FLUTTER_READY === '1';
 
   useEffect(() => {
@@ -106,9 +108,31 @@ export default function DownloadButtons({ appId, parentScopeId, accentBorder, ac
     else setOs('unknown');
   }, []);
 
+  // فحص وجود الملف فعلياً على السيرفر
+  useEffect(() => {
+    const f = resolveFiles(appId, parentScopeId);
+    if (f.windows && windowsFlutterReady) {
+      fetch(`/downloads/${f.windows}`, { method: 'HEAD' })
+        .then(r => setWinAvailable(r.ok))
+        .catch(() => setWinAvailable(false));
+    } else {
+      setWinAvailable(false);
+    }
+    if (f.linux) {
+      fetch(`/downloads/${f.linux}`, { method: 'HEAD' })
+        .then(r => setLinuxAvailable(r.ok))
+        .catch(() => setLinuxAvailable(false));
+    } else {
+      setLinuxAvailable(false);
+    }
+  }, [appId, parentScopeId, windowsFlutterReady]);
+
   const files = resolveFiles(appId, parentScopeId);
   const isLinux   = os === 'linux' || os === 'unknown';
   const isWindows = os === 'windows';
+  // null = جاري الفحص، true = متاح، false = غير متاح
+  const winReady   = winAvailable === true;
+  const linuxReady = linuxAvailable === true;
 
   const ComingSoon = ({ label }: { label: string }) => (
     <div className="flex items-center justify-center gap-2 w-full rounded-xl border border-slate-700/40 bg-slate-800/20 py-2.5 text-sm text-slate-500 cursor-not-allowed select-none">
@@ -120,7 +144,7 @@ export default function DownloadButtons({ appId, parentScopeId, accentBorder, ac
   return (
     <div className="space-y-2">
       {/* زر Linux */}
-      {files.linux ? (
+      {linuxReady ? (
         <a
           href={`/downloads/${files.linux}?app=${encodeURIComponent(appId)}${parentScopeId ? `&scope=${encodeURIComponent(parentScopeId)}` : ''}`}
           download
@@ -146,7 +170,7 @@ export default function DownloadButtons({ appId, parentScopeId, accentBorder, ac
       )}
 
       {/* زر Windows */}
-      {windowsFlutterReady && files.windows ? (
+      {winReady ? (
         <a
           href={`/downloads/${files.windows}?app=${encodeURIComponent(appId)}${parentScopeId ? `&scope=${encodeURIComponent(parentScopeId)}` : ''}`}
           download
