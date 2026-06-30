@@ -2,8 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Briefcase, CheckSquare, Target, FileText, DollarSign, ChevronLeft, Building2, MapPin } from 'lucide-react';
-import InternalMailTab from '@/components/InternalMailTab';
+import { Briefcase, CheckSquare, Target, FileText, DollarSign, ChevronLeft, Building2, MapPin, Crown } from 'lucide-react';
 import { useErpContextStore } from '@/store/erpContextStore';
 
 const submodules = [
@@ -108,8 +107,14 @@ export default function ProjectsPage() {
             <div className="bg-purple-600/20 p-4 rounded-xl border border-purple-500/50">
               <Briefcase className="w-8 h-8 text-purple-400" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-slate-100">إدارة المشاريع</h1>
+            <div className="flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <h1 className="text-3xl font-bold text-slate-100">إدارة المشاريع</h1>
+                <Link href="/dashboard/admin-gateway/projects/manager" className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs text-indigo-200 hover:bg-indigo-500/20 transition-colors shrink-0">
+                  <Crown className="w-3.5 h-3.5" />
+                  لوحة مدير الإدارة
+                </Link>
+              </div>
               <p className="text-slate-400 mt-1">متابعة مراحل وميزانيات المشاريع</p>
               {activeProject && (
                 <div className="flex items-center gap-2 mt-2 text-[11px]">
@@ -159,14 +164,6 @@ export default function ProjectsPage() {
               </Link>
             );
           })}
-        </div>
-        {/* نظام المراسلات الداخلية الموحد */}
-        <div>
-          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
-            <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
-            <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
-          </div>
-          <InternalMailTab department="projects_manager" title="نظام المراسلات الموحد - إدارة المشاريع" />
         </div>
       </div>
     </div>

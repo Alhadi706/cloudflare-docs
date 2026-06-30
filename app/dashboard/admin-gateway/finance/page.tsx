@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Wallet, DollarSign, FileText, TrendingUp, ArrowLeftRight, PieChart, BarChart3, ArrowRight, Building2, MapPin } from 'lucide-react';
+import { Wallet, DollarSign, FileText, TrendingUp, ArrowLeftRight, PieChart, BarChart3, ArrowRight, Building2, MapPin, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { useErpContextStore } from '@/store/erpContextStore';
 import DepartmentAssetInbox from '@/components/DepartmentAssetInbox';
@@ -86,8 +86,14 @@ export default function FinancePage() {
             <div className="rounded-xl border border-amber-400/40 bg-amber-500/15 p-4">
               <Wallet className="w-10 h-10 text-amber-400" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">الإدارة المالية</h1>
+            <div className="flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <h1 className="text-2xl font-bold text-white">الإدارة المالية</h1>
+                <Link href="/dashboard/admin-gateway/finance/manager" className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200 hover:bg-emerald-500/20 transition-colors shrink-0">
+                  <Crown className="w-3.5 h-3.5" />
+                  لوحة مدير الإدارة
+                </Link>
+              </div>
               <p className="mt-2 text-white/75">
                 نظام شامل لإدارة الميزانيات والنفقات والتقارير المالية
               </p>

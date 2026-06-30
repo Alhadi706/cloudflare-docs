@@ -3,7 +3,7 @@
 import React from 'react';
 import { BookOpen, Building2, FileText, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
-import InternalMailTab from '@/components/InternalMailTab';
+import { Crown } from 'lucide-react';
 
 export default function AccountingOverview() {
   const modules = [
@@ -50,9 +50,17 @@ export default function AccountingOverview() {
           <div className="bg-indigo-900/50 p-4 rounded-xl">
             <BookOpen className="w-10 h-10 text-indigo-400" />
           </div>
-          <div>
-            <div className="text-xs text-indigo-400 font-mono mb-1">PHASE ACCOUNTING-CORE-01</div>
-            <h1 className="text-2xl font-bold text-slate-100">النواة المالية المحاسبية</h1>
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-indigo-400 font-mono mb-1">PHASE ACCOUNTING-CORE-01</div>
+                <h1 className="text-2xl font-bold text-slate-100">النواة المالية المحاسبية</h1>
+              </div>
+              <Link href="/dashboard/admin-gateway/accounting/manager" className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200 hover:bg-emerald-500/20 transition-colors shrink-0">
+                <Crown className="w-3.5 h-3.5" />
+                لوحة مدير الإدارة
+              </Link>
+            </div>
             <p className="text-slate-400 mt-1 text-sm">
               دليل الحسابات · مراكز التكلفة · القيود اليومية — مُدمج مع المشتريات والمخزون والمشاريع
             </p>
@@ -92,16 +100,6 @@ export default function AccountingOverview() {
             النظام مُصمَّم وفق متطلبات القطاع العام الليبي — قيود متوازنة، ترحيل مُقفَل، مراكز تكلفة مرتبطة بمشاريع البنية التحتية.
           </div>
         </div>
-
-        {/* نظام المراسلات الداخلية الموحد */}
-        <div>
-          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
-            <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
-            <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
-          </div>
-          <InternalMailTab department="finance_manager" title="نظام المراسلات الموحد - إدارة الحسابات" />
-        </div>
-
       </div>
     </div>
   );

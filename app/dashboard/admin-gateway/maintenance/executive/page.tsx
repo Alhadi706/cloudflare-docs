@@ -11,8 +11,9 @@ import {
   ArrowRight, TrendingDown, TrendingUp, AlertTriangle, Crown,
   Zap, Droplets, Target, Activity, Shield, BarChart2,
   RefreshCw, AlertCircle, ArrowUpRight, CheckCircle2, FileText,
-  Server, Cpu, Bell, Database,
+  Server, Cpu, Bell, Database, Mail,
 } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 type ExecTab =
   | 'overview' | 'health' | 'kpis' | 'risks'
   | 'assets' | 'water' | 'demand' | 'alerts'
-  | 'infrastructure' | 'performance';
+  | 'infrastructure' | 'performance' | 'correspondence';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -226,6 +227,7 @@ export default function ExecutiveDashboardPage() {
       alert: DEMO_ALERTS.filter(a => !a.ack && a.sev === 'critical').length > 0 },
     { key: 'infrastructure',  label: 'البنية التحتية',       Icon: Server },
     { key: 'performance',     label: 'الأداء التشغيلي',      Icon: Zap },
+    { key: 'correspondence',   label: 'المراسلات الداخلية',   Icon: Mail },
   ];
 
   const TS = { backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', direction: 'rtl' as const };
@@ -807,6 +809,17 @@ export default function ExecutiveDashboardPage() {
                 <Link href="/dashboard/admin-gateway/maintenance/preventive" className="inline-flex items-center gap-1.5 mt-3 text-xs text-violet-400 hover:text-violet-300">مراقبة التشغيل <ArrowUpRight className="w-3.5 h-3.5" /></Link>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ═══ TAB: المراسلات الداخلية ═════════════════════════════════════ */}
+        {tab === 'correspondence' && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-rose-500/25 bg-rose-500/5 px-4 py-3">
+              <p className="text-sm text-rose-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+              <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة — هذا التبويب مخصص لمدير الإدارة فقط.</p>
+            </div>
+            <InternalMailTab department="maintenance" title="نظام المراسلات الموحد - إدارة الهندسة والدعم الفني" />
           </div>
         )}
 

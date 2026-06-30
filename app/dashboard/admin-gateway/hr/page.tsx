@@ -1,8 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Users, UserCheck, Building2, Award, Calendar, Clock, FileText, DollarSign, TrendingUp, ArrowRight, MapPin } from 'lucide-react';
-import InternalMailTab from '@/components/InternalMailTab';
+import { Users, UserCheck, Building2, Award, Calendar, Clock, FileText, DollarSign, TrendingUp, ArrowRight, MapPin, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { useErpContextStore } from '@/store/erpContextStore';
 
@@ -140,8 +139,14 @@ export default function HRPage() {
             <div className="bg-blue-600/20 p-4 rounded-xl border border-blue-500/50">
               <Users className="w-10 h-10 text-blue-400" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-slate-100">إدارة الموارد البشرية</h1>
+            <div className="flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <h1 className="text-3xl font-bold text-slate-100">إدارة الموارد البشرية</h1>
+                <Link href="/dashboard/admin-gateway/hr/manager" className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20 transition-colors shrink-0">
+                  <Crown className="w-3.5 h-3.5" />
+                  لوحة مدير الإدارة
+                </Link>
+              </div>
               <p className="text-slate-400 mt-2 text-lg">
                 نظام شامل لإدارة الموظفين والرواتب والحضور والإجازات
               </p>
@@ -199,16 +204,6 @@ export default function HRPage() {
             </Link>
           ))}
         </div>
-
-        {/* نظام المراسلات الداخلية الموحد */}
-        <div>
-          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
-            <p className="text-sm text-amber-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
-            <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
-          </div>
-          <InternalMailTab department="hr" title="نظام المراسلات الموحد - الموارد البشرية" />
-        </div>
-
       </div>
     </div>
   );
