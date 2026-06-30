@@ -370,14 +370,20 @@ export default function SatelliteIntelLegacyShell() {
   // ── Risk Assessment overlay ───────────────────────────────────────────────
   const [riskGeojson, setRiskGeojson] = useState<any | null>(null);
 
-  // ── Satellite overlay layers: fire + leak ─────────────────────────────────
-  const [showFireLayer,  setShowFireLayer]  = useState(false);
-  const [showLeakLayer,  setShowLeakLayer]  = useState(false);
-  const [fireMarkers,    setFireMarkers]    = useState<any[]>([]);
-  const [leakMarkers,    setLeakMarkers]    = useState<any[]>([]);
-  const [leakRouteLines, setLeakRouteLines] = useState<{ coords: [number,number][]; color: string; width?: number; label?: string; layerKey: string }[]>([]);
-  const [fireLoading,    setFireLoading]    = useState(false);
-  const [leakLoading,    setLeakLoading]    = useState(false);
+  // ── Satellite overlay layers: fire + leak + urban + encroach ─────────────
+  const [showFireLayer,      setShowFireLayer]      = useState(false);
+  const [showLeakLayer,      setShowLeakLayer]      = useState(false);
+  const [showUrbanLeakLayer, setShowUrbanLeakLayer] = useState(false);
+  const [showEncroachLayer,  setShowEncroachLayer]  = useState(false);
+  const [fireMarkers,        setFireMarkers]        = useState<any[]>([]);
+  const [leakMarkers,        setLeakMarkers]        = useState<any[]>([]);
+  const [urbanLeakMarkers,   setUrbanLeakMarkers]   = useState<any[]>([]);
+  const [encroachMarkers,    setEncroachMarkers]    = useState<any[]>([]);
+  const [leakRouteLines,     setLeakRouteLines]     = useState<{ coords: [number,number][]; color: string; width?: number; label?: string; layerKey: string }[]>([]);
+  const [fireLoading,        setFireLoading]        = useState(false);
+  const [leakLoading,        setLeakLoading]        = useState(false);
+  const [urbanLeakLoading,   setUrbanLeakLoading]   = useState(false);
+  const [encroachLoading,    setEncroachLoading]    = useState(false);
 
   const loadFireLayer = useCallback(async () => {
     if (fireLoading) return;
@@ -393,16 +399,18 @@ export default function SatelliteIntelLegacyShell() {
         recurring_anomaly: '#f97316',
         single_detection:  '#facc15',
       };
-      const markers = clusters.map(c => ({
-        lon:      c.center_lon,
-        lat:      c.center_lat,
-        color:    colorMap[c.classification] ?? '#94a3b8',
-        radius:   Math.min(18, 6 + (c.total_count ?? 1) * 0.5),
-        label:    c.classification === 'gas_flare' ? 'حرق غاز' :
-                  c.classification === 'confirmed_fire' ? 'حريق مؤكد' :
-                  c.classification === 'recurring_anomaly' ? 'شذوذ متكرر' : 'رصد واحد',
-        layerKey: 'fire_viirs',
-      }));
+      const markers = clusters
+        .filter((c: any) => c.lon != null && c.lat != null)
+        .map((c: any) => ({
+          lon:      c.lon,
+          lat:      c.lat,
+          color:    colorMap[c.classification] ?? '#94a3b8',
+          radius:   Math.min(18, 6 + (c.observations ?? c.total_count ?? 1) * 0.5),
+          label:    c.classification === 'gas_flare' ? 'حرق غاز' :
+                    c.classification === 'confirmed_fire' ? 'حريق مؤكد' :
+                    c.classification === 'recurring_anomaly' ? 'شذوذ متكرر' : 'رصد واحد',
+          layerKey: 'fire_viirs',
+        }));
       setFireMarkers(markers);
     } catch (e: any) {
       console.warn('Fire layer load failed:', e.message);
@@ -461,6 +469,80 @@ export default function SatelliteIntelLegacyShell() {
     }
   }, [leakLoading]);
 
+  const loadUrbanLeakLayer = useCallback(async () => {
+    if (urbanLeakLoading) return;
+    setUrbanLeakLoading(true);
+    try {
+      const res = await fetch('/api/v1/satellite/urban-leak-detector', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const colorMap: Record<string, string> = {
+        confirmed: '#3b82f6',
+        high:      '#60a5fa',
+        medium:    '#93c5fd',
+        low:       '#bfdbfe',
+      };
+      const markers = (data.zones ?? [])
+        .filter((z: any) => z.leak_probability !== 'none')
+        .map((z: any) => ({
+          lon:      z.center[0],
+          lat:      z.center[1],
+          color:    colorMap[z.leak_probability] ?? '#60a5fa',
+          radius:   8,
+          label:    `🏙️ ${z.zone_name ?? z.city} (${z.confidence_pct}%)`,
+          layerKey: 'urban_leak',
+        }));
+      setUrbanLeakMarkers(markers);
+    } catch (e: any) {
+      console.warn('Urban leak layer load failed:', e.message);
+      setUrbanLeakMarkers([]);
+    } finally {
+      setUrbanLeakLoading(false);
+    }
+  }, [urbanLeakLoading]);
+
+  const loadEncroachLayer = useCallback(async () => {
+    if (encroachLoading) return;
+    setEncroachLoading(true);
+    try {
+      const res = await fetch('/api/engineering/workspace/principal-assets?limit=200', {
+        headers: { 'X-Tenant-ID': (typeof window !== 'undefined' && window.localStorage.getItem('tenant_id')) || 'aaaaaaaa-0000-4000-a000-000000000001' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const assets: any[] = data.assets ?? data.data ?? [];
+      const markers = assets
+        .filter((a: any) => a.geometry?.coordinates)
+        .map((a: any) => {
+          // Extract centroid from GeoJSON geometry
+          const geom = a.geometry;
+          let lon = 0, lat = 0;
+          if (geom.type === 'Point') { [lon, lat] = geom.coordinates; }
+          else if (geom.type === 'LineString') { [lon, lat] = geom.coordinates[Math.floor(geom.coordinates.length / 2)]; }
+          else if (geom.type === 'Polygon') { [lon, lat] = geom.coordinates[0][0]; }
+          if (!lon && !lat) return null;
+          return {
+            lon, lat,
+            color:    '#f43f5e',
+            radius:   7,
+            label:    `🚧 ${a.name ?? 'أصل مراقب'}`,
+            layerKey: 'encroach',
+          };
+        })
+        .filter(Boolean);
+      setEncroachMarkers(markers);
+    } catch (e: any) {
+      console.warn('Encroach layer load failed:', e.message);
+      setEncroachMarkers([]);
+    } finally {
+      setEncroachLoading(false);
+    }
+  }, [encroachLoading]);
+
   useEffect(() => {
     if (showFireLayer && fireMarkers.length === 0) loadFireLayer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -471,10 +553,22 @@ export default function SatelliteIntelLegacyShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showLeakLayer]);
 
+  useEffect(() => {
+    if (showUrbanLeakLayer && urbanLeakMarkers.length === 0) loadUrbanLeakLayer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showUrbanLeakLayer]);
+
+  useEffect(() => {
+    if (showEncroachLayer && encroachMarkers.length === 0) loadEncroachLayer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEncroachLayer]);
+
   const satelliteOverlayMarkers = useMemo(() => [
-    ...(showFireLayer ? fireMarkers : []),
-    ...(showLeakLayer ? leakMarkers : []),
-  ], [showFireLayer, showLeakLayer, fireMarkers, leakMarkers]);
+    ...(showFireLayer      ? fireMarkers      : []),
+    ...(showLeakLayer      ? leakMarkers      : []),
+    ...(showUrbanLeakLayer ? urbanLeakMarkers : []),
+    ...(showEncroachLayer  ? encroachMarkers  : []),
+  ], [showFireLayer, showLeakLayer, showUrbanLeakLayer, showEncroachLayer, fireMarkers, leakMarkers, urbanLeakMarkers, encroachMarkers]);
 
   const satelliteRouteLines = useMemo(() => [
     ...(showLeakLayer ? leakRouteLines : []),
@@ -870,6 +964,42 @@ export default function SatelliteIntelLegacyShell() {
         onRunMunicipalityExtraction={handleRunMunicipalityExtraction}
         extractionBusy={extractBusy}
         drawnPolygon={effectivePolygon}
+        showFireLayer={showFireLayer}
+        showLeakLayer={showLeakLayer}
+        showUrbanLeakLayer={showUrbanLeakLayer}
+        showEncroachLayer={showEncroachLayer}
+        fireLoading={fireLoading}
+        leakLoading={leakLoading}
+        urbanLeakLoading={urbanLeakLoading}
+        encroachLoading={encroachLoading}
+        fireCount={fireMarkers.length}
+        leakCount={leakMarkers.length}
+        urbanLeakCount={urbanLeakMarkers.length}
+        encroachCount={encroachMarkers.length}
+        onToggleFireLayer={() => {
+          const next = !showFireLayer;
+          setShowFireLayer(next);
+          if (next && fireMarkers.length === 0) loadFireLayer();
+          patchRibbon({ activeGroup: 'monitoring' });
+        }}
+        onToggleLeakLayer={() => {
+          const next = !showLeakLayer;
+          setShowLeakLayer(next);
+          if (next && leakMarkers.length === 0) loadLeakLayer();
+          patchRibbon({ activeGroup: 'monitoring' });
+        }}
+        onToggleUrbanLeakLayer={() => {
+          const next = !showUrbanLeakLayer;
+          setShowUrbanLeakLayer(next);
+          if (next && urbanLeakMarkers.length === 0) loadUrbanLeakLayer();
+          patchRibbon({ activeGroup: 'monitoring' });
+        }}
+        onToggleEncroachLayer={() => {
+          const next = !showEncroachLayer;
+          setShowEncroachLayer(next);
+          if (next && encroachMarkers.length === 0) loadEncroachLayer();
+          patchRibbon({ activeGroup: 'monitoring' });
+        }}
       />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -985,70 +1115,6 @@ export default function SatelliteIntelLegacyShell() {
             satelliteOverlayMarkers={satelliteOverlayMarkers.length > 0 ? satelliteOverlayMarkers : undefined}
             satelliteRouteLines={satelliteRouteLines.length > 0 ? satelliteRouteLines : undefined}
           />
-
-          {/* ── Satellite layer toggle panel ─────────────────────────── */}
-          <div className="absolute bottom-14 left-3 z-50 flex flex-col gap-1.5 pointer-events-auto">
-            <button
-              onClick={() => {
-                const next = !showFireLayer;
-                setShowFireLayer(next);
-                if (next && fireMarkers.length === 0) loadFireLayer();
-              }}
-              disabled={fireLoading}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg border transition-all ${
-                showFireLayer
-                  ? 'bg-orange-600/90 border-orange-400/60 text-white'
-                  : 'bg-slate-800/90 border-slate-600/50 text-slate-300 hover:border-orange-400/40'
-              }`}
-              title="حرائق VIIRS NOAA-20 (48 ساعة)"
-            >
-              {fireLoading ? '⏳' : '🔥'} VIIRS حرائق
-              {showFireLayer && fireMarkers.length > 0 && (
-                <span className="opacity-70">({fireMarkers.length})</span>
-              )}
-            </button>
-
-            <button
-              onClick={() => {
-                const next = !showLeakLayer;
-                setShowLeakLayer(next);
-                if (next && leakMarkers.length === 0) loadLeakLayer();
-              }}
-              disabled={leakLoading}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg border transition-all ${
-                showLeakLayer
-                  ? 'bg-cyan-600/90 border-cyan-400/60 text-white'
-                  : 'bg-slate-800/90 border-slate-600/50 text-slate-300 hover:border-cyan-400/40'
-              }`}
-              title="كشف تسريبات النهر الصناعي متعدد الأقمار"
-            >
-              {leakLoading ? '⏳' : '💧'} تسريبات النهر الصناعي
-              {showLeakLayer && leakMarkers.length > 0 && (
-                <span className="opacity-70">({leakMarkers.length})</span>
-              )}
-            </button>
-
-            {(showFireLayer || showLeakLayer) && (
-              <div className="mt-0.5 p-2 rounded-lg bg-slate-900/90 border border-slate-700/50 text-[10px] text-slate-400 space-y-0.5">
-                {showFireLayer && (
-                  <>
-                    <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"/>حرق غاز</div>
-                    <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"/>حريق مؤكد</div>
-                    <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"/>شذوذ متكرر</div>
-                    <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"/>رصد واحد</div>
-                  </>
-                )}
-                {showLeakLayer && (
-                  <>
-                    <div className="flex items-center gap-1 mt-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"/>تسرب مؤكد</div>
-                    <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"/>خطر مرتفع</div>
-                    <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"/>خطر متوسط</div>
-                    <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block"/>خطر منخفض</div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
 
           {addPointMode && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-900/90 border border-blue-500/60 text-blue-100 text-xs shadow-xl backdrop-blur-sm">

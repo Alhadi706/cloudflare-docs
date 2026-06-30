@@ -81,6 +81,7 @@ export default function FieldReadingsPage() {
   const [shift, setShift]              = useState('daily');
   const [employeeId, setEmployeeId]    = useState(0);
   const [empInput, setEmpInput]        = useState('');
+  const [empName, setEmpName]          = useState('');    // resolved from HR
 
   // Reading fields
   const [flowM3, setFlow]           = useState('');
@@ -99,15 +100,35 @@ export default function FieldReadingsPage() {
   const [saving, setSaving]         = useState(false);
   const [toast, setToast]           = useState<{type:'ok'|'err'; msg:string}|null>(null);
 
-  // Load stations
+  // Load stations + auto-resolve employee from HR
   useEffect(() => {
     fetch('/api/control-center/stations')
       .then(r => r.json())
       .then(d => { if (d.success) setStations(d.stations); })
       .catch(() => {});
-    // Restore employee id from localStorage
-    const stored = localStorage.getItem('ctrl_employee_id');
-    if (stored) { setEmployeeId(Number(stored)); setEmpInput(stored); }
+
+    // Restore manually-saved employee id
+    const storedId = localStorage.getItem('ctrl_employee_id');
+    if (storedId) { setEmployeeId(Number(storedId)); setEmpInput(storedId); }
+
+    // Auto-resolve from HR using session email
+    const sessionEmail = localStorage.getItem('user_email');
+    if (sessionEmail) {
+      fetch('/api/control-center/employees')
+        .then(r => r.json())
+        .then(d => {
+          if (!d.success) return;
+          const match = (d.employees as { id: number; full_name_ar: string; email?: string }[])
+            .find(e => e.email?.toLowerCase() === sessionEmail.toLowerCase());
+          if (match) {
+            setEmployeeId(match.id);
+            setEmpInput(String(match.id));
+            setEmpName(match.full_name_ar);
+            localStorage.setItem('ctrl_employee_id', String(match.id));
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const loadMyReadings = useCallback(async () => {
@@ -249,7 +270,7 @@ export default function FieldReadingsPage() {
             </div>
             {employeeId > 0 && (
               <div className="text-xs bg-cyan-500/20 text-cyan-300 px-3 py-1.5 rounded-lg border border-cyan-500/30">
-                #{employeeId}
+                {empName ? `${empName} (#${employeeId})` : `#${employeeId}`}
               </div>
             )}
           </div>

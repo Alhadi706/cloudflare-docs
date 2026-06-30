@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { FileSignature, Users2, FileText, Crown } from 'lucide-react';
+import { FileSignature, Users2, FileText } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 
 type CardDef = { href: string; icon: React.ComponentType<{ className?: string }>; label: string; desc: string; color: string; bg: string; border: string };
 
@@ -26,23 +27,6 @@ export default function ContractsPage() {
           </div>
           <div className="h-px bg-slate-800 mt-4" />
         </div>
-
-        {/* Manager Card */}
-        <Link href="/dashboard/contracts/manager" className="group block mb-8">
-          <div className="bg-slate-900 border border-green-500/30 rounded-2xl p-5 hover:border-green-500/60 hover:bg-slate-800/70 transition-all duration-200">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-green-500/20 flex items-center justify-center shrink-0">
-                <Crown className="w-5 h-5 text-green-400" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-base font-bold text-white">مدير إدارة العقود</h2>
-                <p className="text-green-400/70 text-xs mt-0.5">لوحة المدير — الأقسام والمراسلات الإدارية</p>
-              </div>
-              <span className="text-green-400 text-xs font-semibold flex items-center gap-1">فتح لوحة المدير <span className="group-hover:translate-x-[-3px] transition-transform inline-block">←</span></span>
-            </div>
-          </div>
-        </Link>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {links.map(({ href, icon: Icon, label, desc, color, bg, border }) => (
             <Link key={href} href={href}
@@ -56,6 +40,9 @@ export default function ContractsPage() {
               </div>
             </Link>
           ))}
+        </div>
+        <div className="mt-6">
+          <InternalMailTab department="contracts_manager" title="نظام المراسلات الموحد - إدارة العقود" />
         </div>
       </div>
     </div>

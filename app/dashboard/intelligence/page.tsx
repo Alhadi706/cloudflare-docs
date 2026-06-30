@@ -2,8 +2,9 @@
 import Link from 'next/link';
 import {
   Bot, Newspaper, Command, TrendingUp, Activity, AlertTriangle,
-  BarChart2, TestTube2, Brain, Crown,
+  BarChart2, TestTube2, Brain,
 } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 
 // ── الذكاء العملياتي
 const opsLinks = [
@@ -67,26 +68,13 @@ export default function IntelligencePage() {
           <div className="h-px bg-slate-800 mt-4" />
         </div>
 
-        {/* Manager Card */}
-        <Link href="/dashboard/intelligence/manager" className="group block mb-8">
-          <div className="bg-slate-900 border border-fuchsia-500/30 rounded-2xl p-5 hover:border-fuchsia-500/60 hover:bg-slate-800/70 transition-all duration-200">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-fuchsia-500/20 flex items-center justify-center shrink-0">
-                <Crown className="w-5 h-5 text-fuchsia-400" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-base font-bold text-white">مدير إدارة الذكاء والتحليلات</h2>
-                <p className="text-fuchsia-400/70 text-xs mt-0.5">لوحة المدير — الأقسام والمراسلات الإدارية</p>
-              </div>
-              <span className="text-fuchsia-400 text-xs font-semibold flex items-center gap-1">فتح لوحة المدير <span className="group-hover:translate-x-[-3px] transition-transform inline-block">←</span></span>
-            </div>
-          </div>
-        </Link>
-
         <CardGrid title="الذكاء العملياتي" items={opsLinks} />
         <CardGrid title="التحليلات والتوقعات" items={analyticsLinks} />
         <CardGrid title="إدارة المخاطر" items={riskLinks} />
 
+        <div className="mt-6">
+          <InternalMailTab department="intelligence_manager" title="نظام المراسلات الموحد - إدارة الذكاء" />
+        </div>
       </div>
     </div>
   );

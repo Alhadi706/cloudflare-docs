@@ -5,6 +5,7 @@ import { Wallet, DollarSign, FileText, TrendingUp, ArrowLeftRight, PieChart, Bar
 import Link from 'next/link';
 import { useErpContextStore } from '@/store/erpContextStore';
 import DepartmentAssetInbox from '@/components/DepartmentAssetInbox';
+import InternalMailTab from '@/components/InternalMailTab';
 
 export default function FinancePage() {
   const erpCtx = useErpContextStore();
@@ -112,6 +113,11 @@ export default function FinancePage() {
         <div className="rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur-xl">
           <DepartmentAssetInbox department="finance" title="الأصول الموحدة - الإدارة المالية" compact />
         </div>
+
+        <InternalMailTab
+          department="finance"
+          title="المراسلات الداخلية - مدير الإدارة المالية"
+        />
 
         {/* Submodules Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

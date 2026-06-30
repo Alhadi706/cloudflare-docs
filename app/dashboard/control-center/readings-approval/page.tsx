@@ -212,6 +212,7 @@ export default function ReadingsApprovalPage() {
   const [loading, setLoading]          = useState(false);
   const [approverId, setApproverId]    = useState(0);
   const [approverInput, setApproverInput] = useState('');
+  const [approverName, setApproverName] = useState('');   // resolved from HR
   const [toast, setToast]              = useState<{type:'ok'|'err'; msg:string}|null>(null);
 
   function showToast(type: 'ok'|'err', msg: string) {
@@ -238,14 +239,44 @@ export default function ReadingsApprovalPage() {
 
   useEffect(() => {
     loadPending();
+
+    // Restore manually-saved approver id
     const stored = localStorage.getItem('ctrl_approver_id');
     if (stored) { setApproverId(Number(stored)); setApproverInput(stored); }
+
+    // Auto-resolve approver from HR using session email
+    const sessionEmail = localStorage.getItem('user_email');
+    if (sessionEmail) {
+      fetch('/api/control-center/employees')
+        .then(r => r.json())
+        .then(d => {
+          if (!d.success) return;
+          const match = (d.employees as { id: number; full_name_ar: string; email?: string }[])
+            .find(e => e.email?.toLowerCase() === sessionEmail.toLowerCase());
+          if (match) {
+            setApproverId(match.id);
+            setApproverInput(String(match.id));
+            setApproverName(match.full_name_ar);
+            localStorage.setItem('ctrl_approver_id', String(match.id));
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Role-based default tab
+    const role = (localStorage.getItem('user_role') || '').toLowerCase();
+    if (role.includes('dept') || role.includes('manager') || role.includes('director') || role.includes('head')) {
+      setTab('dept');
+    } else {
+      setTab('supervisor');
+    }
   }, [loadPending]);
 
   function saveApprover() {
     const n = Number(approverInput);
     if (!n) return;
     setApproverId(n);
+    setApproverName('');
     localStorage.setItem('ctrl_approver_id', String(n));
     showToast('ok', `تم حفظ الرقم الوظيفي: ${n}`);
   }
@@ -267,8 +298,8 @@ export default function ReadingsApprovalPage() {
       const d = await res.json();
       if (d.success) {
         showToast('ok', level === 'dept'
-          ? '✓ البيانات أُدرجت في النظام المباشر'
-          : '✓ تمت الموافقة — انتظر موافقة إدارة التحكم');
+          ? '✓ البيانات أُدرجت في النظام المباشر — تظهر الآن على SCADA'
+          : '✓ موافقة المشرف — الآن في انتظار اعتماد إدارة التحكم');
         await loadPending();
       } else {
         showToast('err', d.detail || 'خطأ في الموافقة');
@@ -292,7 +323,7 @@ export default function ReadingsApprovalPage() {
       });
       const d = await res.json();
       if (d.success) {
-        showToast('ok', 'تم الرفض — أُبلغ الراصد');
+        showToast('ok', 'تم الرفض وإعادة القراءة للراصد');
         await loadPending();
       } else {
         showToast('err', d.detail || 'خطأ في الرفض');
@@ -357,7 +388,7 @@ export default function ReadingsApprovalPage() {
             </div>
             {approverId > 0 && (
               <div className="text-xs bg-cyan-500/20 text-cyan-300 px-3 py-1.5 rounded-lg border border-cyan-500/30">
-                #{approverId}
+                {approverName ? `${approverName} (#${approverId})` : `#${approverId}`}
               </div>
             )}
           </div>

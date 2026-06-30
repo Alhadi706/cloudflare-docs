@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Warehouse, Wallet, ArrowUpRight, Wrench, Activity, Globe2, Cpu, Briefcase, ZapOff, Users, Package, ShoppingCart, Shield, Bell, Calendar, FileText, BarChart2, MapPin, ChevronDown, ChevronLeft, UserCircle, HardHat, Atom, ChevronRight, Smartphone, Radio, Crown } from 'lucide-react';
+import { Building2, Warehouse, Wallet, ArrowUpRight, Wrench, Activity, Globe2, Cpu, Briefcase, ZapOff, Users, Package, ShoppingCart, Shield, Bell, Calendar, FileText, BarChart2, MapPin, ChevronDown, ChevronLeft, UserCircle, HardHat, Atom, ChevronRight, Smartphone, Radio, Crown, Truck } from 'lucide-react';
 import { useActivatedDepartments, sidebarDepts, type ActivatedDept } from '@/store/activatedDepartments';
 import { canAccessPathForScope, getDefaultRouteForScope, normalizeAppScope } from '@/lib/appScope';
 import { clearServerSession } from '@/lib/client-auth-session';
@@ -545,67 +545,318 @@ export default function DashboardHome() {
           </Link>
         </div>
 
-        {/* ══ باقي الوحدات ══════════════════════════════════════════════ */}
-        <p className="text-xs text-slate-500 font-semibold tracking-widest uppercase mt-2">جميع الوحدات</p>
+        {/* ══ الإدارات الإضافية ══════════════════════════════════════════ */}
+        <p className="text-xs text-slate-500 font-semibold tracking-widest uppercase mt-2">الإدارات الأخرى</p>
 
-        <div className="space-y-4">
-          <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-2xl backdrop-blur-xl">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-black tracking-tight text-white md:text-3xl">لوحة التحكم الرئيسية</h1>
-                <p className="mt-2 text-sm text-slate-300">تنظيم الوحدات المتبقية في صفوف واضحة بدون عمود جانبي طويل.</p>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+
+          {/* إدارة المالية */}
+          <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30">
+                <Wallet className="h-5 w-5 text-emerald-300" />
               </div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">
-                {totals.total} مسار متاح عبر {groupedActions.length} مجموعات
+              <div>
+                <p className="text-xs text-emerald-300 font-semibold">الإدارة الخامسة</p>
+                <h2 className="text-base font-black text-white">إدارة المالية</h2>
               </div>
             </div>
-          </section>
+            <Link href="/dashboard/admin-gateway/finance/manager"
+              className="rounded-xl border border-emerald-400/40 bg-emerald-800/30 px-3 py-2.5 text-xs font-bold text-emerald-100 hover:bg-emerald-700/30 hover:border-emerald-400/60 transition-all flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Crown className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                دخول مدير الإدارة
+              </span>
+              <ChevronLeft className="h-3 w-3 text-emerald-400 shrink-0" />
+            </Link>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: 'الميزانيات',       href: '/dashboard/admin-gateway/finance/budgets' },
+                { label: 'المصروفات',        href: '/dashboard/admin-gateway/finance/expenses' },
+                { label: 'التحويلات',        href: '/dashboard/admin-gateway/finance/transfers' },
+                { label: 'التقارير المالية', href: '/dashboard/admin-gateway/finance/reports' },
+                { label: 'تتبع الأصول',      href: '/dashboard/admin-gateway/finance/asset-tracking' },
+                { label: 'التخصيصات',        href: '/dashboard/admin-gateway/finance/allocations' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-emerald-500/20 bg-emerald-900/20 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-800/30 hover:border-emerald-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-emerald-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/admin-gateway/finance"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2 text-sm font-bold text-emerald-200 hover:bg-emerald-500/20 transition-all">
+              دخول إدارة المالية <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
 
-          {groupedActions.map((group, gIndex) => {
-            const tone = [
-              'from-emerald-950/60 to-slate-950/80 border-emerald-500/25',
-              'from-amber-950/60 to-slate-950/80 border-amber-500/25',
-              'from-cyan-950/60 to-slate-950/80 border-cyan-500/25',
-              'from-violet-950/60 to-slate-950/80 border-violet-500/25',
-              'from-rose-950/60 to-slate-950/80 border-rose-500/25',
-              'from-indigo-950/60 to-slate-950/80 border-indigo-500/25',
-              'from-slate-900/70 to-slate-950/85 border-slate-700/60',
-            ][gIndex % 7];
+          {/* إدارة الأصول */}
+          <div className="rounded-2xl border border-rose-500/30 bg-gradient-to-br from-rose-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/15 border border-rose-500/30">
+                <Shield className="h-5 w-5 text-rose-300" />
+              </div>
+              <div>
+                <p className="text-xs text-rose-300 font-semibold">الإدارة السادسة</p>
+                <h2 className="text-base font-black text-white">إدارة الأصول</h2>
+              </div>
+            </div>
+            <Link href="/dashboard/admin-gateway/assets/manager"
+              className="rounded-xl border border-rose-400/40 bg-rose-800/30 px-3 py-2.5 text-xs font-bold text-rose-100 hover:bg-rose-700/30 hover:border-rose-400/60 transition-all flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Crown className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                دخول مدير الإدارة
+              </span>
+              <ChevronLeft className="h-3 w-3 text-rose-400 shrink-0" />
+            </Link>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: 'سجل الأصول',        href: '/dashboard/admin-gateway/assets/registry' },
+                { label: 'التصنيفات',          href: '/dashboard/admin-gateway/assets/categories' },
+                { label: 'صيانة الأصول',      href: '/dashboard/admin-gateway/assets/maintenance' },
+                { label: 'التقييمات',          href: '/dashboard/admin-gateway/assets/valuations' },
+                { label: 'المراجعات الدورية',  href: '/dashboard/admin-gateway/assets/reviews' },
+                { label: 'الأنواع',            href: '/dashboard/admin-gateway/assets/types' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-rose-500/20 bg-rose-900/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-800/30 hover:border-rose-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-rose-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/admin-gateway/assets"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 py-2 text-sm font-bold text-rose-200 hover:bg-rose-500/20 transition-all">
+              دخول إدارة الأصول <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
 
+          {/* إدارة المواد والمشتريات والمخازن */}
+          <div className="rounded-2xl border border-teal-500/30 bg-gradient-to-br from-teal-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/15 border border-teal-500/30">
+                <Package className="h-5 w-5 text-teal-300" />
+              </div>
+              <div>
+                <p className="text-xs text-teal-300 font-semibold">الإدارة السابعة</p>
+                <h2 className="text-base font-black text-white">المواد والمشتريات والمخازن</h2>
+              </div>
+            </div>
+            <Link href="/dashboard/admin-gateway/materials/manager"
+              className="rounded-xl border border-teal-400/40 bg-teal-800/30 px-3 py-2.5 text-xs font-bold text-teal-100 hover:bg-teal-700/30 hover:border-teal-400/60 transition-all flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Crown className="h-3.5 w-3.5 text-teal-400 shrink-0" />
+                دخول مدير الإدارة
+              </span>
+              <ChevronLeft className="h-3 w-3 text-teal-400 shrink-0" />
+            </Link>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: 'طلبات المواد',    href: '/dashboard/admin-gateway/materials/requests' },
+                { label: 'أوامر الشراء',     href: '/dashboard/admin-gateway/procurement/orders' },
+                { label: 'المستودعات',       href: '/dashboard/admin-gateway/inventory/warehouses' },
+                { label: 'الأصناف والمواد',  href: '/dashboard/admin-gateway/inventory/items' },
+                { label: 'الموردون',        href: '/dashboard/admin-gateway/procurement/suppliers' },
+                { label: 'الموافقات',       href: '/dashboard/admin-gateway/workflow/approvals?role=supervisor&dept=materials' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-teal-500/20 bg-teal-900/20 px-3 py-2 text-xs font-semibold text-teal-100 hover:bg-teal-800/30 hover:border-teal-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-teal-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/admin-gateway/materials"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-teal-500/40 bg-teal-500/10 py-2 text-sm font-bold text-teal-200 hover:bg-teal-500/20 transition-all">
+              دخول إدارة المواد <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {/* إدارة المشاريع */}
+          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-500/30">
+                <Briefcase className="h-5 w-5 text-amber-300" />
+              </div>
+              <div>
+                <p className="text-xs text-amber-300 font-semibold">الإدارة الثامنة</p>
+                <h2 className="text-base font-black text-white">إدارة المشاريع</h2>
+              </div>
+            </div>
+            <Link href="/dashboard/admin-gateway/projects/manager"
+              className="rounded-xl border border-amber-400/40 bg-amber-800/30 px-3 py-2.5 text-xs font-bold text-amber-100 hover:bg-amber-700/30 hover:border-amber-400/60 transition-all flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Crown className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                دخول مدير الإدارة
+              </span>
+              <ChevronLeft className="h-3 w-3 text-amber-400 shrink-0" />
+            </Link>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: 'قائمة المشاريع',  href: '/dashboard/admin-gateway/projects/list' },
+                { label: 'الجداول الزمنية', href: '/dashboard/admin-gateway/projects/milestones' },
+                { label: 'الميزانيات',       href: '/dashboard/admin-gateway/projects/budget' },
+                { label: 'الوثائق',          href: '/dashboard/admin-gateway/projects/documents' },
+                { label: 'المواقع الميدانية',href: '/dashboard/admin-gateway/projects/sites' },
+                { label: 'المهام',           href: '/dashboard/admin-gateway/projects/tasks' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-800/30 hover:border-amber-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-amber-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/admin-gateway/projects/list"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/20 transition-all">
+              دخول إدارة المشاريع <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {/* إدارة الأسطول */}
+          <div className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/15 border border-sky-500/30">
+                <Truck className="h-5 w-5 text-sky-300" />
+              </div>
+              <div>
+                <p className="text-xs text-sky-300 font-semibold">الإدارة التاسعة</p>
+                <h2 className="text-base font-black text-white">إدارة الأسطول</h2>
+              </div>
+            </div>
+            <Link href="/dashboard/admin-gateway/fleet/manager"
+              className="rounded-xl border border-sky-400/40 bg-sky-800/30 px-3 py-2.5 text-xs font-bold text-sky-100 hover:bg-sky-700/30 hover:border-sky-400/60 transition-all flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Crown className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                دخول مدير الإدارة
+              </span>
+              <ChevronLeft className="h-3 w-3 text-sky-400 shrink-0" />
+            </Link>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: 'السيارات والمركبات', href: '/dashboard/admin-gateway/fleet/vehicles' },
+                { label: 'المعدات الثقيلة',    href: '/dashboard/admin-gateway/vehicles/equipment' },
+                { label: 'استهلاك الوقود',     href: '/dashboard/admin-gateway/vehicles/fuel' },
+                { label: 'متابعة الأسطول',     href: '/dashboard/admin-gateway/vehicles/vehicles' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-sky-500/20 bg-sky-900/20 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-800/30 hover:border-sky-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-sky-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/admin-gateway/fleet"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 py-2 text-sm font-bold text-sky-200 hover:bg-sky-500/20 transition-all">
+              دخول إدارة الأسطول <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {/* إدارة المحاسبة */}
+          <div className="rounded-2xl border border-yellow-500/30 bg-gradient-to-br from-yellow-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-yellow-500/15 border border-yellow-500/30">
+                <BarChart2 className="h-5 w-5 text-yellow-300" />
+              </div>
+              <div>
+                <p className="text-xs text-yellow-300 font-semibold">الإدارة العاشرة</p>
+                <h2 className="text-base font-black text-white">إدارة المحاسبة</h2>
+              </div>
+            </div>
+            <Link href="/dashboard/admin-gateway/accounting/manager"
+              className="rounded-xl border border-yellow-400/40 bg-yellow-800/30 px-3 py-2.5 text-xs font-bold text-yellow-100 hover:bg-yellow-700/30 hover:border-yellow-400/60 transition-all flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Crown className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
+                دخول مدير الإدارة
+              </span>
+              <ChevronLeft className="h-3 w-3 text-yellow-400 shrink-0" />
+            </Link>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: 'دليل الحسابات',  href: '/dashboard/admin-gateway/accounting/chart-of-accounts' },
+                { label: 'مراكز التكلفة',  href: '/dashboard/admin-gateway/accounting/cost-centers' },
+                { label: 'القيود اليومية', href: '/dashboard/admin-gateway/accounting/journal-entries' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-yellow-500/20 bg-yellow-900/20 px-3 py-2 text-xs font-semibold text-yellow-100 hover:bg-yellow-800/30 hover:border-yellow-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-yellow-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/admin-gateway/accounting"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-yellow-500/40 bg-yellow-500/10 py-2 text-sm font-bold text-yellow-200 hover:bg-yellow-500/20 transition-all">
+              دخول إدارة المحاسبة <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {/* مكتب المدير العام */}
+          <div className="xl:col-span-3 rounded-2xl border border-indigo-500/40 bg-gradient-to-br from-indigo-950/70 via-slate-950/80 to-indigo-950/40 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/20 border border-indigo-500/40">
+                <Building2 className="h-5 w-5 text-indigo-300" />
+              </div>
+              <div>
+                <p className="text-xs text-indigo-300 font-semibold">الإدارة العليا</p>
+                <h2 className="text-base font-black text-white">مكتب المدير العام</h2>
+              </div>
+              <span className="mr-auto text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">لوحة تنفيذية</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+              {[
+                { label: 'التقارير التنفيذية', href: '/dashboard/admin-gateway/reports/executive' },
+                { label: 'الإيجاز التشغيلي',  href: '/dashboard/admin-gateway/intelligence/briefing' },
+                { label: 'تقارير مالية',      href: '/dashboard/admin-gateway/reports/financial' },
+                { label: 'تقارير العمليات',   href: '/dashboard/admin-gateway/reports/operations' },
+                { label: 'توقعات الأداء',     href: '/dashboard/admin-gateway/intelligence/forecast' },
+                { label: 'مركز القيادة',      href: '/dashboard/command-center' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-indigo-500/20 bg-indigo-900/20 px-3 py-2 text-xs font-semibold text-indigo-100 hover:bg-indigo-800/30 hover:border-indigo-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-indigo-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/admin-gateway/reports/executive"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-500/10 py-2 text-sm font-bold text-indigo-200 hover:bg-indigo-500/20 transition-all">
+              فتح التقارير التنفيذية <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+        </div>
+
+        {/* ══ أدوات ومسارات سريعة ════════════════════════════════════════ */}
+        <p className="text-xs text-slate-500 font-semibold tracking-widest uppercase mt-2">أدوات وأنظمة</p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[
+            { title: 'مركز الاستشعار عن بعد', href: '/dashboard/gis-sovereignty/remote-sensing-center', icon: Globe2,    desc: 'الأقمار الاصطناعية والتحليل المكاني والاستشعار الميداني' },
+            { title: 'مركز القيادة',            href: '/dashboard/command-center',                         icon: BarChart2, desc: 'لوحة القرار التشغيلي والمؤشرات الفورية' },
+            { title: 'المساعد الذكي',           href: '/dashboard/ai-assistant',                           icon: Cpu,       desc: 'استعلام وتحليل البيانات بالذكاء الاصطناعي' },
+            { title: 'التقرير اليومي',          href: '/dashboard/daily-operations',                       icon: Activity,  desc: 'قراءات المحطات والتقارير التشغيلية اليومية' },
+            { title: 'مراقبة النظام',           href: '/dashboard/system-explorer',                        icon: Building2, desc: 'حالة الوحدات والربط التقني للمنظومة' },
+            { title: 'ذكاء الأصول',            href: '/dashboard/asset-intelligence',                     icon: Shield,    desc: 'تحليل الأصول والتنبؤ بالأعطال' },
+            { title: 'العقود والمقاولون',       href: '/dashboard/admin-gateway/contracts',                icon: FileText,  desc: 'إدارة العقود والمقاولين' },
+            { title: 'الإشعارات والتنبيهات',    href: '/dashboard/admin-gateway/notifications',            icon: Bell,      desc: 'التنبيهات العاجلة والمهام المعلقة' },
+          ].map((item) => {
+            const Icon = item.icon;
             return (
-              <section key={group.key} className={`rounded-3xl border bg-gradient-to-br p-5 shadow-xl backdrop-blur-xl ${tone}`}>
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="text-base font-black text-white md:text-lg">{group.title}</h2>
-                  <span className="rounded-xl border border-white/15 bg-black/20 px-3 py-1 text-xs font-bold text-slate-200">
-                    {group.items.length} وحدات
-                  </span>
+              <Link key={item.href} href={item.href}
+                className="group rounded-2xl border border-white/10 bg-slate-950/65 p-4 transition-all hover:-translate-y-0.5 hover:border-slate-500/40 hover:bg-slate-900/90">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800 text-slate-400">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-slate-500 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-300" />
                 </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {group.items.map((action, index) => {
-                    const Icon = action.icon;
-                    return (
-                      <Link
-                        key={action.key || `${action.href}-${action.title}-${index}`}
-                        href={action.href}
-                        className="group rounded-2xl border border-white/10 bg-slate-950/65 p-4 transition-all hover:-translate-y-0.5 hover:border-cyan-400/40 hover:bg-slate-900/90"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
-                            <Icon className="h-5 w-5" />
-                          </div>
-                          <ArrowUpRight className="h-4 w-4 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-cyan-300" />
-                        </div>
-                        <p className="mt-3 text-sm font-bold text-white">{action.title}</p>
-                        <p className="mt-1 text-[11px] leading-5 text-slate-400">{action.desc}</p>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </section>
+                <p className="mt-3 text-sm font-bold text-white">{item.title}</p>
+                <p className="mt-1 text-[11px] leading-5 text-slate-400">{item.desc}</p>
+              </Link>
             );
           })}
         </div>
+
       </div>
     </div>
   );

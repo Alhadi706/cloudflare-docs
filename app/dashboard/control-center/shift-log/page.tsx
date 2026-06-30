@@ -38,48 +38,33 @@ interface ShiftRecord {
 }
 
 /* ─── mock ─────────────────────────────────────────────────────────────────── */
-const SHIFTS: ShiftRecord[] = [
-  {
-    id: 'S-20260611-A',
-    shift_name: 'نوبة الصباح',
-    shift_label: '06:00 — 14:00',
-    start_time: '06:00',
-    end_time: '14:00',
-    operator_on: 'م. أحمد الفيتوري',
-    operator_off: undefined,
-    production_m3: 185000,
-    alarms_count: 3,
-    notes_ar: 'محطة PS-2 تشتغل بكفاءة منخفضة — تم إبلاغ الصيانة. PRV-006 في حالة عطل منذ 08:52.',
-    is_current: true,
-    entries: [
-      { id: 'E1', time: '06:02', operator: 'م. أحمد', type: 'event',   message_ar: 'استلام النوبة من م. كريم. الشبكة في الحالة الطبيعية.', resolved: true },
-      { id: 'E2', time: '07:30', operator: 'م. أحمد', type: 'alarm',   message_ar: 'تنبيه: ضغط منطقة Z6 انحرف عن الهدف (3.2 بار / هدف: 3.5 بار)', tag: 'Z6-PRESS', resolved: false },
-      { id: 'E3', time: '08:10', operator: 'م. أحمد', type: 'alarm',   message_ar: 'انقطاع الاتصال بخزان سيدي سعيد — تم إرسال طلب فحص ميداني', tag: 'CB-SIDSD-LVL', resolved: false },
-      { id: 'E4', time: '08:52', operator: 'م. أحمد', type: 'alarm',   message_ar: 'PRV-006 في حالة عطل — تم فتح طلب صيانة عاجل', tag: 'PRV-006', resolved: false },
-      { id: 'E5', time: '09:14', operator: 'م. أحمد', type: 'action',  message_ar: 'رفع معدل ضخ PS-1 لتعويض انخفاض إنتاج PS-2 جزئياً', resolved: true },
-      { id: 'E6', time: '09:30', operator: 'م. أحمد', type: 'note',    message_ar: 'إجمالي الإنتاج حتى الآن: 92,500 م³ — وفق الجدول', resolved: true },
-    ],
-  },
-  {
-    id: 'S-20260610-C',
-    shift_name: 'نوبة الليل',
-    shift_label: '22:00 — 06:00',
-    start_time: '22:00',
-    end_time: '06:00',
-    operator_on: 'م. كريم الصويعي',
-    operator_off: 'م. أحمد الفيتوري',
-    production_m3: 172000,
-    alarms_count: 1,
-    notes_ar: 'نوبة هادئة. خفض الضخ بنسبة 10% بين 02:00–04:00 بسبب انخفاض الطلب. الشبكة مستقرة.',
-    is_current: false,
-    entries: [
-      { id: 'F1', time: '22:05', operator: 'م. كريم',  type: 'event',    message_ar: 'استلام النوبة — كل المحطات نشطة', resolved: true },
-      { id: 'F2', time: '02:00', operator: 'م. كريم',  type: 'action',   message_ar: 'تخفيض معدل الضخ الكلي 10% وفق جدولة الإنتاج الليلي', resolved: true },
-      { id: 'F3', time: '04:00', operator: 'م. كريم',  type: 'action',   message_ar: 'إعادة معدل الضخ للمستوى الطبيعي', resolved: true },
-      { id: 'F4', time: '05:45', operator: 'م. كريم',  type: 'handover', message_ar: 'تسليم النوبة لـ م. أحمد. لا توجد إنذارات معلقة.', resolved: true },
-    ],
-  },
-];
+// Mock data removed — shift logs are now persisted in ctrl.shift_logs (PostgreSQL)
+
+/* ─── shift type helpers ─────────────────────────────────────────────────── */
+const SHIFT_META: Record<string, { name: string; label: string; start: string; end: string }> = {
+  morning: { name: 'نوبة الصباح',  label: '06:00 — 14:00', start: '06:00', end: '14:00' },
+  evening: { name: 'نوبة المساء',  label: '14:00 — 22:00', start: '14:00', end: '22:00' },
+  night:   { name: 'نوبة الليل',   label: '22:00 — 06:00', start: '22:00', end: '06:00' },
+  daily:   { name: 'وردية يومية',  label: '00:00 — 24:00', start: '00:00', end: '24:00' },
+};
+
+function dbToShiftRecord(r: Record<string, unknown>): ShiftRecord {
+  const meta = SHIFT_META[r.shift_type as string] || SHIFT_META.daily;
+  return {
+    id:           String(r.id),
+    shift_name:   meta.name,
+    shift_label:  meta.label,
+    start_time:   meta.start,
+    end_time:     meta.end,
+    operator_on:  (r.operator_on_name as string) || '—',
+    operator_off: (r.operator_off_name as string) || undefined,
+    production_m3: Number(r.production_m3) || 0,
+    alarms_count:  Number(r.alarms_count)  || 0,
+    notes_ar:      (r.notes_ar as string)  || '',
+    entries:       Array.isArray(r.entries) ? (r.entries as ShiftEntry[]) : [],
+    is_current:    !(r.closed as boolean),
+  };
+}
 
 /* ─── config ─────────────────────────────────────────────────────────────────── */
 const ENTRY_CFG: Record<EntryType, { label: string; color: string; icon: React.ElementType }> = {
@@ -92,9 +77,11 @@ const ENTRY_CFG: Record<EntryType, { label: string; color: string; icon: React.E
 
 /* ─── Page ─────────────────────────────────────────────────────────────────── */
 export default function ShiftLogPage() {
-  const [expandedShift, setExpandedShift] = useState<string | null>('S-20260611-A');
+  const [expandedShift, setExpandedShift] = useState<string | null>(null);
   const [newNote, setNewNote] = useState('');
-  const [shifts, setShifts] = useState<ShiftRecord[]>(SHIFTS);
+  const [shifts, setShifts] = useState<ShiftRecord[]>([]);
+  const [loadingShifts, setLoadingShifts] = useState(true);
+  const [openShiftId, setOpenShiftId] = useState<string | null>(null);
 
   // HR integration — employee list from hr_core
   const [employees, setEmployees] = useState<{ id: number; full_name_ar: string; position_name_ar?: string }[]>([]);
@@ -122,12 +109,35 @@ export default function ShiftLogPage() {
     loadEmployees();
   }, []);
 
-  const addNote = (shiftId: string) => {
+  // Load shift logs from DB
+  useEffect(() => {
+    async function loadShifts() {
+      setLoadingShifts(true);
+      try {
+        const res = await fetch('/api/control-center/shift-log?days=7');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.logs)) {
+            const mapped = (data.logs as Record<string, unknown>[]).map(dbToShiftRecord);
+            setShifts(mapped);
+            const current = mapped.find(s => s.is_current);
+            if (current) { setOpenShiftId(current.id); setExpandedShift(current.id); }
+          }
+        }
+      } catch { /* ignore */ }
+      finally { setLoadingShifts(false); }
+    }
+    loadShifts();
+  }, []);
+
+  const addNote = async (shiftId: string) => {
     if (!newNote.trim()) return;
     const operatorName = selectedOperator
       ? (employees.find(e => e.id === +selectedOperator)?.full_name_ar || selectedOperator)
       : 'المستخدم الحالي';
-    const entry: ShiftEntry = {
+
+    // Optimistic local update
+    const tempEntry: ShiftEntry = {
       id: `NOTE-${Date.now()}`,
       time: new Date().toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }),
       operator: operatorName,
@@ -136,9 +146,23 @@ export default function ShiftLogPage() {
       resolved: true,
     };
     setShifts(prev => prev.map(s =>
-      s.id === shiftId ? { ...s, entries: [...s.entries, entry] } : s
+      s.id === shiftId ? { ...s, entries: [...s.entries, tempEntry] } : s
     ));
     setNewNote('');
+
+    // Persist to DB
+    try {
+      await fetch(`/api/control-center/shift-log/${shiftId}/entry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'note',
+          operator: operatorName,
+          message_ar: tempEntry.message_ar,
+          resolved: true,
+        }),
+      });
+    } catch { /* optimistic update already shown */ }
   };
 
   return (
@@ -154,6 +178,30 @@ export default function ShiftLogPage() {
             <h1 className="text-xl font-bold">سجل النوبات الرقمي</h1>
             <p className="text-xs text-slate-500">تسليم النوبات، الأحداث البارزة، وملاحظات مشغلي غرفة التحكم</p>
           </div>
+          {loadingShifts && <RefreshCw className="w-4 h-4 text-slate-500 animate-spin mr-auto" />}
+          {!loadingShifts && !openShiftId && (
+            <button
+              onClick={async () => {
+                const operatorId  = selectedOperator ? +selectedOperator : undefined;
+                const operatorName = operatorId ? (employees.find(e => e.id === operatorId)?.full_name_ar || '') : undefined;
+                const res = await fetch('/api/control-center/shift-log', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ shift_type: 'morning', operator_on_id: operatorId, operator_on_name: operatorName }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                  const mapped = dbToShiftRecord(data.log);
+                  setShifts(prev => [mapped, ...prev]);
+                  setOpenShiftId(mapped.id);
+                  setExpandedShift(mapped.id);
+                }
+              }}
+              className="mr-auto px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs transition-colors"
+            >
+              + فتح نوبة جديدة
+            </button>
+          )}
         </div>
 
         {/* ── HR Panel: مُشغّلو النوبة (من قائمة الموظفين) ── */}
@@ -225,6 +273,11 @@ export default function ShiftLogPage() {
 
         {/* ── Shift list ── */}
         <div className="space-y-4">
+          {!loadingShifts && shifts.length === 0 && (
+            <div className="text-center py-12 text-slate-500 text-sm">
+              لا توجد نوبات مسجّلة خلال الأسبوع الماضي — افتح نوبة جديدة للبدء
+            </div>
+          )}
           {shifts.map((shift) => {
             const isExpanded = expandedShift === shift.id;
             return (

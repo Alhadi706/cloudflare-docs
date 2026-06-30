@@ -5,17 +5,28 @@
  * هيكل تنظيمي: مدير الإدارة → أقسام متخصصة → فرق الرصد
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Radio, Activity, BarChart3, Bell, BookOpen,
   MonitorDot, Gauge, Users, Crown, ArrowRight,
-  MapPin, ClipboardList, Zap, Settings, Mail,
+  MapPin, ClipboardList, Zap, Settings,
   PenLine, CheckSquare,
 } from 'lucide-react';
-import InternalMailTab from '@/components/InternalMailTab';
 
 export default function ControlCenterPage() {
+  const [pendingSup, setPendingSup] = useState(0);
+  const [pendingDept, setPendingDept] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/control-center/readings/pending-count')
+      .then(r => r.json())
+      .then(d => { if (d.success) { setPendingSup(d.supervisor); setPendingDept(d.dept); } })
+      .catch(() => {});
+  }, []);
+
+  const totalPending = pendingSup + pendingDept;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8" dir="rtl">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -34,33 +45,19 @@ export default function ControlCenterPage() {
         </div>
 
         {/* ══ مدير الإدارة ══════════════════════════════════════════════════ */}
-        <Link href="/dashboard/control-center/manager" className="group block">
+        <Link href="/dashboard/control-center/real-time" className="group block">
           <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:bg-slate-800/70 transition-all duration-200">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center shrink-0">
                 <Crown className="w-6 h-6 text-cyan-400" />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-white">مدير إدارة التحكم</h2>
-                    <p className="text-cyan-400/70 text-xs mt-0.5">Network Control Manager</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 animate-pulse">
-                      LIVE
-                    </span>
-                    <Link
-                      href="/dashboard/control-center/real-time"
-                      onClick={e => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-700 transition-colors"
-                    >
-                      <Activity className="w-3 h-3" />
-                      SCADA
-                    </Link>
-                  </div>
-                </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">مدير إدارة التحكم</h2>
+                <p className="text-cyan-400/70 text-xs mt-0.5">Network Control Manager</p>
               </div>
+              <span className="mr-auto text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 animate-pulse">
+                LIVE
+              </span>
             </div>
             <p className="text-slate-400 text-sm mb-4 leading-relaxed">
               لوحة المراقبة الآنية الكاملة: P&ID ميميك، حالة المحطات، الضغوط، التدفق، وتنبيهات الشبكة في الوقت الفعلي.
@@ -80,7 +77,7 @@ export default function ControlCenterPage() {
             </div>
             <div className="mt-4 pt-4 border-t border-slate-800">
               <span className="text-cyan-400 font-semibold text-sm flex items-center gap-1.5">
-                فتح لوحة المدير — الأقسام والمراسلات
+                فتح لوحة المدير
                 <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
               </span>
             </div>
@@ -245,11 +242,22 @@ export default function ControlCenterPage() {
                 <div className="w-11 h-11 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
                   <CheckSquare className="w-5 h-5 text-indigo-400" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <h2 className="text-base font-bold text-white">مراجعة واعتماد القراءات</h2>
                   <p className="text-indigo-400/70 text-xs mt-0.5">Approval Workflow — المشرف & الإدارة</p>
                 </div>
+                {totalPending > 0 && (
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500 text-white font-bold animate-pulse shrink-0">
+                    {totalPending}
+                  </span>
+                )}
               </div>
+              {totalPending > 0 && (
+                <div className="flex gap-2 text-xs mb-2">
+                  {pendingSup > 0 && <span className="bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg px-2 py-1">{pendingSup} بانتظار المشرف</span>}
+                  {pendingDept > 0 && <span className="bg-blue-500/20 border border-blue-500/30 text-blue-300 rounded-lg px-2 py-1">{pendingDept} بانتظار إدارة التحكم</span>}
+                </div>
+              )}
               <p className="text-slate-400 text-sm mb-4 leading-relaxed">
                 مراجعة القراءات المُرسلة من الرصاد وموافقة المشرف ثم إدارة التحكم لإدراجها في النظام المباشر.
               </p>
@@ -273,7 +281,7 @@ export default function ControlCenterPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { href: '/dashboard/control-center/field-readings',      label: 'تسجيل القراءات',   color: 'border-teal-500/20 text-teal-300 bg-teal-500/5' },
-            { href: '/dashboard/control-center/readings-approval',   label: 'اعتماد القراءات',   color: 'border-indigo-500/20 text-indigo-300 bg-indigo-500/5' },
+            { href: '/dashboard/control-center/readings-approval',   label: `اعتماد القراءات${totalPending > 0 ? ` (${totalPending})` : ''}`,   color: 'border-indigo-500/20 text-indigo-300 bg-indigo-500/5' },
             { href: '/dashboard/control-center/real-time',           label: 'المراقبة الآنية',   color: 'border-cyan-500/20 text-cyan-300 bg-cyan-500/5' },
             { href: '/dashboard/control-center/shift-log',           label: 'سجل النوبات',       color: 'border-violet-500/20 text-violet-300 bg-violet-500/5' },
             { href: '/dashboard/control-center/alarm-management',    label: 'إدارة الإنذارات',   color: 'border-amber-500/20 text-amber-300 bg-amber-500/5' },

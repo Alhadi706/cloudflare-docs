@@ -7,6 +7,7 @@ import {
   BarChart2, Bot, MapPin, Users, PackageOpen, Activity,
   Settings, Zap,
 } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 
 export default function MaintenanceHubPage() {
   return (
@@ -143,6 +144,17 @@ export default function MaintenanceHubPage() {
 
         </div>
 
+        {/* المراسلات الإدارية الداخلية */}
+        <div className="mt-8">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">المراسلات الإدارية الداخلية</h2>
+          <div className="mb-4 rounded-xl border border-orange-500/25 bg-orange-500/5 px-4 py-3">
+            <p className="text-sm text-orange-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+            <p className="text-xs text-slate-300 mt-1">
+              الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.
+            </p>
+          </div>
+          <InternalMailTab department="maint_manager" title="نظام المراسلات الموحد - إدارة الهندسة والدعم الفني" />
+        </div>
       </div>
     </div>
   );

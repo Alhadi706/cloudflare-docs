@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import {
   ArrowRight, Crown, Wrench, Brain, CalendarClock,
@@ -34,18 +34,16 @@ const sections = [
   },
 ];
 
-const monitoringLinks = [
-  { href: '/dashboard/admin-gateway/maintenance/executive',      icon: BarChart2,    label: 'التقرير التنفيذي',      hint: 'ملخص أداء الصيانة والعمليات الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/work-orders',    icon: ClipboardList, label: 'اعتماد أوامر العمل',   hint: 'مراجعة وإقرار أوامر العمل المعلقة' },
-  { href: '/dashboard/admin-gateway/maintenance/teams',          icon: Users,         label: 'فرق الصيانة',          hint: 'إدارة الكوادر والفرق الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/spare-parts',    icon: PackageOpen,   label: 'مخزون قطع الغيار',    hint: 'متابعة مستويات المخزون والطلبيات' },
-  { href: '/dashboard/admin-gateway/maintenance/fault-analysis', icon: Activity,      label: 'تحليل الأعطال',        hint: 'تشخيص الأنماط والأعطال المتكررة' },
-  { href: '/dashboard/admin-gateway/maintenance/bot-control',    icon: Bot,           label: 'التحكم الآلي الذكي',  hint: 'لوحة التحكم بالأتمتة الذكية' },
+const mgmtLinks = [
+  { href: '/dashboard/admin-gateway/maintenance/executive',  icon: BarChart2,   label: 'التقرير التنفيذي' },
+  { href: '/dashboard/admin-gateway/maintenance/work-orders', icon: ClipboardList, label: 'اعتماد أوامر العمل' },
+  { href: '/dashboard/admin-gateway/maintenance/teams',      icon: Users,       label: 'فرق الصيانة' },
+  { href: '/dashboard/admin-gateway/maintenance/spare-parts', icon: PackageOpen, label: 'مخزون قطع الغيار' },
+  { href: '/dashboard/admin-gateway/maintenance/fault-analysis', icon: Activity, label: 'تحليل الأعطال' },
+  { href: '/dashboard/admin-gateway/maintenance/bot-control', icon: Bot,         label: 'التحكم الآلي الذكي' },
 ];
 
 export default function MaintenanceManagerPage() {
-  const [activeTab, setActiveTab] = useState<'sections' | 'monitoring' | 'correspondence'>('sections');
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8" dir="rtl">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -66,78 +64,59 @@ export default function MaintenanceManagerPage() {
           </div>
         </div>
 
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-2 grid grid-cols-1 md:grid-cols-3 gap-2">
-          {[
-            { key: 'sections',        label: 'أقسام الإدارة',                  active: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
-            { key: 'monitoring',      label: 'المؤشرات والمراقبة',             active: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
-            { key: 'correspondence',  label: 'المراسلات الإدارية الداخلية',    active: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
-          ].map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key as typeof activeTab)}
-              className={`rounded-xl px-4 py-3 text-sm font-semibold transition-colors border ${activeTab === t.key ? t.active : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800/60'}`}>
-              {t.label}
-            </button>
-          ))}
+        {/* Sections Overview */}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">الأقسام التابعة</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {sections.map(({ href, label, en, color, border, bg, icon: Icon, items }) => (
+              <Link key={href} href={href} className="group block">
+                <div className={`bg-slate-900 border ${border} rounded-2xl p-5 hover:bg-slate-800/70 transition-all duration-200 h-full flex flex-col`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                      <Icon className={`w-4 h-4 ${color}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">{label}</p>
+                      <p className={`text-[10px] ${color} opacity-70 mt-0.5`}>{en}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1 flex-1">
+                    {items.map(i => (
+                      <div key={i} className="text-xs text-slate-500 flex items-center gap-1.5">
+                        <span className={`w-1 h-1 rounded-full ${bg} inline-block shrink-0`} />
+                        {i}
+                      </div>
+                    ))}
+                  </div>
+                  <div className={`mt-3 pt-3 border-t border-slate-800 ${color} text-xs font-semibold flex items-center gap-1`}>
+                    دخول القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
 
-        {activeTab === 'sections' && (
-          <div>
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">الأقسام التابعة</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {sections.map(({ href, label, en, color, border, bg, icon: Icon, items }) => (
-                <Link key={href} href={href} className="group block">
-                  <div className={`bg-slate-900 border ${border} rounded-2xl p-5 hover:bg-slate-800/70 transition-all h-full flex flex-col`}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
-                        <Icon className={`w-5 h-5 ${color}`} />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-white">{label}</h3>
-                        <p className={`text-[11px] ${color} mt-0.5 opacity-70`}>{en}</p>
-                      </div>
-                    </div>
-                    <ul className="text-xs text-slate-400 space-y-1 flex-1">
-                      {items.map(item => (
-                        <li key={item} className="flex items-center gap-1.5">
-                          <span className={`w-1 h-1 rounded-full inline-block shrink-0 ${bg}`} />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className={`mt-3 pt-3 border-t border-slate-800 ${color} text-xs font-semibold flex items-center gap-1`}>
-                      دخول القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+        <InternalMailTab
+          department="maint_manager"
+          title="نظام المراسلات الموحد - الهندسة والدعم الفني"
+        />
 
-        {activeTab === 'monitoring' && (
-          <div className="space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">المؤشرات والروابط التنفيذية</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {monitoringLinks.map(({ href, icon: Icon, label, hint }) => (
-                <Link key={href} href={href} className="group flex items-start gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-4 hover:border-emerald-500/30 hover:bg-slate-800/60 transition-all">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                    <Icon className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors">{label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{hint}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
+        {/* Management Tools */}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">أدوات الإدارة</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {mgmtLinks.map(({ href, icon: Icon, label }) => (
+              <Link key={href} href={href}
+                className="group flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 hover:border-orange-500/40 hover:bg-slate-800/60 transition-all">
+                <Icon className="w-4 h-4 text-orange-400 shrink-0" />
+                <span className="text-sm text-slate-300 group-hover:text-white transition-colors truncate">{label}</span>
+              </Link>
+            ))}
           </div>
-        )}
-
-        {activeTab === 'correspondence' && (
-          <InternalMailTab department="maint_manager" title="نظام المراسلات الموحد - إدارة الهندسة والدعم الفني" />
-        )}
+        </div>
 
       </div>
     </div>
   );
 }
-

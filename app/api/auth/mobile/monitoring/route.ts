@@ -54,8 +54,51 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, team });
   }
 
-  // Submit a reading
+  // Submit a reading — write to ctrl.station_readings (DB) instead of in-memory store
   const team = body.team_id ? getMonitoringTeam(auth.tenantId, body.team_id) : undefined;
+
+  // Map mobile body fields to ctrl.station_readings format
+  const v = body.values || {};
+  const stationId = body.station_id || team?.station_id || body.team_id || '';
+
+  if (stationId) {
+    try {
+      const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
+      const dbBody = {
+        station_id:       stationId,
+        reading_date:     body.reading_date || new Date().toISOString().slice(0, 10),
+        shift:            body.shift || 'daily',
+        flow_m3:          v.flow_m3          ?? v.totalFlow    ?? null,
+        pressure_in_bar:  v.pressure_in_bar  ?? v.pressureIn   ?? null,
+        pressure_out_bar: v.pressure_out_bar ?? v.pressureOut  ?? null,
+        tank_level_pct:   v.tank_level_pct   ?? v.tankLevel    ?? null,
+        pumps_running:    v.pumps_running     ?? v.pumpsRunning ?? null,
+        power_kw:         v.power_kw          ?? v.powerKw     ?? null,
+        chlorine_mg_l:    v.chlorine_mg_l     ?? v.chlorine    ?? null,
+        turbidity_ntu:    v.turbidity_ntu     ?? v.turbidity   ?? null,
+        ph_value:         v.ph_value          ?? v.ph          ?? null,
+        notes:            body.notes || null,
+        submitted_by:     0,   // mobile user — no employee_id in JWT yet
+        as_draft:         false,
+        pumps_detail:     [],
+        attachments:      [],
+      };
+      const dbRes = await fetch(`${B}/api/v1/ctrl/readings/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dbBody),
+        signal: AbortSignal.timeout(8000),
+      });
+      const dbData = await dbRes.json().catch(() => ({}));
+      if (dbData.success) {
+        return NextResponse.json({ ok: true, reading: dbData, source: 'db' });
+      }
+    } catch {
+      // fall through to in-memory backup
+    }
+  }
+
+  // Fallback: save to in-memory store if DB write fails or no station_id
   const reading = saveMonitoringReading(auth.tenantId, {
     tenant_id:         auth.tenantId,
     team_id:           body.team_id || '',
@@ -69,5 +112,5 @@ export async function POST(req: NextRequest) {
     notes:             body.notes || undefined,
     status:            'submitted',
   });
-  return NextResponse.json({ ok: true, reading });
+  return NextResponse.json({ ok: true, reading, source: 'memory' });
 }

@@ -93,7 +93,7 @@ export const useActivatedDepartments = create<ActivatedDepartmentsState>((set, g
               .split(';')
               .map((p) => p.trim())
               .find((p) => p.startsWith('app_scope='))
-              ?.split('=')[1] || '')
+              ?.split('=')[1] || process.env.NEXT_PUBLIC_APP_SCOPE || '')
           : ''
       );
       const scopedDepartments = (data.departments ?? []).filter((dept: ActivatedDept) =>

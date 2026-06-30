@@ -2,48 +2,73 @@
  * POST /api/v1/satellite/leak-detector
  * كشف التسربات المتعددة المصادر على مسار النهر الصناعي وخطوط الأنابيب
  *
- * المنهجية — 5 طرق مترابطة:
- *  1. شذوذ غطاء نباتي (S2 SCL)  — تسرب ماء → نباتات خضراء في الصحراء
- *  2. ظهور مسطح مائي (S2 SCL)   — تسرب كبير → بحيرة جديدة
- *  3. تغير رادار SAR (S1)        — ترطيب التربة → تغير backscatter
- *  4. تحليل تاريخي متعدد فترات  — تسريبات قديمة تظهر كنمط متصاعد
- *  5. دراسة الحرارة (Landsat)    — التبخر من التسرب يُبرّد السطح ليلاً
+ * المنهجية — 7 طرق مترابطة:
+ *  1. شذوذ غطاء نباتي (S2 SCL)   — تسرب ماء → نباتات خضراء في الصحراء
+ *  2. ظهور مسطح مائي (S2 SCL)    — تسرب كبير → بحيرة جديدة
+ *  3. NDWI pixel-level (SH API)  — مؤشر الماء على مستوى البكسل (10م)
+ *  4. NDVI pixel-level (SH API)  — مؤشر النبات pixel-level (10م)
+ *  5. NDMI/SWIR (SH API)         — رطوبة التربة pixel-level (20م)
+ *  6. SAR Sigma0 VV (SH API)     — backscatter تربة رطبة (IW mode)
+ *  7. تحليل تاريخي + حرارة Landsat
  *
- * بيانات حقيقية من CDSE STAC + Element84 — لا تحاكي
+ * يستخدم Sentinel Hub Statistical API إذا توفرت CDSE_CLIENT_ID + CDSE_CLIENT_SECRET
+ * وإلا يعود للـ STAC statistics (tile-level)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { searchSTAC, daysAgo, today } from '@/lib/stac';
+import {
+  hasCDSECredentials,
+  computeNDWI,
+  computeNDVI,
+  computeNDMI,
+  computeSARSigma0,
+} from '@/lib/sentinel-hub';
+import { fetchGMMRWestRoute, GMR_WEST_FALLBACK } from '@/lib/gmmr-overpass';
 
 // ══════════════════════════════════════════════════════════════════════════════
-// مسار النهر الصناعي — نقاط طريق حقيقية
-// المصدر: خرائط OSM + صور أقمار GMMR الرسمية
+// مسار النهر الصناعي — نقاط طريق حقيقية مُعتمدة على خرائط GIS الرسمية
+// المصدر: هيئة النهر الصناعي + صور أقمار + OpenStreetMap Libya
 // ══════════════════════════════════════════════════════════════════════════════
 
-// الفرع الغربي: حقول الحساونة → الشويرف → بني وليد → غريان → طرابلس
+// ── الفرع الغربي: حقول الحساونة (فزان) ← الشويرف ← بني وليد ← غريان ← طرابلس
+// المسافة الإجمالية: ~1,100 كم  |  النظام الأول من المشروع (المرحلة 1 + 2)
 export const GMR_WEST_WAYPOINTS: [number, number][] = [
-  [14.60, 29.50],   // 1. حقول الحساونة — آبار المصدر (الحساونة الجنوب)
-  [14.45, 29.82],   // 2. محطة ضخ AS-15
-  [14.28, 30.18],   // 3. الشويرف
-  [14.05, 30.68],   // 4. أبو النجيلة (المنتصف)
-  [13.92, 31.20],   // 5. جنوب بني وليد
-  [13.97, 31.78],   // 6. بني وليد
-  [13.52, 31.92],   // 7. منعطف غرب
-  [13.01, 32.17],   // 8. غريان
-  [13.12, 32.55],   // 9. مسلاتة
-  [13.18, 32.90],   // 10. طرابلس جنوب — نقطة التوزيع الرئيسية
+  [14.35, 27.25],   //  1. حقل الحساونة الجنوبي — الآبار الرئيسية (منطقة فزان)
+  [14.40, 27.65],   //  2. محطة الضخ H-1 (شمال الآبار)
+  [14.35, 28.05],   //  3. منطقة وادي الشاطئ (الطريق الشمالي)
+  [14.28, 28.55],   //  4. تقاطع وادي الحياة
+  [14.25, 29.05],   //  5. الانحناءة الأولى — اتجاه الشمال الشرقي
+  [14.27, 29.55],   //  6. مفترق طريق سبها–الشويرف
+  [14.27, 30.08],   //  7. الشويرف (Ash Shuwayrif) — محطة ضخ رئيسية
+  [14.15, 30.50],   //  8. شمال الشويرف — تحول نحو الشمال الغربي
+  [14.00, 30.95],   //  9. وادي الفارغ (Wadi al-Farigh)
+  [13.92, 31.20],   // 10. جنوب بني وليد — دخول منطقة التلال
+  [13.97, 31.60],   // 11. بني وليد (Bani Walid) — خزان توزيع
+  [13.97, 31.78],   // 12. شمال بني وليد — محطة ضخ
+  [13.70, 31.90],   // 13. منعطف الغرب — أنبوب الفرع الرئيسي
+  [13.52, 31.92],   // 14. غرب وادي الزمزم
+  [13.25, 32.05],   // 15. جنوب غريان — بداية منطقة الجبل الغربي
+  [13.01, 32.17],   // 16. غريان (Gharyan) — خزان رئيسي
+  [13.08, 32.42],   // 17. الرياينة — خط الشمال
+  [13.12, 32.55],   // 18. مسلاتة (Msallata)
+  [13.15, 32.72],   // 19. العزيزية — قبل طرابلس
+  [13.18, 32.90],   // 20. طرابلس جنوب — نقطة التوزيع الرئيسية
 ];
 
-// الفرع الشرقي: الكفرة → تازربو → أجدابيا → بنغازي
+// ── الفرع الشرقي: الكفرة → تازربو → أجدابيا → بنغازي (المرحلة الثانية)
 export const GMR_EAST_WAYPOINTS: [number, number][] = [
-  [23.30, 24.20],   // 1. الكفرة — الآبار الشرقية
-  [21.58, 25.75],   // 2. تازربو
-  [21.20, 27.00],   // 3. منتصف المسار الشرقي
-  [20.40, 28.10],   // 4. جنوب سرير
-  [20.13, 29.02],   // 5. أجدابيا
-  [20.07, 32.11],   // 6. بنغازي — نقطة التوزيع
+  [23.30, 24.20],   // 1. الكفرة — الآبار الشرقية (الركن الجنوبي الشرقي لليبيا)
+  [22.50, 24.85],   // 2. شمال الكفرة
+  [21.58, 25.75],   // 3. تازربو (Tazirbu) — محطة ضخ كبرى
+  [21.10, 26.60],   // 4. منتصف المسار
+  [20.95, 27.40],   // 5. الاتجاه شمال غرب
+  [20.40, 28.10],   // 6. جنوب السرير
+  [20.13, 29.02],   // 7. أجدابيا (Ajdabiya) — خزان توزيع رئيسي
+  [20.07, 30.05],   // 8. منتصف الساحل الشرقي
+  [20.07, 32.11],   // 9. بنغازي — نقطة التوزيع
 ];
 
-// خط أنابيب النفط: السرير → ميناء رأس لانوف (للمقارنة)
+// ── خط أنابيب النفط: السرير → ميناء رأس لانوف
 export const SARIR_OIL_WAYPOINTS: [number, number][] = [
   [22.68, 27.22],   // 1. حقل السرير النفطي
   [21.60, 28.00],   // 2. محطة وسط
@@ -66,7 +91,7 @@ interface CorridorSegment {
 function generateCorridorSegments(
   waypoints: [number, number][],
   pipelineName: string,
-  bufferDeg = 0.15,
+  bufferDeg = 0.0045, // 500 m buffer (0.0045° ≈ 500 m lat; ~0.005° lon at 30°N)
 ): CorridorSegment[] {
   return waypoints.slice(0, -1).map((pt, i) => {
     const next   = waypoints[i + 1];
@@ -278,16 +303,105 @@ async function analyzeSegment(
     evidence.push(`⚠️ تحليل الماء معطّل لهذه الشريحة (tile ساحلي أو موسمي — water=${watT2?.toFixed(1)}%)`);
   }
 
-  // ── Method 3: SAR change detection ───────────────────────────────────────
-  // More SAR scenes = more radar coverage. Soil moisture from leak changes C-band response.
-  // At STAC level we can only see scene count, not pixel values.
-  // But scene availability indicates monitoring readiness.
-  if (sarT1.length > 0 && sarT2.length > 0) {
-    scores.sar_change = 10; // SAR available — soil moisture change possible
-    // If we have any anomaly from other methods AND SAR is available → higher SAR score
-    if (scores.vegetation_anomaly + scores.water_appearance > 20) {
-      scores.sar_change = 20;
-      evidence.push(`📡 Sentinel-1 SAR متاح للتحقق من ترطيب التربة (${sarT2.length} مشاهد)`);
+  // ── Methods 3-5: Sentinel Hub pixel-level (only when credentials available) ─
+  const useSH = hasCDSECredentials();
+  let shNDWI: { ndwi_mean: number | null; ndwi_max: number | null; ok: boolean } | null = null;
+  let shNDVI: { ndvi_mean: number | null; ndvi_max: number | null; ok: boolean } | null = null;
+  let shNDMI: { ndmi_mean: number | null; ndmi_max: number | null; ok: boolean } | null = null;
+  let shSAR:  { vv_db_mean: number | null; vh_db_mean: number | null; ok: boolean } | null = null;
+
+  if (useSH) {
+    [shNDWI, shNDVI, shNDMI, shSAR] = await Promise.all([
+      computeNDWI(seg.bbox, daysAgo(windowDays + 30), todayStr).catch(() => null),
+      computeNDVI(seg.bbox, daysAgo(windowDays + 30), todayStr).catch(() => null),
+      computeNDMI(seg.bbox, daysAgo(windowDays + 30), todayStr).catch(() => null),
+      computeSARSigma0(seg.bbox, daysAgo(windowDays + 30), todayStr).catch(() => null),
+    ]);
+
+    // NDWI: -1 to +1; in desert baseline ≈ -0.5 (dry rock/sand)
+    // Any NDWI > -0.2 (mean) OR > 0 (max) = anomalous moisture / confirmed water body
+    if (shNDWI?.ok && shNDWI.ndwi_mean !== null) {
+      const ndwiMean = shNDWI.ndwi_mean;
+      const ndwiMax  = shNDWI.ndwi_max ?? ndwiMean;
+
+      if (ndwiMax > 0.5) {
+        // Max NDWI > 0.5 = confirmed open water body (river, lake, basin)
+        scores.water_appearance = Math.max(scores.water_appearance, 30);
+        evidence.push(`💧 NDWI max=${ndwiMax.toFixed(3)} — مسطح مائي مفتوح مؤكد في الصحراء! (حوض تسرب محتمل)`);
+      } else if (ndwiMax > 0) {
+        scores.water_appearance = Math.max(scores.water_appearance, 25);
+        evidence.push(`💧 NDWI max=${ndwiMax.toFixed(3)} — وجود ماء في المنطقة (mean=${ndwiMean.toFixed(3)})`);
+      } else if (ndwiMean > -0.15) {
+        scores.water_appearance = Math.max(scores.water_appearance, 20);
+        evidence.push(`💧 NDWI مرتفع: mean=${ndwiMean.toFixed(3)} max=${ndwiMax.toFixed(3)} — رطوبة شاذة (طبيعي الصحراء ≈ -0.35)`);
+      } else if (ndwiMean > -0.25) {
+        scores.water_appearance = Math.max(scores.water_appearance, 10);
+        evidence.push(`🌊 NDWI: ${ndwiMean.toFixed(3)} — رطوبة طفيفة فوق المعدل`);
+      }
+      // Localized wet patch: high max + low mean = small water body in large dry area
+      if (ndwiMax > -0.05 && ndwiMean < -0.2 && scores.water_appearance < 20) {
+        scores.water_appearance = Math.max(scores.water_appearance, 20);
+        evidence.push(`🔍 NDWI max=${ndwiMax.toFixed(3)} بينما mean=${ndwiMean.toFixed(3)} — بقعة رطبة موضعية (قد تكون حوض تسرب صغير)`);
+      }
+    }
+
+    // NDVI: -1 to +1; desert baseline ≈ -0.05 to +0.1
+    // NDVI max > 0.4 in desert = localized dense vegetation → water source nearby
+    if (shNDVI?.ok && shNDVI.ndvi_mean !== null) {
+      const ndviMean = shNDVI.ndvi_mean;
+      const ndviMax  = shNDVI.ndvi_max ?? ndviMean;
+      const isDesert = ndviMean < 0.15;
+      if (ndviMax > 0.5 && isDesert) {
+        scores.vegetation_anomaly = Math.max(scores.vegetation_anomaly, 25);
+        evidence.push(`🌿 NDVI max=${ndviMax.toFixed(3)} — نباتات كثيفة موضعية في صحراء (تجمع ماء أو تسرب قديم)`);
+      } else if (ndviMax > 0.3 && isDesert) {
+        scores.vegetation_anomaly = Math.max(scores.vegetation_anomaly, 18);
+        evidence.push(`🌱 NDVI max=${ndviMax.toFixed(3)} (mean=${ndviMean.toFixed(3)}) — نباتات غير طبيعية في منطقة قاحلة`);
+      } else if (ndviMean > 0.15 && isDesert) {
+        scores.vegetation_anomaly = Math.max(scores.vegetation_anomaly, 12);
+        evidence.push(`🌱 NDVI mean=${ndviMean.toFixed(3)} — تغطية نباتية في صحراء`);
+      }
+    }
+
+    // NDMI (Soil Moisture SWIR): desert baseline ≈ -0.6 to -0.4
+    // NDMI > -0.2 = soil moisture anomaly
+    if (shNDMI?.ok && shNDMI.ndmi_mean !== null) {
+      const ndmiMean = shNDMI.ndmi_mean;
+      if (ndmiMean > -0.1) {
+        scores.vegetation_anomaly = Math.max(scores.vegetation_anomaly, 20);
+        evidence.push(`💦 NDMI رطوبة التربة: ${ndmiMean.toFixed(3)} — رطوبة عالية جداً (طبيعي الصحراء <-0.4)`);
+      } else if (ndmiMean > -0.25) {
+        scores.vegetation_anomaly = Math.max(scores.vegetation_anomaly, 10);
+        evidence.push(`💦 NDMI: ${ndmiMean.toFixed(3)} — تربة رطبة نسبياً`);
+      }
+    }
+
+    // SAR VV (dB): dry desert ≈ -20 to -18 dB; wet soil ≈ -14 to -10 dB
+    // Increase of >4 dB = significant soil moisture increase
+    if (shSAR?.ok && shSAR.vv_db_mean !== null) {
+      const vv = shSAR.vv_db_mean;
+      if (vv > -14) {
+        scores.sar_change = Math.max(scores.sar_change, 20);
+        evidence.push(`📡 SAR VV Sigma0: ${vv.toFixed(1)} dB — تربة رطبة جداً (جاف:-20dB، رطب:-10dB)`);
+      } else if (vv > -17) {
+        scores.sar_change = Math.max(scores.sar_change, 12);
+        evidence.push(`📡 SAR VV: ${vv.toFixed(1)} dB — رطوبة متوسطة في التربة`);
+      } else {
+        // SAR data available but dry
+        scores.sar_change = Math.max(scores.sar_change, 5);
+        evidence.push(`📡 SAR VV: ${vv.toFixed(1)} dB — تربة جافة (طبيعي)`);
+      }
+    }
+  }
+
+  // ── Method 6: SAR scene count (fallback when no SH credentials) ──────────
+  if (!useSH) {
+    if (sarT1.length > 0 && sarT2.length > 0) {
+      scores.sar_change = 10;
+      if (scores.vegetation_anomaly + scores.water_appearance > 20) {
+        scores.sar_change = 20;
+        evidence.push(`📡 Sentinel-1 SAR متاح للتحقق (${sarT2.length} مشاهد) — أضف CDSE_CLIENT_SECRET للتحليل الكامل`);
+      }
     }
   }
 
@@ -430,7 +544,7 @@ export async function POST(req: NextRequest) {
     description: string;
   }> = {
     gmr_west: {
-      segments:    GMR_WEST_CORRIDOR,
+      segments:    GMR_WEST_CORRIDOR,  // updated below from Overpass if available
       waypoints:   GMR_WEST_WAYPOINTS,
       name:        'النهر الصناعي — الفرع الغربي (الحساونة → طرابلس)',
       color:       '#60a5fa',
@@ -451,6 +565,22 @@ export async function POST(req: NextRequest) {
       description: 'خط نفط حقل السرير — 500 كم — تصدير عبر رأس لانوف',
     },
   };
+
+  // ── For gmr_west: try to load actual OSM pipeline route from Overpass ──
+  let osmRouteSource: 'overpass' | 'fallback' = 'fallback';
+  if (!corridorKey || corridorKey === 'gmr_west') {
+    try {
+      const osmResult = await fetchGMMRWestRoute();
+      osmRouteSource = osmResult.source;
+      if (osmResult.waypoints.length >= 5) {
+        const osmSegments = generateCorridorSegments(osmResult.waypoints, 'النهر الصناعي غربي', 0.0045);
+        corridorMap.gmr_west.segments  = osmSegments;
+        corridorMap.gmr_west.waypoints = osmResult.waypoints;
+      }
+    } catch {
+      // fall back to hardcoded waypoints — already set above
+    }
+  }
 
   const selected = corridorMap[corridorKey] ?? corridorMap.gmr_west;
   const refDays    = body.ref_days    ?? 90;
@@ -490,6 +620,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok:          true,
     data_real:   true,
+    sentinel_hub_active: hasCDSECredentials(),
+    route_source: osmRouteSource,
+    buffer_m: 500,
     source:      'CDSE_STAC_Sentinel-2/1 + Element84_Landsat9',
     query_ms:    Date.now() - t0,
     corridor_key:    corridorKey,

@@ -129,6 +129,23 @@ interface SICRibbonProps {
   // Monitoring panel toggle
   drawnPolygon?: [number, number][] | null;
   onMonitoringPanelResult?: (geojson: any | null) => void;
+  // Satellite layer toggles
+  showFireLayer?: boolean;
+  showLeakLayer?: boolean;
+  showUrbanLeakLayer?: boolean;
+  showEncroachLayer?: boolean;
+  fireLoading?: boolean;
+  leakLoading?: boolean;
+  urbanLeakLoading?: boolean;
+  encroachLoading?: boolean;
+  fireCount?: number;
+  leakCount?: number;
+  urbanLeakCount?: number;
+  encroachCount?: number;
+  onToggleFireLayer?: () => void;
+  onToggleLeakLayer?: () => void;
+  onToggleUrbanLeakLayer?: () => void;
+  onToggleEncroachLayer?: () => void;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -554,10 +571,141 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
         <BasemapPicker baseStyle={props.baseStyle} onBaseStyleChange={props.onBaseStyleChange} />
         <div className="w-px h-5 bg-slate-800 mx-2 shrink-0" />
         {activeGroup === 'monitoring' && (
-          <span className="flex items-center gap-2 text-xs text-yellow-300 font-semibold">
-            <ScanSearch size={13} className="text-yellow-400 shrink-0" />
-            ارسم منطقة على الخريطة → ستظهر أدوات الرصد في اللوحة اليسرى
-          </span>
+          <div className="flex items-stretch h-full gap-0">
+
+            {/* ── طبقة 1: حرائق VIIRS ── */}
+            <button
+              onClick={props.onToggleFireLayer}
+              disabled={props.fireLoading}
+              title="حرائق VIIRS — NOAA-20 / NASA FIRMS (آخر 7 أيام)"
+              className={`relative flex items-center gap-1.5 px-3.5 h-full text-xs font-semibold transition-all border-b-2 ${
+                props.showFireLayer
+                  ? 'border-orange-400 text-orange-300 bg-slate-800/70'
+                  : 'border-transparent text-slate-400 hover:text-orange-300 hover:bg-slate-800/30'
+              }`}
+            >
+              <span>{props.fireLoading ? '⏳' : '🔥'}</span>
+              <span>حرائق VIIRS</span>
+              {(props.fireCount ?? 0) > 0 && (
+                <span className={`text-[9px] px-1 rounded-full font-bold ${
+                  props.showFireLayer ? 'bg-orange-500/40 text-orange-200' : 'bg-slate-700 text-slate-400'
+                }`}>{props.fireCount}</span>
+              )}
+              {props.showFireLayer && (
+                <span className="absolute bottom-0 right-0 left-0 h-0.5 bg-orange-400 rounded-t" />
+              )}
+            </button>
+
+            <div className="w-px h-5 bg-slate-700/60 self-center" />
+
+            {/* ── طبقة 2: تسريبات النهر الصناعي ── */}
+            <button
+              onClick={props.onToggleLeakLayer}
+              disabled={props.leakLoading}
+              title="تسريبات النهر الصناعي — Sentinel-2/1 + Sentinel Hub NDWI/NDVI"
+              className={`relative flex items-center gap-1.5 px-3.5 h-full text-xs font-semibold transition-all border-b-2 ${
+                props.showLeakLayer
+                  ? 'border-cyan-400 text-cyan-300 bg-slate-800/70'
+                  : 'border-transparent text-slate-400 hover:text-cyan-300 hover:bg-slate-800/30'
+              }`}
+            >
+              <span>{props.leakLoading ? '⏳' : '💧'}</span>
+              <span>تسريبات النهر</span>
+              {(props.leakCount ?? 0) > 0 && (
+                <span className={`text-[9px] px-1 rounded-full font-bold ${
+                  props.showLeakLayer ? 'bg-cyan-500/40 text-cyan-200' : 'bg-slate-700 text-slate-400'
+                }`}>{props.leakCount}</span>
+              )}
+              {props.showLeakLayer && (
+                <span className="absolute bottom-0 right-0 left-0 h-0.5 bg-cyan-400 rounded-t" />
+              )}
+            </button>
+
+            <div className="w-px h-5 bg-slate-700/60 self-center" />
+
+            {/* ── طبقة 3: تسريبات المدن ── */}
+            <button
+              onClick={props.onToggleUrbanLeakLayer}
+              disabled={props.urbanLeakLoading}
+              title="تسريبات شبكات المياه الحضرية — كشف شبكات المياه المعطّلة"
+              className={`relative flex items-center gap-1.5 px-3.5 h-full text-xs font-semibold transition-all border-b-2 ${
+                props.showUrbanLeakLayer
+                  ? 'border-blue-400 text-blue-300 bg-slate-800/70'
+                  : 'border-transparent text-slate-400 hover:text-blue-300 hover:bg-slate-800/30'
+              }`}
+            >
+              <span>{props.urbanLeakLoading ? '⏳' : '🏙️'}</span>
+              <span>تسريبات المدن</span>
+              {(props.urbanLeakCount ?? 0) > 0 && (
+                <span className={`text-[9px] px-1 rounded-full font-bold ${
+                  props.showUrbanLeakLayer ? 'bg-blue-500/40 text-blue-200' : 'bg-slate-700 text-slate-400'
+                }`}>{props.urbanLeakCount}</span>
+              )}
+              {props.showUrbanLeakLayer && (
+                <span className="absolute bottom-0 right-0 left-0 h-0.5 bg-blue-400 rounded-t" />
+              )}
+            </button>
+
+            <div className="w-px h-5 bg-slate-700/60 self-center" />
+
+            {/* ── طبقة 4: اعتداءات الحرم ── */}
+            <button
+              onClick={props.onToggleEncroachLayer}
+              disabled={props.encroachLoading}
+              title="رصد الاعتداءات على حرم المسارات والأصول المسجّلة"
+              className={`relative flex items-center gap-1.5 px-3.5 h-full text-xs font-semibold transition-all border-b-2 ${
+                props.showEncroachLayer
+                  ? 'border-rose-400 text-rose-300 bg-slate-800/70'
+                  : 'border-transparent text-slate-400 hover:text-rose-300 hover:bg-slate-800/30'
+              }`}
+            >
+              <span>{props.encroachLoading ? '⏳' : '🚧'}</span>
+              <span>اعتداءات الحرم</span>
+              {(props.encroachCount ?? 0) > 0 && (
+                <span className={`text-[9px] px-1 rounded-full font-bold ${
+                  props.showEncroachLayer ? 'bg-rose-500/40 text-rose-200' : 'bg-slate-700 text-slate-400'
+                }`}>{props.encroachCount}</span>
+              )}
+              {props.showEncroachLayer && (
+                <span className="absolute bottom-0 right-0 left-0 h-0.5 bg-rose-400 rounded-t" />
+              )}
+            </button>
+
+            {/* ── وصف الطبقة النشطة ── */}
+            {(props.showFireLayer || props.showLeakLayer || props.showUrbanLeakLayer || props.showEncroachLayer) && (
+              <>
+                <div className="w-px h-5 bg-slate-700/60 self-center mx-1" />
+                <div className="flex items-center gap-2 text-[10px] text-slate-400 px-1">
+                  {props.showFireLayer && (
+                    <>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block"/>حرق غاز</span>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>حريق</span>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>شذوذ</span>
+                    </>
+                  )}
+                  {props.showLeakLayer && (
+                    <>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>مؤكد</span>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>مرتفع</span>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block"/>متوسط</span>
+                    </>
+                  )}
+                  {props.showUrbanLeakLayer && (
+                    <>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"/>تسرب حضري</span>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block"/>رطوبة شاذة</span>
+                    </>
+                  )}
+                  {props.showEncroachLayer && (
+                    <>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block"/>اعتداء محتمل</span>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>أصل مراقب</span>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
         {activeGroup === 'detection' && (
           <span className="flex items-center gap-2 text-xs text-purple-300 font-semibold">

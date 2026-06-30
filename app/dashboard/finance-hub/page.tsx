@@ -21,9 +21,9 @@ import {
   Boxes,
   Landmark,
   Link2,
-  Crown,
 } from 'lucide-react';
 import DepartmentAssetInbox from '@/components/DepartmentAssetInbox';
+import InternalMailTab from '@/components/InternalMailTab';
 
 type HubItem = {
   href: string;
@@ -352,22 +352,6 @@ export default function FinanceHubPage() {
           </p>
         </header>
 
-        {/* Manager Crown Card */}
-        <Link href="/dashboard/finance-hub/manager" className="group block">
-          <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-5 hover:border-amber-500/60 hover:bg-slate-800/70 transition-all duration-200">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-                <Crown className="w-5 h-5 text-amber-400" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-base font-bold text-white">مدير الإدارة المالية</h2>
-                <p className="text-amber-400/70 text-xs mt-0.5">لوحة المدير — الأقسام والمراسلات الإدارية</p>
-              </div>
-              <span className="text-amber-400 text-xs font-semibold flex items-center gap-1">فتح لوحة المدير <span className="group-hover:translate-x-[-3px] transition-transform inline-block">←</span></span>
-            </div>
-          </div>
-        </Link>
-
         <nav className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
           <p className="text-xs text-slate-400 mb-3">مسارات سريعة داخل الصفحة</p>
           <div className="flex flex-wrap gap-2">
@@ -443,6 +427,7 @@ export default function FinanceHubPage() {
           <DepartmentAssetInbox department="finance" title="أصول الإدارة المالية" />
         </div>
 
+        <InternalMailTab department="finance" title="المراسلات الداخلية - مدير الإدارة المالية" />
       </div>
     </div>
   );
