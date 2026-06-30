@@ -46,6 +46,10 @@ interface SceneMapPanelProps {
   routingEndPoint?: [number, number] | null;
   onRoutingPointPicked?: (which: 'start' | 'end', lon: number, lat: number) => void;
   routingPath?: [number, number][] | null;
+  /** Manual path editing mode */
+  routingEditMode?: 'off' | 'modify' | 'draw';
+  /** Called with updated coords after user drags or draws a path */
+  onRoutingPathEdited?: (coords: [number, number][]) => void;
   /** Network design pick state */
   networkPickMode?: 'idle' | 'picking_node';
   onNetworkPointPicked?: (lon: number, lat: number) => void;
@@ -103,6 +107,7 @@ export function SceneMapPanel({
   suitabilityPins, flyToPin,
   routingPickMode = 'idle', routingStartPoint, routingEndPoint,
   onRoutingPointPicked, routingPath,
+  routingEditMode = 'off', onRoutingPathEdited,
   networkPickMode = 'idle', onNetworkPointPicked,
   highlightBoundary,
   onBaseStyleChange,
@@ -129,6 +134,11 @@ export function SceneMapPanel({
   const suitabilityLayerRef = useRef<any>(null);
   // Routing layers (start/end markers + path line)
   const routingLayerRef     = useRef<any>(null);
+  // Routing source ref — kept for Modify interaction access
+  const routingModifySrcRef = useRef<any>(null);
+  // Active Modify/Draw interactions for manual path editing
+  const routingEditInteractRef = useRef<any>(null);
+  const routingEditDrawSrcRef  = useRef<any>(null);
   // Auto-generated network layer
   const autoNetworkLayerRef = useRef<any>(null);
   // Municipality highlight boundary layer
@@ -701,6 +711,7 @@ export function SceneMapPanel({
     const layer = new VectorLayer({ source: src, zIndex: 22 });
     map.addLayer(layer);
     routingLayerRef.current = layer;
+    routingModifySrcRef.current = src; // expose source for Modify interaction
 
     (async () => {
       const { default: Feature }    = await import('ol/Feature') as any;
@@ -751,6 +762,89 @@ export function SceneMapPanel({
       }
     })();
   }, [routingStartPoint, routingEndPoint, routingPath, olLoaded]);
+
+  // ── Routing manual edit — Modify / Draw interactions ─────────────────────
+  useEffect(() => {
+    if (!olLoaded || !mapInstanceRef.current || !olCache.current) return;
+    const map = mapInstanceRef.current;
+    const { toLonLat } = olCache.current;
+
+    // Clean up previous edit interaction
+    if (routingEditInteractRef.current) {
+      map.removeInteraction(routingEditInteractRef.current);
+      routingEditInteractRef.current = null;
+    }
+    if (routingEditDrawSrcRef.current) {
+      map.removeLayer(routingEditDrawSrcRef.current);
+      routingEditDrawSrcRef.current = null;
+    }
+    if (routingEditMode === 'off') return;
+
+    (async () => {
+      if (!mapInstanceRef.current || !olCache.current) return;
+      const { VectorSource, VectorLayer, Style, Stroke } = olCache.current;
+
+      if (routingEditMode === 'modify' && routingModifySrcRef.current) {
+        // ── Modify: drag existing path waypoints ────────────────────────────
+        const { default: Modify } = await import('ol/interaction/Modify') as any;
+        const modify = new Modify({
+          source: routingModifySrcRef.current,
+          style: new Style({ stroke: new Stroke({ color: '#f59e0b', width: 4 }) }),
+        });
+        modify.on('modifyend', () => {
+          const features = (routingModifySrcRef.current as any).getFeatures();
+          for (const feat of features) {
+            const geom = feat.getGeometry();
+            if (geom?.getType() === 'LineString') {
+              const lonLats = (geom.getCoordinates() as number[][]).map(
+                c => toLonLat(c) as [number, number],
+              );
+              onRoutingPathEdited?.(lonLats);
+              break;
+            }
+          }
+        });
+        mapInstanceRef.current.addInteraction(modify);
+        routingEditInteractRef.current = modify;
+
+      } else if (routingEditMode === 'draw') {
+        // ── Draw: sketch a completely new path ──────────────────────────────
+        const { default: Draw } = await import('ol/interaction/Draw') as any;
+        const drawSrc   = new VectorSource();
+        const drawLayer = new VectorLayer({
+          source: drawSrc, zIndex: 30,
+          style: new Style({ stroke: new Stroke({ color: '#f59e0b', width: 3, lineDash: [6, 4] }) }),
+        });
+        mapInstanceRef.current.addLayer(drawLayer);
+        routingEditDrawSrcRef.current = drawLayer;
+
+        const draw = new Draw({ source: drawSrc, type: 'LineString', freehand: false });
+        draw.on('drawend', (evt: any) => {
+          const lonLats = (evt.feature.getGeometry().getCoordinates() as number[][]).map(
+            c => toLonLat(c) as [number, number],
+          );
+          onRoutingPathEdited?.(lonLats);
+          // Auto-disable draw mode after one stroke
+          if (mapInstanceRef.current) mapInstanceRef.current.removeInteraction(draw);
+          routingEditInteractRef.current = null;
+        });
+        mapInstanceRef.current.addInteraction(draw);
+        routingEditInteractRef.current = draw;
+      }
+    })();
+
+    return () => {
+      if (routingEditInteractRef.current) {
+        mapInstanceRef.current?.removeInteraction(routingEditInteractRef.current);
+        routingEditInteractRef.current = null;
+      }
+      if (routingEditDrawSrcRef.current) {
+        mapInstanceRef.current?.removeLayer(routingEditDrawSrcRef.current);
+        routingEditDrawSrcRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routingEditMode, olLoaded]);
 
   // ── Auto-generated network GeoJSON layer ─────────────────────────────────
   useEffect(() => {

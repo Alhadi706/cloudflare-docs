@@ -202,17 +202,7 @@ export default function CorrosionHubPage() {
 
         </div>
 
-        {/* المراسلات الإدارية الداخلية */}
-        <div className="mt-8">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">المراسلات الإدارية الداخلية</h2>
-          <div className="mb-4 rounded-xl border border-rose-500/25 bg-rose-500/5 px-4 py-3">
-            <p className="text-sm text-rose-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
-            <p className="text-xs text-slate-300 mt-1">
-              الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.
-            </p>
-          </div>
-          <InternalMailTab department="corrosion_manager" title="نظام المراسلات الموحد - إدارة التآكل" />
-        </div>
+
       </div>
     </div>
   );

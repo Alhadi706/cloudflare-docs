@@ -348,6 +348,8 @@ export default function SatelliteIntelLegacyShell() {
   const [routingStartPoint, setRoutingStartPoint] = useState<[number, number] | null>(null);
   const [routingEndPoint, setRoutingEndPoint] = useState<[number, number] | null>(null);
   const [routingPath, setRoutingPath] = useState<[number, number][] | null>(null);
+  const [routingEditMode, setRoutingEditMode] = useState<'off' | 'modify' | 'draw'>('off');
+  const [manualPathForPanel, setManualPathForPanel] = useState<[number, number][] | null>(null);
 
   // ── Network design state ──────────────────────────────────────────────────
   const [networkPickMode, setNetworkPickMode] = useState<'idle' | 'picking_node'>('idle');
@@ -854,6 +856,11 @@ export default function SatelliteIntelLegacyShell() {
               }
             }}
             routingPath={routingPath}
+            routingEditMode={routingEditMode}
+            onRoutingPathEdited={(coords) => {
+              setRoutingPath(coords);
+              setManualPathForPanel(coords.slice()); // trigger effect in OptimalPathPanel
+            }}
             highlightBoundary={extractMuniGeom}
             onBaseStyleChange={setBaseStyle}
             extractionLayers={extractionLayerEntries}
@@ -1114,8 +1121,11 @@ export default function SatelliteIntelLegacyShell() {
           routingStartPoint={routingStartPoint}
           routingEndPoint={routingEndPoint}
           onStartRoutingPick={(which) => setRoutingPickMode(which === 'start' ? 'picking_start' : 'picking_end')}
-          onClearRoutingPoints={() => { setRoutingStartPoint(null); setRoutingEndPoint(null); setRoutingPath(null); setRoutingPickMode('idle'); }}
+          onClearRoutingPoints={() => { setRoutingStartPoint(null); setRoutingEndPoint(null); setRoutingPath(null); setRoutingPickMode('idle'); setRoutingEditMode('off'); setManualPathForPanel(null); }}
           onRoutingResultReady={(r) => setRoutingPath(r?.path?.coordinates ?? null)}
+          routingEditMode={routingEditMode}
+          onRoutingEditModeChange={setRoutingEditMode}
+          externalManualPath={manualPathForPanel}
           networkPickMode={networkPickMode}
           networkPickedPoint={networkPickedPoint}
           onStartNetworkPick={() => setNetworkPickMode('picking_node')}

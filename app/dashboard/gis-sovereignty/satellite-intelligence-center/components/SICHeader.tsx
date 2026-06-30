@@ -5,6 +5,7 @@ import Link from 'next/link';
 import GisNotificationBell from '@/components/gis/GisNotificationBell';
 import { useGisNotifications } from '@/hooks/useGisNotifications';
 import type { GisNotification } from '@/hooks/useGisNotifications';
+import { usePushSubscription } from '@/hooks/usePushSubscription';
 
 interface Props {
   systemOnline: boolean;
@@ -14,6 +15,13 @@ interface Props {
 
 export default function SICHeader({ systemOnline, activeSceneUid, onNotificationSelect }: Props) {
   const { notifications, unreadCount, markRead, deleteNotif } = useGisNotifications();
+
+  // تسجيل المتصفح/WebView في Web Push تلقائياً عند فتح SIC
+  const token = typeof window !== 'undefined'
+    ? (localStorage.getItem('auth_token') ?? null)
+    : null;
+  usePushSubscription(token);
+
   return (
     <div className="h-14 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md flex items-center px-5 justify-between shrink-0 z-20">
       {/* Left: Back + Title */}

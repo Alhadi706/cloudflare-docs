@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -12,6 +12,7 @@ import {
   BarChart2,
   ShieldCheck,
   Mail,
+  LayoutGrid,
 } from 'lucide-react';
 import InternalMailTab from '@/components/InternalMailTab';
 
@@ -24,6 +25,8 @@ type ManagerModule = {
 };
 
 export default function MaterialsManagerPage() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'correspondence'>('overview');
+
   const modules: ManagerModule[] = [
     {
       title: 'طلبات المواد بين الإدارات',
@@ -39,8 +42,8 @@ export default function MaterialsManagerPage() {
       icon: ShoppingCart,
       tone: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
     },
-      {
-        title: 'المخازن والمستودعات',
+    {
+      title: 'المخازن والمستودعات',
       desc: 'الإشراف على المستودعات وحركات الاستلام والصرف.',
       href: '/dashboard/admin-gateway/materials/inventory',
       icon: Warehouse,
@@ -67,18 +70,18 @@ export default function MaterialsManagerPage() {
       icon: ShieldCheck,
       tone: 'border-lime-500/40 bg-lime-500/10 text-lime-300',
     },
-    {
-      title: 'المراسلات الداخلية والتعاميم',
-      desc: 'الوارد والصادر والتواصل مع الإدارات الأخرى وإرسال تعاميم لموظفي الإدارة.',
-      href: '/dashboard/admin-gateway/materials/manager/correspondence',
-      icon: Mail,
-      tone: 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300',
-    },
+  ];
+
+  const TABS = [
+    { key: 'overview' as const, label: 'لوحات المتابعة', icon: <LayoutGrid className="w-4 h-4" /> },
+    { key: 'correspondence' as const, label: 'المراسلات الداخلية', icon: <Mail className="w-4 h-4" /> },
   ];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-6" dir="rtl">
       <div className="max-w-6xl mx-auto space-y-5">
+
+        {/* ── Breadcrumb & Title ── */}
         <div>
           <Link
             href="/dashboard/admin-gateway/materials"
@@ -90,6 +93,7 @@ export default function MaterialsManagerPage() {
           <h1 className="text-2xl font-bold text-white">لوحة مدير إدارة المواد</h1>
         </div>
 
+        {/* ── Manager Header ── */}
         <section className="rounded-2xl border border-teal-500/30 bg-slate-900 p-5">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-teal-500/20 flex items-center justify-center">
@@ -114,45 +118,55 @@ export default function MaterialsManagerPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-fuchsia-500/20 bg-slate-900/70 p-5">
-          <div className="flex items-start justify-between gap-4 flex-col md:flex-row md:items-center">
-            <div>
-              <h2 className="text-sm font-bold text-white">التواصل المؤسسي لمدير الإدارة</h2>
-              <p className="text-xs text-slate-400 mt-1 leading-5">
-                المدير يملك قناة مباشرة للمراسلات بين الإدارات والوارد والصادر، إضافة إلى التعميم على موظفي إدارة المواد.
-              </p>
-            </div>
-            <Link
-              href="/dashboard/admin-gateway/materials/manager/correspondence"
-              className="inline-flex items-center gap-2 rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/10 px-4 py-2 text-sm text-fuchsia-200 hover:bg-fuchsia-500/15"
+        {/* ── Tab Bar ── */}
+        <div className="flex gap-2 border-b border-slate-800 pb-0">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-xl border-b-2 transition-all ${
+                activeTab === t.key
+                  ? 'border-teal-500 text-teal-300 bg-teal-500/10'
+                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
             >
-              <Mail className="w-4 h-4" />
-              فتح تبويب المراسلات
-            </Link>
-          </div>
-        </section>
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-100">لوحات المتابعة المباشرة</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {modules.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className="rounded-2xl border border-white/10 bg-slate-900 p-4 hover:bg-slate-800/60 transition-all"
-                >
-                  <div className={`inline-flex rounded-xl border px-2.5 py-2 ${item.tone}`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <h3 className="mt-3 text-sm font-bold text-white">{item.title}</h3>
-                  <p className="mt-1 text-xs text-slate-400 leading-5">{item.desc}</p>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+        {/* ── Tab Content ── */}
+        {activeTab === 'overview' && (
+          <section className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {modules.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.title}
+                    href={item.href}
+                    className="rounded-2xl border border-white/10 bg-slate-900 p-4 hover:bg-slate-800/60 transition-all"
+                  >
+                    <div className={`inline-flex rounded-xl border px-2.5 py-2 ${item.tone}`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <h3 className="mt-3 text-sm font-bold text-white">{item.title}</h3>
+                    <p className="mt-1 text-xs text-slate-400 leading-5">{item.desc}</p>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'correspondence' && (
+          <InternalMailTab
+            department="procurement_manager"
+            title="نظام المراسلات الموحد - إدارة المواد"
+          />
+        )}
+
       </div>
     </div>
   );

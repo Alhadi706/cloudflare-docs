@@ -10,7 +10,7 @@ import Link from 'next/link';
 import {
   Radio, Activity, BarChart3, Bell, BookOpen,
   MonitorDot, Gauge, Users, Crown, ArrowRight,
-  MapPin, ClipboardList, Zap, Settings,
+  MapPin, ClipboardList, Zap, Settings, Mail,
   PenLine, CheckSquare,
 } from 'lucide-react';
 import InternalMailTab from '@/components/InternalMailTab';
@@ -34,19 +34,33 @@ export default function ControlCenterPage() {
         </div>
 
         {/* ══ مدير الإدارة ══════════════════════════════════════════════════ */}
-        <Link href="/dashboard/control-center/real-time" className="group block">
+        <Link href="/dashboard/control-center/manager" className="group block">
           <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:bg-slate-800/70 transition-all duration-200">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center shrink-0">
                 <Crown className="w-6 h-6 text-cyan-400" />
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">مدير إدارة التحكم</h2>
-                <p className="text-cyan-400/70 text-xs mt-0.5">Network Control Manager</p>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">مدير إدارة التحكم</h2>
+                    <p className="text-cyan-400/70 text-xs mt-0.5">Network Control Manager</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 animate-pulse">
+                      LIVE
+                    </span>
+                    <Link
+                      href="/dashboard/control-center/real-time"
+                      onClick={e => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-700 transition-colors"
+                    >
+                      <Activity className="w-3 h-3" />
+                      SCADA
+                    </Link>
+                  </div>
+                </div>
               </div>
-              <span className="mr-auto text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 animate-pulse">
-                LIVE
-              </span>
             </div>
             <p className="text-slate-400 text-sm mb-4 leading-relaxed">
               لوحة المراقبة الآنية الكاملة: P&ID ميميك، حالة المحطات، الضغوط، التدفق، وتنبيهات الشبكة في الوقت الفعلي.
@@ -66,7 +80,7 @@ export default function ControlCenterPage() {
             </div>
             <div className="mt-4 pt-4 border-t border-slate-800">
               <span className="text-cyan-400 font-semibold text-sm flex items-center gap-1.5">
-                فتح لوحة المدير
+                فتح لوحة المدير — الأقسام والمراسلات
                 <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
               </span>
             </div>
@@ -164,11 +178,6 @@ export default function ControlCenterPage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">فرق الرصد الميداني</h2>
-
-            <InternalMailTab
-              department="control_manager"
-              title="نظام المراسلات الموحد - إدارة التحكم"
-            />
                 <p className="text-violet-400/70 text-xs mt-0.5">Field Monitoring Teams</p>
               </div>
             </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Navigation, Loader2, AlertCircle, CheckCircle2, Triangle, Waves, Building2, ShieldAlert, Route, ChevronDown, ChevronUp, BarChart3, Download } from 'lucide-react';
+import { Navigation, Loader2, AlertCircle, CheckCircle2, Triangle, Waves, Building2, ShieldAlert, Route, ChevronDown, ChevronUp, BarChart3, Download, FileText, HelpCircle, BookOpen, MousePointerClick, Layers, Settings2, Play, BarChart2 } from 'lucide-react';
+import type { PathResult as PDFPathResult } from '../../../../../lib/gis/exportRoutePDF';
 
 // ── Export helpers ────────────────────────────────────────────────────────────
 
@@ -319,6 +320,23 @@ ${eng?.standards?.length ? `
   setTimeout(() => win.print(), 600);
 }
 
+async function exportPDFNew(
+  result: PathResult,
+  infraType: string,
+  startPoint: [number, number] | null,
+  endPoint:   [number, number] | null,
+) {
+  if (!startPoint || !endPoint) return;
+  try {
+    const { exportRoutePDF } = await import('../../../../../lib/gis/exportRoutePDF');
+    await exportRoutePDF(result as any, startPoint, endPoint);
+  } catch (err) {
+    console.error('PDF export failed:', err);
+    // Fallback to old HTML print
+    exportPDF(result, infraType, startPoint, endPoint);
+  }
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface ObstacleOptions {
@@ -358,11 +376,13 @@ interface PathResult {
   obstacle_stats: ObstacleStats;
   terrain_profile: { dist_km: number; elev_m: number }[];
   notes:          string[];
+  infra_type?:    string;
   engineering?: {
-    dem_source:         'real' | 'simulated';
+    dem_source:         string;
+    routing_source:     string;
     path_selected:      string;
-    alternatives_count: number;
-    alternatives: { label: string; length_m: number; max_slope_pct: number; cut_m3: number; fill_m3: number; violations: number; selected: boolean; points_sample?: [number, number][] }[];
+    alternatives_count?: number;
+    alternatives?: { label: string; length_m: number; max_slope_pct: number; cut_m3: number; fill_m3: number; violations: number; selected: boolean; points_sample?: [number, number][] }[];
     standards:     string[];
     standards_ref: string;
     quantities:    { desc: string; qty: number; unit: string; note: string }[];
@@ -371,6 +391,7 @@ interface PathResult {
     elev_min_m:    number;
     elev_max_m:    number;
     elev_range_m:  number;
+    infra_specific?: Record<string, unknown>;
   };
 }
 
@@ -382,6 +403,100 @@ interface Props {
   onStartPicking: (which: 'start' | 'end') => void;
   onClearPoints:  () => void;
   onResultReady:  (result: PathResult | null) => void;
+  /** Current map edit mode controlled by this panel */
+  editMode?: 'off' | 'modify' | 'draw';
+  onEditModeChange?: (mode: 'off' | 'modify' | 'draw') => void;
+  /** Coords received from map when user finishes drawing/editing */
+  externalManualPath?: [number, number][] | null;
+}
+
+// ── Help components ──────────────────────────────────────────────────────────
+
+/** Small inline tooltip that shows on hover */
+function HelpTip({ text }: { text: string }) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <span className="relative inline-flex items-center" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <HelpCircle size={11} className="text-slate-500 hover:text-cyan-400 cursor-help transition-colors ml-1" />
+      {show && (
+        <span className="absolute bottom-full right-0 mb-1.5 z-50 w-52 rounded-lg bg-slate-800 border border-slate-600 px-2.5 py-2 text-[10px] text-slate-200 leading-relaxed shadow-xl pointer-events-none">
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Collapsible step-by-step user guide */
+function HelpGuide() {
+  const [open, setOpen] = React.useState(false);
+
+  const steps = [
+    {
+      icon: <MousePointerClick size={14} className="text-green-400 shrink-0" />,
+      title: 'الخطوة ١ — حدد نقطتَي البداية والنهاية',
+      body: 'اضغط زر «تحديد» بجانب نقطة A ثم انقر على الخريطة للاختيار. كرر نفس الخطوة لنقطة B. يمكنك أيضاً رسم المسار يدوياً عبر زر «رسم يدوي» في الأعلى.',
+    },
+    {
+      icon: <Layers size={14} className="text-amber-400 shrink-0" />,
+      title: 'الخطوة ٢ — اختر نوع البنية التحتية',
+      body: 'اختر ما تريد تصميمه: طريق، أنبوب مياه، صرف صحي، خط كهرباء، اتصالات، أو عام. سيتم تعديل الإعدادات تلقائياً لتناسب الاختيار.',
+    },
+    {
+      icon: <Settings2 size={14} className="text-cyan-400 shrink-0" />,
+      title: 'الخطوة ٣ — اختر معيار التحسين والعوائق',
+      body: '«أقصر مسار» يقلل الكيلومترات. «أسهل تضاريس» يتجنب الميول الحادة. فعّل أو عطّل العوائق حسب طبيعة المشروع.',
+    },
+    {
+      icon: <Play size={14} className="text-cyan-400 shrink-0" />,
+      title: 'الخطوة ٤ — احسب المسار',
+      body: 'اضغط زر «حساب المسار الأمثل» وانتظر 10-30 ثانية. سيقوم النظام بتحليل التضاريس الحقيقية من الأقمار الصناعية وتطبيق المعايير الهندسية الدولية.',
+    },
+    {
+      icon: <BarChart2 size={14} className="text-purple-400 shrink-0" />,
+      title: 'الخطوة ٥ — راجع النتائج وصدّر التقرير',
+      body: 'ستظهر النتائج أسفله: المسافة، الكميات، التكلفة التقديرية، برنامج العمل، وسجل المخاطر. استخدم أزرار التصدير لحفظ ملف PDF أو GeoJSON أو KML.',
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-cyan-800/40 bg-cyan-950/20 overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-right hover:bg-cyan-900/20 transition-colors"
+      >
+        <BookOpen size={13} className="text-cyan-400 shrink-0" />
+        <span className="text-xs font-bold text-cyan-300 flex-1">دليل الاستخدام — كيف تستخدم الأداة؟</span>
+        <span className="text-[10px] text-slate-500">{open ? 'إخفاء ▲' : 'عرض ▼'}</span>
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 space-y-2.5">
+          <p className="text-[10px] text-slate-400 pb-1 border-b border-slate-700/40">
+            أداة تحليل المسار الأمثل تحسب أفضل مسار للبنية التحتية بين نقطتين باستخدام بيانات التضاريس الحقيقية والمعايير الهندسية الدولية (AASHTO، ISO، IEC).
+          </p>
+          {steps.map((s, i) => (
+            <div key={i} className="flex gap-2.5">
+              <div className="mt-0.5">{s.icon}</div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-200 mb-0.5">{s.title}</p>
+                <p className="text-[10px] text-slate-400 leading-relaxed">{s.body}</p>
+              </div>
+            </div>
+          ))}
+          <div className="mt-2 rounded bg-amber-900/20 border border-amber-700/30 px-2.5 py-2">
+            <p className="text-[10px] text-amber-300 font-semibold mb-0.5">💡 نصائح مهمة</p>
+            <ul className="text-[10px] text-amber-200/80 space-y-0.5 list-disc list-inside">
+              <li>الحد الأقصى للمسافة المدعومة: 300 كيلومتر</li>
+              <li>لمسارات الطرق: اختر «أسهل تضاريس» لتقليل تكاليف الحفر</li>
+              <li>للأنابيب: «أقل عوائق» يقلل تكاليف التقاطعات</li>
+              <li>يمكن تعديل المسار يدوياً بعد الحساب عبر زر «تعديل»</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -577,6 +692,7 @@ const INFRA_OPTIONS: { value: InfraType; label: string; icon: string; color: str
 export default function OptimalPathPanel({
   routingPickMode, startPoint, endPoint,
   onStartPicking, onClearPoints, onResultReady,
+  editMode = 'off', onEditModeChange, externalManualPath,
 }: Props) {
   const [infraType, setInfraType]   = useState<InfraType>('general');
   const [priority, setPriority]     = useState<'shortest' | 'easiest_terrain' | 'least_obstacles' | 'balanced'>('balanced');
@@ -599,6 +715,61 @@ export default function OptimalPathPanel({
   const [error, setError]           = useState<string | null>(null);
   const [result, setResult]         = useState<PathResult | null>(null);
   const [showSegments, setShowSegments] = useState(false);
+  const [manualPath, setManualPath] = useState<[number, number][] | null>(null);
+  const [isManualResult, setIsManualResult] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // ── Design parameters (sent to API, override hardcoded assumptions) ────────
+  const [designParams, setDesignParams] = useState({
+    adt:         3500,   // vehicles/day
+    population:  10000,  // persons served
+    cbr:         6,      // subgrade CBR %
+    designLife:  20,     // years
+    rainfallMmH: 40,     // mm/h (Tripoli default)
+    region:      'tripoli' as 'tripoli' | 'benghazi' | 'misrata' | 'Sabha',
+  });
+
+  const REGIONS: Record<string, { label: string; mmh: number }> = {
+    tripoli:  { label: 'طرابلس / الغرب',  mmh: 40 },
+    benghazi: { label: 'بنغازي / الشرق',   mmh: 35 },
+    misrata:  { label: 'مصراتة / الساحل',  mmh: 35 },
+    Sabha:    { label: 'سبها / الجنوب',     mmh: 20 },
+  };
+
+  // ── localStorage: save result on receive, restore on mount ─────────────────
+  React.useEffect(() => {
+    if (!result) return;
+    try {
+      localStorage.setItem('gis_last_result', JSON.stringify({ result, infraType, designParams }));
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('gis_last_result');
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved?.result && saved?.infraType) {
+        setResult(saved.result);
+        setInfraType(saved.infraType);
+        if (saved.designParams) setDesignParams(saved.designParams);
+        onResultReady(saved.result);
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When parent passes new coords from map editing → store + auto-recalculate
+  React.useEffect(() => {
+    if (!externalManualPath || externalManualPath.length < 2) return;
+    setManualPath(externalManualPath);
+    // Auto-submit manual path immediately after drawing/editing
+    handleRunManual(externalManualPath);
+    // Return to 'off' edit mode after one shot so user can inspect result
+    onEditModeChange?.('off');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalManualPath]);
 
   const LOAD_STEPS = [
     'جارٍ جلب بيانات OSM والتضاريس...',
@@ -651,7 +822,16 @@ export default function OptimalPathPanel({
       const res = await fetch('/api/gis/optimal-path', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start: startPoint, end: endPoint, obstacles, priority, infrastructure_type: infraType }),
+        body: JSON.stringify({
+          start: startPoint, end: endPoint, obstacles, priority, infrastructure_type: infraType,
+          design_params: {
+            adt:           designParams.adt,
+            population:    designParams.population,
+            cbr:           designParams.cbr,
+            design_life:   designParams.designLife,
+            rainfall_mm_h: designParams.rainfallMmH,
+          },
+        }),
       });
       clearInterval(stepTimer);
       if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
@@ -667,11 +847,64 @@ export default function OptimalPathPanel({
     }
   }, [startPoint, endPoint, obstacles, priority, infraType, onResultReady]);
 
+  // ── Manual path calculation ──────────────────────────────────────────────
+  const handleRunManual = useCallback(async (coords: [number, number][]) => {
+    if (!coords || coords.length < 2) return;
+    const effectiveStart = coords[0];
+    const effectiveEnd   = coords[coords.length - 1];
+    setLoading(true);
+    setLoadStep(1);
+    setError(null);
+    setResult(null);
+    onResultReady(null);
+    const stepTimer = setInterval(() => {
+      setLoadStep(prev => prev < LOAD_STEPS.length ? prev + 1 : prev);
+    }, 1800);
+    try {
+      const res = await fetch('/api/gis/optimal-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start:              effectiveStart,
+          end:                effectiveEnd,
+          obstacles,
+          priority,
+          infrastructure_type: infraType,
+          manual_path:         coords,
+          design_params: {
+            adt:           designParams.adt,
+            population:    designParams.population,
+            cbr:           designParams.cbr,
+            design_life:   designParams.designLife,
+            rainfall_mm_h: designParams.rainfallMmH,
+          },
+        }),
+      });
+      clearInterval(stepTimer);
+      if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+      const data: PathResult = await res.json();
+      setResult(data);
+      setIsManualResult(true);
+      onResultReady(data);
+    } catch (e: any) {
+      clearInterval(stepTimer);
+      setError(e?.message ?? 'فشل حساب المسار اليدوي');
+    } finally {
+      setLoading(false);
+      setLoadStep(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [obstacles, priority, infraType, onResultReady]);
+
   const handleClear = () => {
     setResult(null);
+    setManualPath(null);
+    setIsManualResult(false);
     onResultReady(null);
     onClearPoints();
     setError(null);
+    onEditModeChange?.('off');
+    try { localStorage.removeItem('gis_last_result'); } catch {}
   };
 
   return (
@@ -680,11 +913,58 @@ export default function OptimalPathPanel({
       <div className="flex items-center gap-2">
         <Route size={14} className="text-cyan-400 shrink-0" />
         <span className="text-[12px] font-bold text-slate-200">تحليل المسار الأمثل</span>
+        <HelpTip text="أداة هندسية تحسب أفضل مسار للبنية التحتية (طريق / أنابيب / كهرباء) بين نقطتين باستخدام بيانات الأقمار الصناعية الحقيقية" />
+        {isManualResult && (
+          <span className="mr-auto text-[10px] bg-amber-700/60 text-amber-200 px-2 py-0.5 rounded-full">
+            ✏ يدوي
+          </span>
+        )}
       </div>
+
+      {/* Help guide */}
+      <HelpGuide />
+
+      {/* Edit mode toggle */}
+      <div className="flex gap-1 rounded-lg overflow-hidden border border-slate-700 bg-slate-800/60 p-1">
+        {([
+          { mode: 'off',    label: '🤖 تلقائي',    title: 'المسار المحسوب تلقائياً' },
+          { mode: 'modify', label: '✏ تعديل',       title: 'اسحب نقاط المسار على الخريطة' },
+          { mode: 'draw',   label: '🖊 رسم يدوي',   title: 'ارسم مساراً جديداً بالنقر على الخريطة' },
+        ] as const).map(({ mode, label, title }) => (
+          <button
+            key={mode}
+            title={title}
+            onClick={() => onEditModeChange?.(mode)}
+            className={`flex-1 text-[10px] px-1.5 py-1 rounded transition-all ${
+              editMode === mode
+                ? 'bg-cyan-700 text-white font-bold shadow'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Edit mode hint */}
+      {editMode === 'modify' && (
+        <div className="text-[10px] text-amber-300 bg-amber-900/30 border border-amber-700/40 rounded px-2 py-1.5">
+          ← اسحب نقاط المسار على الخريطة لتعديله، ثم سيُعاد حساب الكميات تلقائياً
+        </div>
+      )}
+      {editMode === 'draw' && (
+        <div className="text-[10px] text-amber-300 bg-amber-900/30 border border-amber-700/40 rounded px-2 py-1.5">
+          ← انقر على الخريطة لرسم مسار جديد (نقرة مزدوجة للإنهاء)، ثم يُحسب تلقائياً
+        </div>
+      )}
 
       {/* Point pickers */}
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-2.5 space-y-2">
-        <p className="text-xs text-slate-400 font-semibold">نقاط المسار</p>
+        <div className="flex items-center gap-1">
+          <span className="w-4 h-4 rounded-full bg-cyan-700 text-white text-[9px] font-bold flex items-center justify-center shrink-0">١</span>
+          <p className="text-xs text-slate-400 font-semibold">تحديد نقطتَي البداية والنهاية</p>
+          <HelpTip text="اضغط «تحديد» ثم انقر على الخريطة لاختيار النقطة. النقطة A = بداية المشروع، النقطة B = نهاية المشروع." />
+        </div>
 
         {/* Start */}
         <div className="flex items-center gap-2">
@@ -743,7 +1023,11 @@ export default function OptimalPathPanel({
 
       {/* Infrastructure type picker */}
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-2.5 space-y-2">
-        <p className="text-xs text-slate-400 font-semibold">نوع البنية التحتية</p>
+        <div className="flex items-center gap-1">
+          <span className="w-4 h-4 rounded-full bg-cyan-700 text-white text-[9px] font-bold flex items-center justify-center shrink-0">٢</span>
+          <p className="text-xs text-slate-400 font-semibold">نوع البنية التحتية</p>
+          <HelpTip text="اختر نوع المشروع. سيتم تلقائياً تحديد أفضل الإعدادات والمعايير الهندسية المناسبة لكل نوع." />
+        </div>
         <div className="grid grid-cols-2 gap-1">
           {INFRA_OPTIONS.map(opt => (
             <button
@@ -770,7 +1054,11 @@ export default function OptimalPathPanel({
 
       {/* Priority */}
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-2.5 space-y-2">
-        <p className="text-xs text-slate-400 font-semibold">معيار التحسين</p>
+        <div className="flex items-center gap-1">
+          <span className="w-4 h-4 rounded-full bg-cyan-700 text-white text-[9px] font-bold flex items-center justify-center shrink-0">٣</span>
+          <p className="text-xs text-slate-400 font-semibold">معيار التحسين</p>
+          <HelpTip text="أقصر مسار = أقل كيلومترات. أسهل تضاريس = أقل حفراً وردماً (موصى به للطرق). أقل عوائق = تجنب العقبات. متوازن = توليفة من الجميع." />
+        </div>
         <div className="grid grid-cols-2 gap-1">
           {PRIORITY_OPTIONS.map(opt => (
             <button
@@ -791,7 +1079,11 @@ export default function OptimalPathPanel({
 
       {/* Obstacles */}
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 p-2.5 space-y-1.5">
-        <p className="text-xs text-slate-400 font-semibold">العوائق المراعاة</p>
+        <div className="flex items-center gap-1">
+          <span className="w-4 h-4 rounded-full bg-cyan-700 text-white text-[9px] font-bold flex items-center justify-center shrink-0">٤</span>
+          <p className="text-xs text-slate-400 font-semibold">العوائق المراعاة</p>
+          <HelpTip text="فعّل العوائق التي يجب تجنبها في المسار. «تفضيل الطرق القائمة» مفيد للأنابيب والكابلات لتقليل التكلفة." />
+        </div>
 
         {([
           { key: 'buildings',        label: 'مبانٍ وإنشاءات', Icon: Building2,   color: 'text-orange-400' },
@@ -821,15 +1113,165 @@ export default function OptimalPathPanel({
         ))}
       </div>
 
+      {/* ── Advanced Design Parameters ─────────────────────────────────── */}
+      <div className="rounded-lg border border-slate-700/50 bg-slate-800/40 overflow-hidden">
+        <button
+          onClick={() => setShowAdvanced(s => !s)}
+          className="w-full flex items-center gap-2 px-2.5 py-2 hover:bg-slate-700/30 transition-colors"
+        >
+          <Settings2 size={11} className="text-slate-500 shrink-0" />
+          <span className="text-xs text-slate-400 font-semibold flex-1">⚙ معاملات التصميم المتقدمة</span>
+          <HelpTip text="قيم افتراضية مناسبة للمشاريع العامة. غيّرها إذا كان لديك بيانات دقيقة للمشروع لتحسين دقة الحسابات." />
+          <span className="text-[10px] text-slate-600 mr-1">{showAdvanced ? '▲' : '▼'}</span>
+        </button>
+        {showAdvanced && (
+          <div className="px-2.5 pb-3 space-y-3 border-t border-slate-700/40 pt-2.5">
+
+            {/* ADT */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <label className="text-[11px] text-slate-400">🚗 حجم المرور اليومي (ADT)</label>
+                <HelpTip text="عدد المركبات يومياً. يؤثر مباشرة على سماكة طبقات الرصف وعدد المحاور الإجمالي (W18)." />
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="range" min={500} max={20000} step={500}
+                  value={designParams.adt}
+                  onChange={e => setDesignParams(p => ({ ...p, adt: +e.target.value }))}
+                  className="flex-1 accent-cyan-500 h-1.5"
+                />
+                <span className="text-xs font-bold text-cyan-300 w-20 text-left">{designParams.adt.toLocaleString()} م/يوم</span>
+              </div>
+              <div className="flex justify-between text-[9px] text-slate-600">
+                <span>محلي 1000</span><span>حضري 5000</span><span>إقليمي 15000</span>
+              </div>
+            </div>
+
+            {/* Population */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <label className="text-[11px] text-slate-400">👥 السكان المخدومون</label>
+                <HelpTip text="عدد السكان المستفيدين من الشبكة. يؤثر على قطر أنابيب المياه والصرف الصحي." />
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="range" min={500} max={200000} step={500}
+                  value={designParams.population}
+                  onChange={e => setDesignParams(p => ({ ...p, population: +e.target.value }))}
+                  className="flex-1 accent-cyan-500 h-1.5"
+                />
+                <span className="text-xs font-bold text-cyan-300 w-20 text-left">{designParams.population.toLocaleString()} نسمة</span>
+              </div>
+            </div>
+
+            {/* Soil CBR */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <label className="text-[11px] text-slate-400">🪨 نوع التربة (CBR)</label>
+                <HelpTip text="نسبة تحمل التربة الأساسية. كلما ضعفت التربة زادت سماكة الرصف المطلوبة." />
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {([
+                  { label: 'ضعيف (سبخة)', cbr: 3,  cls: 'rose' },
+                  { label: 'متوسط (رملي)', cbr: 6,  cls: 'amber' },
+                  { label: 'جيد (صخري)',   cbr: 10, cls: 'green' },
+                ] as const).map(({ label, cbr, cls }) => (
+                  <button key={cbr}
+                    onClick={() => setDesignParams(p => ({ ...p, cbr }))}
+                    className={`py-1 rounded text-[10px] border transition-colors ${
+                      designParams.cbr === cbr
+                        ? cls === 'rose'  ? 'bg-rose-800/50 border-rose-500 text-rose-200'
+                        : cls === 'amber' ? 'bg-amber-800/50 border-amber-500 text-amber-200'
+                        :                   'bg-green-800/50 border-green-500 text-green-200'
+                        : 'bg-slate-800/60 border-slate-700/40 text-slate-400 hover:border-slate-500'
+                    }`}
+                  >{label}</button>
+                ))}
+              </div>
+              <p className="text-[9px] text-slate-600">CBR = {designParams.cbr}% → MR = {(1500 * designParams.cbr).toLocaleString()} psi (AASHTO 1993)</p>
+            </div>
+
+            {/* Design Life */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <label className="text-[11px] text-slate-400">📅 العمر الافتراضي للتصميم</label>
+                <HelpTip text="عدد السنوات التي يُصمَّم لها المشروع. عمر أطول = رصف أسمك = تكلفة أعلى." />
+              </div>
+              <div className="flex gap-1">
+                {[10, 15, 20, 25, 30].map(y => (
+                  <button key={y}
+                    onClick={() => setDesignParams(p => ({ ...p, designLife: y }))}
+                    className={`flex-1 py-1 rounded text-[10px] border transition-colors ${
+                      designParams.designLife === y
+                        ? 'bg-cyan-700/50 border-cyan-500 text-cyan-200'
+                        : 'bg-slate-800/60 border-slate-700/40 text-slate-400'
+                    }`}
+                  >{y}س</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Region / Rainfall */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <label className="text-[11px] text-slate-400">🌧 المنطقة الجغرافية</label>
+                <HelpTip text="تحدد كثافة الأمطار (عاصفة 10 سنوات) المستخدمة في تصميم مجاري الأمطار والكلفرتات." />
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                {Object.entries(REGIONS).map(([key, { label, mmh }]) => (
+                  <button key={key}
+                    onClick={() => setDesignParams(p => ({ ...p, region: key as any, rainfallMmH: mmh }))}
+                    className={`py-1.5 px-1.5 rounded text-right text-[10px] border transition-colors ${
+                      designParams.region === key
+                        ? 'bg-blue-800/50 border-blue-500 text-blue-200'
+                        : 'bg-slate-800/60 border-slate-700/40 text-slate-400 hover:border-slate-500'
+                    }`}
+                  >
+                    {label}
+                    <span className="block text-[9px] text-slate-500">{mmh} mm/h</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary of active params */}
+            <div className="rounded bg-slate-900/60 px-2.5 py-2 text-[9px] text-slate-500 space-y-0.5">
+              <p className="text-slate-400 font-semibold mb-1">القيم النشطة حالياً:</p>
+              <p>ADT = {designParams.adt.toLocaleString()} م/يوم | سكان = {designParams.population.toLocaleString()} نسمة</p>
+              <p>تربة CBR={designParams.cbr}% | عمر={designParams.designLife}س | مطر={designParams.rainfallMmH}mm/h</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Welcome card — shown only when no points yet and not loading */}
+      {!startPoint && !endPoint && !loading && !result && (
+        <div className="rounded-lg border border-slate-700/30 bg-slate-800/20 p-3 text-center space-y-2">
+          <div className="text-2xl">🗺️</div>
+          <p className="text-xs text-slate-400 font-semibold">ابدأ بتحديد نقطتَي المسار على الخريطة</p>
+          <p className="text-[10px] text-slate-500 leading-relaxed">
+            اضغط زر «تحديد» بجانب نقطة A أعلاه ثم انقر على موقع البداية في الخريطة، ثم كرر للنقطة B
+          </p>
+          <div className="flex items-center justify-center gap-2 text-[10px] text-slate-600">
+            <span className="w-5 h-5 rounded-full bg-green-800/60 border border-green-600 text-green-300 flex items-center justify-center font-bold">A</span>
+            <span className="text-slate-700">———————→</span>
+            <span className="w-5 h-5 rounded-full bg-rose-800/60 border border-rose-600 text-rose-300 flex items-center justify-center font-bold">B</span>
+          </div>
+        </div>
+      )}
+
       {/* Run */}
-      <button
-        onClick={handleRun}
-        disabled={loading || !startPoint || !endPoint}
-        className="w-full py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-      >
-        {loading ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
-        {loading ? LOAD_STEPS[(loadStep - 1) % LOAD_STEPS.length] : 'حساب المسار الأمثل'}
-      </button>
+      <div className="space-y-1">
+        <button
+          onClick={handleRun}
+          disabled={loading || !startPoint || !endPoint}
+          className="w-full py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+        >
+          {loading ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
+          {loading ? LOAD_STEPS[(loadStep - 1) % LOAD_STEPS.length] : '⑤  حساب المسار الأمثل'}
+        </button>
+        {(!startPoint || !endPoint) && !loading && (
+          <p className="text-[10px] text-slate-600 text-center">يجب تحديد نقطتَي A و B أولاً</p>
+        )}
+      </div>
 
       {/* Progress stepper */}
       {loading && (
@@ -938,13 +1380,17 @@ export default function OptimalPathPanel({
                 <Download size={10} /> KML
               </button>
               <button
-                onClick={() => exportPDF(result, infraType, startPoint, endPoint)}
+                onClick={() => exportPDFNew(result, infraType, startPoint, endPoint)}
                 className="flex-1 py-1.5 rounded text-xs bg-rose-900/40 border border-rose-700/50 text-rose-300 hover:bg-rose-800/50 transition-colors font-semibold flex items-center justify-center gap-1"
               >
-                <Download size={10} /> PDF
+                <FileText size={10} /> PDF تقرير
               </button>
             </div>
-            <p className="text-[9px] text-slate-600 mt-1.5">KML يُفتح في Google Earth · GeoJSON في QGIS / ArcGIS · PDF تقرير هندسي</p>
+            <p className="text-[9px] text-slate-500 mt-1.5">
+              📌 <strong>GeoJSON</strong> — للفتح في QGIS أو ArcGIS &nbsp;|&nbsp;
+              🌍 <strong>KML</strong> — للفتح في Google Earth &nbsp;|&nbsp;
+              📄 <strong>PDF</strong> — تقرير هندسي كامل للطباعة أو الإرسال
+            </p>
           </div>
 
           {/* Segments toggle */}
@@ -1056,6 +1502,84 @@ export default function OptimalPathPanel({
             </div>
           )}
 
+          {/* ── Infrastructure-specific engineering details ────────── */}
+          {(result.engineering as any)?.infra_specific &&
+            Object.keys((result.engineering as any).infra_specific).length > 0 && (() => {
+              const sp = (result.engineering as any).infra_specific as Record<string, unknown>;
+              const infraLabels: Record<string, string> = {
+                tower_count:             'عدد الأبراج',
+                angle_towers:            'أبراج زاوية',
+                standard_span_m:         'امتداد نموذجي (م)',
+                conductor_length_km:     'طول الموصل (كم)',
+                design_voltage_kv:       'جهد التصميم (kV)',
+                right_of_way_m:          'حق المرور ROW (م)',
+                ground_clearance_m:      'تخليص أرضي (م)',
+                conductor_type:          'نوع الموصل',
+                earth_wire:              'موصل أرضي',
+                insulation_level:        'مستوى العزل',
+                route_type:              'نوع المسار',
+                total_grade_pct:         'ميل إجمالي (٪)',
+                grade_status:            'حالة الميل',
+                lift_stations:           'محطات الرفع',
+                is_gravity_flow:         'تدفق بالجاذبية',
+                pipe_diameter_mm:        'قطر الأنبوب (mm)',
+                pipe_material:           'مادة الأنبوب',
+                avg_pipe_depth_m:        'متوسط عمق الدفن (م)',
+                design_flow_ls:          'تدفق تصميمي (L/s)',
+                start_invert_m:          'منسوب الأنبوب (البداية)',
+                end_invert_m:            'منسوب الأنبوب (النهاية)',
+                is_gravity_feed:         'تدفق بالجاذبية',
+                pump_stations:           'محطات الضخ',
+                static_pressure_kpa:     'ضغط ساكن (kPa)',
+                pipe_class:              'فئة الأنبوب',
+                hydraulic_note:          'ملاحظة هيدروليكية',
+                design_speed_kmh:        'سرعة التصميم (كم/س)',
+                min_curve_radius_m:      'أدنى نصف قطر منحنى (م)',
+                road_width_m:            'عرض الطريق (م)',
+                grade_status:            'حالة الميل',
+                design_class:            'تصنيف الطريق',
+                cable_type:              'نوع الكابل',
+                fiber_count:             'عدد الألياف',
+                route_strategy:          'استراتيجية المسار',
+                pavement_sn:             'تصميم الرصف (SN)',
+                pavement_layers:         'طبقات الرصف',
+                drainage:                'تصريف مياه السطح',
+              };
+              const entries = Object.entries(sp).filter(([k]) => !['why_not_osrm','why_gravity_matters','disinfection','self_cleaning_velocity','max_velocity','wind_pressure','horizontal_alignment','vertical_alignment','pavement_design'].includes(k) && typeof sp[k] !== 'object');
+              return (
+                <div className="rounded-lg border border-violet-700/30 bg-violet-950/15 p-2.5 space-y-2">
+                  <p className="text-xs font-bold text-violet-300">⚙ تفاصيل هندسية متخصصة</p>
+                  <div className="space-y-0.5">
+                    {entries.map(([k, v]) => (
+                      <div key={k} className="flex justify-between text-[10px] py-0.5 border-b border-slate-800/30">
+                        <span className="text-slate-400">{infraLabels[k] ?? k}</span>
+                        <span className={`font-medium text-right max-w-[55%] ${
+                          String(v).startsWith('⚠') ? 'text-amber-400' :
+                          String(v).startsWith('✓') ? 'text-green-400' :
+                          typeof v === 'boolean' ? (v ? 'text-green-400' : 'text-slate-500') :
+                          'text-slate-200'
+                        }`}>
+                          {typeof v === 'boolean' ? (v ? 'نعم' : 'لا') : String(v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Infra-specific warnings */}
+                  {sp.why_gravity_matters && (
+                    <p className="text-[10px] text-amber-400 bg-amber-900/20 rounded p-1.5 border border-amber-800/30">
+                      💡 {String(sp.why_gravity_matters)}
+                    </p>
+                  )}
+                  {sp.why_not_osrm && (
+                    <p className="text-[10px] text-blue-300 bg-blue-900/20 rounded p-1.5 border border-blue-800/30">
+                      ℹ️ {String(sp.why_not_osrm)}
+                    </p>
+                  )}
+                </div>
+              );
+            })()
+          }
+
           {/* ── Path alternatives comparison + mini-map ──────────── */}
           {result.engineering?.alternatives?.length > 1 && (
             <AlternativesMiniMap
@@ -1159,6 +1683,219 @@ export default function OptimalPathPanel({
           {(result.engineering as any)?.culverts?.length > 0 && (
             <CulvertCard culverts={(result.engineering as any).culverts} />
           )}
+
+          {/* ── Horizontal Alignment (new PI table from Phase 3) ─── */}
+          {(() => {
+            const ha = (result.engineering as any)?.infra_specific?.horizontal_alignment as {
+              pi_count: number; violations: number; align_ok: string;
+              pi_table: Array<{ station_km: number; delta_deg: number; R_m: number; T_m: number; L_m: number; ok: boolean; note: string }>;
+            } | undefined;
+            if (!ha?.pi_table?.length) return null;
+            return (
+              <div className="rounded-lg border border-violet-700/30 bg-violet-950/15 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-violet-300">📐 محاذاة أفقية — جدول PI (AASHTO §3.3)</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${ha.violations === 0 ? 'bg-green-900/40 text-green-400' : 'bg-amber-900/40 text-amber-400'}`}>
+                    {ha.violations === 0 ? '✓ مطابق' : `⚠ ${ha.violations} مخالفة`}
+                  </span>
+                </div>
+                <p className="text-[9px] text-slate-500">{ha.align_ok}</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr className="text-slate-500 border-b border-slate-700/50 text-[9px]">
+                        <th className="py-1 text-right">كم</th>
+                        <th className="py-1 text-center">Δ°</th>
+                        <th className="py-1 text-center">R(م)</th>
+                        <th className="py-1 text-center">T(م)</th>
+                        <th className="py-1 text-center">L(م)</th>
+                        <th className="py-1 text-center">حالة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ha.pi_table.slice(0, 10).map((pi, i) => (
+                        <tr key={i} className="border-b border-slate-800/30">
+                          <td className="py-0.5 text-slate-400">{pi.station_km}</td>
+                          <td className="py-0.5 text-center text-amber-300">{pi.delta_deg}°</td>
+                          <td className="py-0.5 text-center text-violet-300">{pi.R_m}</td>
+                          <td className="py-0.5 text-center text-slate-300">{pi.T_m}</td>
+                          <td className="py-0.5 text-center text-slate-300">{pi.L_m}</td>
+                          <td className={`py-0.5 text-center font-bold ${pi.ok ? 'text-green-400' : 'text-amber-400'}`}>{pi.ok ? '✓' : '⚠'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {ha.pi_count > 10 && <p className="text-[9px] text-slate-600">... و{ha.pi_count - 10} PI إضافية — Δ = انعطاف · R = نصف قطر · T = مماس · L = قوس</p>}
+                {ha.pi_count <= 10 && <p className="text-[9px] text-slate-600">Δ = انعطاف · R = نصف قطر · T = مماس · L = طول القوس</p>}
+              </div>
+            );
+          })()}
+
+          {/* ── Cost Estimate (Phase 4) ───────────────────────────── */}
+          {(() => {
+            const ce = (result.engineering as any)?.cost_estimate as {
+              direct_lyd: number; direct_usd: number;
+              with_contingency_lyd: number; with_contingency_usd: number;
+              currency_note: string; contingency_pct: number; engineering_fee_pct: number;
+              breakdown: Array<{ desc: string; qty: number; unit: string; rate_lyd: number; total_lyd: number }>;
+            } | undefined;
+            if (!ce?.breakdown?.length) return null;
+            const fmt = (n: number) => n.toLocaleString('ar-LY');
+            return (
+              <div className="rounded-lg border border-emerald-700/30 bg-emerald-950/10 p-2.5 space-y-2">
+                <p className="text-xs font-bold text-emerald-400">💰 تقدير التكلفة الإنشائية (2024)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-slate-900/40 rounded p-2 text-center">
+                    <p className="text-[9px] text-slate-500">التكلفة المباشرة</p>
+                    <p className="text-sm font-bold text-emerald-400">{fmt(ce.direct_lyd)}</p>
+                    <p className="text-[10px] text-slate-400">LYD = ${fmt(ce.direct_usd)}</p>
+                  </div>
+                  <div className="bg-slate-900/40 rounded p-2 text-center">
+                    <p className="text-[9px] text-slate-500">+{ce.contingency_pct}٪ احتياطي +{ce.engineering_fee_pct}٪ هندسة</p>
+                    <p className="text-sm font-bold text-yellow-400">{fmt(ce.with_contingency_lyd)}</p>
+                    <p className="text-[10px] text-slate-400">LYD = ${fmt(ce.with_contingency_usd)}</p>
+                  </div>
+                </div>
+                <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                  {ce.breakdown.map((b, i) => (
+                    <div key={i} className="flex justify-between text-[9px] py-0.5 border-b border-slate-800/30">
+                      <span className="text-slate-400 truncate max-w-[55%]">{b.desc}</span>
+                      <span className="text-emerald-300 font-medium">{fmt(b.total_lyd)} LYD</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[9px] text-slate-600">{ce.currency_note} — أسعار جدول وزارة الأشغال العامة 2022</p>
+              </div>
+            );
+          })()}
+
+          {/* ── Vertical Alignment (PVI Table) ────────────────────── */}
+          {(() => {
+            const va = (result.engineering as any)?.infra_specific?.vertical_alignment as {
+              pvi_count: number; violations: number; vert_ok: string;
+              pvi_table: Array<{ station_km: number; g1_pct: number; g2_pct: number; A: number; K: number; L_vc_m: number; type: 'crest'|'sag'; ok: boolean; note: string }>;
+            } | undefined;
+            if (!va?.pvi_table?.length) return null;
+            return (
+              <div className="rounded-lg border border-sky-700/30 bg-sky-950/10 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-sky-300">📈 محاذاة رأسية — جدول PVI (AASHTO Table 3-35/36)</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${va.violations === 0 ? 'bg-green-900/40 text-green-400' : 'bg-amber-900/40 text-amber-400'}`}>
+                    {va.violations === 0 ? '✓ مطابق' : `⚠ ${va.violations} مخالفة`}
+                  </span>
+                </div>
+                <p className="text-[9px] text-slate-500">{va.vert_ok}</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr className="text-slate-500 border-b border-slate-700/50 text-[9px]">
+                        <th className="py-1 text-right">كم</th>
+                        <th className="py-1 text-center">g1%</th>
+                        <th className="py-1 text-center">g2%</th>
+                        <th className="py-1 text-center">A</th>
+                        <th className="py-1 text-center">K</th>
+                        <th className="py-1 text-center">L(م)</th>
+                        <th className="py-1 text-center">نوع</th>
+                        <th className="py-1 text-center">حالة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {va.pvi_table.slice(0, 10).map((pvi, i) => (
+                        <tr key={i} className="border-b border-slate-800/30">
+                          <td className="py-0.5 text-slate-400">{pvi.station_km}</td>
+                          <td className="py-0.5 text-center text-slate-300">{pvi.g1_pct > 0 ? '+' : ''}{pvi.g1_pct}%</td>
+                          <td className="py-0.5 text-center text-slate-300">{pvi.g2_pct > 0 ? '+' : ''}{pvi.g2_pct}%</td>
+                          <td className="py-0.5 text-center text-amber-300">{pvi.A}</td>
+                          <td className="py-0.5 text-center text-sky-300">{pvi.K}</td>
+                          <td className="py-0.5 text-center text-slate-200">{pvi.L_vc_m}</td>
+                          <td className={`py-0.5 text-center text-[9px] ${pvi.type === 'crest' ? 'text-orange-400' : 'text-blue-400'}`}>{pvi.type === 'crest' ? 'قمة▲' : 'حوض▼'}</td>
+                          <td className={`py-0.5 text-center font-bold ${pvi.ok ? 'text-green-400' : 'text-amber-400'}`}>{pvi.ok ? '✓' : '⚠'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[9px] text-slate-600">A = التغير في الميل | K = معامل التقوس | L = طول المنحنى الرأسي</p>
+              </div>
+            );
+          })()}
+
+          {/* ── Work Program (Gantt) ──────────────────────────────── */}
+          {(() => {
+            const wp = (result.engineering as any)?.work_program as Array<{
+              phase: string; duration_wk: number; start_wk: number; end_wk: number; crew: string;
+            }> | undefined;
+            if (!wp?.length) return null;
+            const totalWk = Math.max(...wp.map(p => p.end_wk));
+            return (
+              <div className="rounded-lg border border-teal-700/30 bg-teal-950/10 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-teal-300">📅 برنامج الإنشاء (Gantt)</p>
+                  <span className="text-[10px] text-slate-400">{totalWk} أسبوع ≈ {(totalWk/4.3).toFixed(1)} شهر</span>
+                </div>
+                <div className="space-y-1">
+                  {wp.map((p, i) => {
+                    const startPct = (p.start_wk / totalWk) * 100;
+                    const widthPct = (p.duration_wk / totalWk) * 100;
+                    const colors = ['bg-teal-600','bg-blue-600','bg-violet-600','bg-amber-600','bg-orange-600','bg-pink-600'];
+                    const color = colors[i % colors.length];
+                    return (
+                      <div key={i}>
+                        <div className="flex justify-between text-[9px] text-slate-400 mb-0.5">
+                          <span>{p.phase}</span>
+                          <span className="text-slate-600">{p.duration_wk}أسبوع</span>
+                        </div>
+                        <div className="h-3 bg-slate-800/50 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${color} rounded-full opacity-80`}
+                            style={{ marginLeft: `${startPct}%`, width: `${Math.max(widthPct, 3)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[9px] text-slate-600">الجدول الزمني بالأسابيع — مبني على إنتاجية المعدات في ليبيا (FIDIC)</p>
+              </div>
+            );
+          })()}
+
+          {/* ── Risk Register ─────────────────────────────────────── */}
+          {(() => {
+            const rr = (result.engineering as any)?.risk_register as Array<{
+              id: string; risk: string; category: string;
+              probability: number; impact: number; score: number; mitigation: string;
+            }> | undefined;
+            if (!rr?.length) return null;
+            return (
+              <div className="rounded-lg border border-rose-700/30 bg-rose-950/10 p-2.5 space-y-2">
+                <p className="text-xs font-bold text-rose-400">⚠ سجل المخاطر ({rr.length} مخاطر)</p>
+                <div className="space-y-1 max-h-52 overflow-y-auto">
+                  {rr.map((r) => {
+                    const level = r.score >= 12 ? { label: 'عالٍ', color: 'text-red-400 bg-red-900/30' } :
+                                  r.score >= 6  ? { label: 'متوسط', color: 'text-amber-400 bg-amber-900/30' } :
+                                                  { label: 'منخفض', color: 'text-green-400 bg-green-900/30' };
+                    return (
+                      <div key={r.id} className="border border-slate-700/30 rounded p-1.5">
+                        <div className="flex items-start gap-1.5">
+                          <span className={`text-[9px] px-1 py-0.5 rounded shrink-0 font-bold ${level.color}`}>{r.id}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-[10px] text-slate-200 font-medium leading-tight">{r.risk}</p>
+                              <span className={`text-[9px] px-1 rounded shrink-0 ${level.color}`}>{level.label} {r.score}</span>
+                            </div>
+                            <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">🛡 {r.mitigation}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[9px] text-slate-600">مصفوفة المخاطر: الاحتمال × التأثير (1-5) — ISO 31000:2018</p>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

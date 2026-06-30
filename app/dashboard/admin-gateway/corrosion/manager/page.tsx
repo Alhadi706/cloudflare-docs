@@ -23,6 +23,7 @@ import {
   Inbox,
   KeyRound,
   Layers,
+  Mail,
   MessageCircle,
   Send,
   Shield,
@@ -46,7 +47,7 @@ function getHeaders(): Record<string, string> {
   return headers;
 }
 
-type ManagerTab = 'dashboard' | 'inbox' | 'outbox' | 'pending' | 'approvals' | 'access' | 'telegram';
+type ManagerTab = 'dashboard' | 'correspondence' | 'approvals' | 'access' | 'telegram';
 
 type InviteRole = 'section_manager' | 'supervisor' | 'employee';
 
@@ -78,13 +79,11 @@ interface WorkOrderSummary {
 }
 
 const TABS: { id: ManagerTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'dashboard', label: 'لوحة التحكم',        icon: <BarChart2 className="w-4 h-4" /> },
-  { id: 'inbox',     label: 'المراسلات الواردة',   icon: <Inbox className="w-4 h-4" /> },
-  { id: 'outbox',    label: 'الصادرة',             icon: <Send className="w-4 h-4" /> },
-  { id: 'pending',   label: 'قيد الإجراء',         icon: <ClipboardList className="w-4 h-4" /> },
-  { id: 'approvals', label: 'موافقات الخطط',       icon: <CheckCircle className="w-4 h-4" /> },
-  { id: 'access',    label: 'رؤساء الأقسام',       icon: <UserPlus className="w-4 h-4" /> },
-  { id: 'telegram',  label: 'تيليجرام',            icon: <MessageCircle className="w-4 h-4" /> },
+  { id: 'dashboard',      label: 'لوحة التحكم',         icon: <BarChart2 className="w-4 h-4" /> },
+  { id: 'correspondence', label: 'المراسلات الداخلية',  icon: <Mail className="w-4 h-4" /> },
+  { id: 'approvals',      label: 'موافقات الخطط',        icon: <CheckCircle className="w-4 h-4" /> },
+  { id: 'access',         label: 'رؤساء الأقسام',        icon: <UserPlus className="w-4 h-4" /> },
+  { id: 'telegram',       label: 'تيليجرام',             icon: <MessageCircle className="w-4 h-4" /> },
 ];
 
 function getAuthHeader(): Record<string, string> {
@@ -724,7 +723,7 @@ export default function CorrosionManagerPage() {
 
   useEffect(() => {
     const tabParam = searchParams?.get('tab') as ManagerTab | null;
-    const allowed: ManagerTab[] = ['dashboard', 'inbox', 'outbox', 'pending', 'approvals', 'access', 'telegram'];
+    const allowed: ManagerTab[] = ['dashboard', 'correspondence', 'approvals', 'access', 'telegram'];
     if (tabParam && allowed.includes(tabParam)) setActiveTab(tabParam);
   }, [searchParams]);
 
@@ -756,60 +755,17 @@ export default function CorrosionManagerPage() {
           </div>
         </div>
 
-        <InternalMailTab
-          department="corrosion"
-          title="المراسلات الداخلية - مدير إدارة التآكل"
-        />
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-100">تبويبات التشغيل والتواصل</p>
-            <span className="text-[11px] text-slate-500">تنظيم المسار بين الإدارية والفنية والأقسام</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <button
-              onClick={() => setActiveTab('inbox')}
-              className="rounded-full border border-blue-500/35 bg-blue-900/20 px-3 py-1.5 text-blue-300 hover:bg-blue-900/35 inline-flex items-center gap-1.5"
-            >
-              <Inbox className="w-3.5 h-3.5" /> وارد التواصل
-            </button>
-            <button
-              onClick={() => setActiveTab('outbox')}
-              className="rounded-full border border-cyan-500/35 bg-cyan-900/20 px-3 py-1.5 text-cyan-300 hover:bg-cyan-900/35 inline-flex items-center gap-1.5"
-            >
-              <Send className="w-3.5 h-3.5" /> صادر التواصل
-            </button>
-            <button
-              onClick={() => setActiveTab('pending')}
-              className="rounded-full border border-amber-500/35 bg-amber-900/20 px-3 py-1.5 text-amber-300 hover:bg-amber-900/35 inline-flex items-center gap-1.5"
-            >
-              <ClipboardList className="w-3.5 h-3.5" /> قيد الإجراء
-            </button>
-            <button
-              onClick={() => setActiveTab('access')}
-              className="rounded-full border border-rose-500/35 bg-rose-900/20 px-3 py-1.5 text-rose-300 hover:bg-rose-900/35 inline-flex items-center gap-1.5"
-            >
-              <UserPlus className="w-3.5 h-3.5" /> رؤساء الأقسام
-            </button>
-            <button
-              onClick={() => setActiveTab('telegram')}
-              className="rounded-full border border-cyan-500/35 bg-cyan-900/20 px-3 py-1.5 text-cyan-300 hover:bg-cyan-900/35 inline-flex items-center gap-1.5"
-            >
-              <MessageCircle className="w-3.5 h-3.5" /> تيليجرام
-            </button>
-            <Link href="/dashboard/admin-gateway/corrosion/coating?tab=work-orders" className="rounded-full border border-emerald-500/35 bg-emerald-900/20 px-3 py-1.5 text-emerald-300 hover:bg-emerald-900/35 inline-flex items-center gap-1.5">
-              <ArrowUpRight className="w-3.5 h-3.5" /> أوامر العمل الفنية
-            </Link>
-            <Link href="/dashboard/admin-gateway/corrosion/monitoring?tab=sessions" className="rounded-full border border-violet-500/35 bg-violet-900/20 px-3 py-1.5 text-violet-300 hover:bg-violet-900/35 inline-flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5" /> جلسات المسح
-            </Link>
-            <Link href="/dashboard/admin-gateway/corrosion/support?tab=analysis" className="rounded-full border border-rose-500/35 bg-rose-900/20 px-3 py-1.5 text-rose-300 hover:bg-rose-900/35 inline-flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5" /> التحليل الفني
-            </Link>
-          </div>
-          <p className="text-[11px] text-slate-400">
-            التسلسل المعتمد: وارد/صادر التواصل ← تصنيف إداري ← إحالة للأقسام ← أوامر عمل وتنفيذ ← تحليل وتقارير ← إغلاق مع اعتماد مدير الإدارة.
-          </p>
+        {/* روابط سريعة */}
+        <div className="flex flex-wrap gap-2 text-xs">
+          <Link href="/dashboard/admin-gateway/corrosion/coating?tab=work-orders" className="rounded-full border border-emerald-500/35 bg-emerald-900/20 px-3 py-1.5 text-emerald-300 hover:bg-emerald-900/35 inline-flex items-center gap-1.5">
+            <ArrowUpRight className="w-3.5 h-3.5" /> أوامر العمل الفنية
+          </Link>
+          <Link href="/dashboard/admin-gateway/corrosion/monitoring?tab=sessions" className="rounded-full border border-violet-500/35 bg-violet-900/20 px-3 py-1.5 text-violet-300 hover:bg-violet-900/35 inline-flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5" /> جلسات المسح
+          </Link>
+          <Link href="/dashboard/admin-gateway/corrosion/support?tab=analysis" className="rounded-full border border-rose-500/35 bg-rose-900/20 px-3 py-1.5 text-rose-300 hover:bg-rose-900/35 inline-flex items-center gap-1.5">
+            <Activity className="w-3.5 h-3.5" /> التحليل الفني
+          </Link>
         </div>
 
         {/* ── Tab Bar ── */}
@@ -831,13 +787,20 @@ export default function CorrosionManagerPage() {
         </div>
 
         {/* ── Tab Content ── */}
-        {activeTab === 'dashboard' && <ManagerDashboard stats={adminStats} />}
-        {activeTab === 'inbox'     && <CorrespondencePanel type="inbox" />}
-        {activeTab === 'outbox'    && <CorrespondencePanel type="outbox" />}
-        {activeTab === 'pending'   && <CorrespondencePanel type="pending" />}
-        {activeTab === 'approvals' && <ApprovalsPanel />}
-        {activeTab === 'access'    && <SectionAccessPanel />}
-        {activeTab === 'telegram'  && <TelegramBotPanel />}
+        {activeTab === 'dashboard'      && <ManagerDashboard stats={adminStats} />}
+        {activeTab === 'correspondence' && (
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">المراسلات الداخلية الموحدة</h2>
+            <div className="mb-4 rounded-xl border border-rose-500/25 bg-rose-500/5 px-4 py-3">
+              <p className="text-sm text-rose-200 font-semibold">تم توحيد مسارات المراسلات في قناة واحدة</p>
+              <p className="text-xs text-slate-300 mt-1">الوارد والصادر والتعميمات والإجراءات الإدارية تُدار من نفس اللوحة لتقليل التشتت وتسريع المتابعة.</p>
+            </div>
+            <InternalMailTab department="corrosion" title="نظام المراسلات الموحد - إدارة التآكل" />
+          </div>
+        )}
+        {activeTab === 'approvals'      && <ApprovalsPanel />}
+        {activeTab === 'access'         && <SectionAccessPanel />}
+        {activeTab === 'telegram'       && <TelegramBotPanel />}
 
       </div>
     </div>

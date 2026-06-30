@@ -38,6 +38,7 @@ const PUBLIC_API_PATHS = [
   '/api/gis/',                // GIS analysis APIs (optimal path, change detection, alerts, etc.)
   '/api/tiles/',              // map tile proxies
   '/api/onboarding/tenant-request', // new org registration form (POST)
+  '/api/v1/satellite/',       // satellite intelligence APIs (fire, thermal, scenes, etc.)
 ];
 
 function isPublicApiPath(pathname: string): boolean {

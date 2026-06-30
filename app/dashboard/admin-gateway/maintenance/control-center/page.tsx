@@ -11,7 +11,7 @@ import {
   ArrowRight, Activity, AlertTriangle, CheckCircle2, XCircle, Droplets,
   Gauge, Zap, TrendingDown, TrendingUp, AlertCircle, Clock, Waves,
   BarChart2, MapPin, Building2, RefreshCw, Radio, Settings, Target,
-  Shield, Filter, Bell, BellOff,
+  Shield, Filter, Bell, BellOff, Mail,
 } from 'lucide-react';
 import InternalMailTab from '@/components/InternalMailTab';
 
@@ -506,7 +506,7 @@ function NetworkDiagram({ cities, pipelines, stations }: {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════
 export default function ControlCenterPage() {
-  const [tab, setTab] = useState<'dashboard' | 'stations' | 'network' | 'analysis' | 'alerts'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'stations' | 'network' | 'analysis' | 'alerts' | 'correspondence'>('dashboard');
   const [alertFilter, setAlertFilter] = useState<'all' | 'critical' | 'warning' | 'info' | 'unack'>('all');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [opsSummary, setOpsSummary] = useState<Record<string,any> | null>(null);
@@ -548,7 +548,8 @@ export default function ControlCenterPage() {
     { key: 'stations',   label: 'المحطات والخزانات', icon: <Settings className="w-4 h-4" /> },
     { key: 'network',    label: 'شبكة التوزيع',      icon: <Waves className="w-4 h-4" /> },
     { key: 'analysis',   label: 'الذكاء التشغيلي',   icon: <Target className="w-4 h-4" /> },
-    { key: 'alerts',     label: 'التنبيهات',          icon: <Bell className="w-4 h-4" /> },
+    { key: 'alerts',          label: 'التنبيهات',             icon: <Bell className="w-4 h-4" /> },
+    { key: 'correspondence',  label: 'المراسلات الداخلية',   icon: <Mail className="w-4 h-4" /> },
   ] as const;
 
   const sevColor  = (s: Alert['severity']) => s === 'critical' ? 'border-red-500/40 bg-red-500/10' : s === 'warning' ? 'border-amber-500/40 bg-amber-500/10' : 'border-blue-500/40 bg-blue-500/10';
@@ -593,11 +594,6 @@ export default function ControlCenterPage() {
             </div>
           </div>
         </div>
-
-        <InternalMailTab
-          department="control"
-          title="المراسلات الداخلية - مدير مركز التحكم"
-        />
 
         {/* ── KPI Strip ── */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1179,6 +1175,14 @@ export default function ControlCenterPage() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* ══════════════════ CORRESPONDENCE TAB ══════════════════ */}
+        {tab === 'correspondence' && (
+          <InternalMailTab
+            department="control"
+            title="نظام المراسلات الموحد - مركز التحكم التشغيلي"
+          />
         )}
 
       </div>

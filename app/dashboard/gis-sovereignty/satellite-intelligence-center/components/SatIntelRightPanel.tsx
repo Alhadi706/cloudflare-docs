@@ -235,6 +235,9 @@ interface Props {
   onStartRoutingPick?: (which: 'start' | 'end') => void;
   onClearRoutingPoints?: () => void;
   onRoutingResultReady?: (result: any | null) => void;
+  routingEditMode?: 'off' | 'modify' | 'draw';
+  onRoutingEditModeChange?: (mode: 'off' | 'modify' | 'draw') => void;
+  externalManualPath?: [number, number][] | null;
   // Network design props
   networkPickMode?: 'idle' | 'picking_node';
   networkPickedPoint?: [number, number] | null;
@@ -453,6 +456,7 @@ export default function SatIntelRightPanel({
   onSuitabilityLocations, onFlyTo,
   routingPickMode = 'idle', routingStartPoint, routingEndPoint,
   onStartRoutingPick, onClearRoutingPoints, onRoutingResultReady,
+  routingEditMode = 'off', onRoutingEditModeChange, externalManualPath,
   networkPickMode = 'idle', networkPickedPoint, onStartNetworkPick, onNetworkPickConsumed,
   autoNetworkPolygon, onStartAutoNetworkDraw, onAutoNetworkResult,
   onChangeDetectionResult, onRiskAssessmentResult, onAlertsResult,
@@ -1442,6 +1446,9 @@ export default function SatIntelRightPanel({
             onStartPicking={(which) => onStartRoutingPick?.(which)}
             onClearPoints={() => onClearRoutingPoints?.()}
             onResultReady={(r) => onRoutingResultReady?.(r)}
+            editMode={routingEditMode}
+            onEditModeChange={onRoutingEditModeChange}
+            externalManualPath={externalManualPath}
           />
         )}
 
