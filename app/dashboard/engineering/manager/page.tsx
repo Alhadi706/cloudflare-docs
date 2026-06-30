@@ -2,48 +2,84 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowRight, Crown, Wrench, Brain, CalendarClock,
-  ClipboardList, BarChart2, Users, PackageOpen, Activity, Bot, MapPin,
+  ArrowRight, Crown, HardHat, Map, RotateCcw, Shield,
+  Activity, Wrench, BarChart2, Settings,
 } from 'lucide-react';
 import InternalMailTab from '@/components/InternalMailTab';
 
 const sections = [
   {
-    href: '/dashboard/maintenance/operations',
-    label: 'قسم العمليات الميدانية',
-    en: 'Field Operations',
+    href: '/dashboard/gis-sovereignty/engineering-workspace',
+    label: 'مساحة العمل الهندسية',
+    en: 'Engineering Workspace',
+    color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/20',
+    icon: Map,
+    items: ['الأصول الهندسية', 'الطبقات الجغرافية', 'المواقع على الخريطة'],
+  },
+  {
+    href: '/dashboard/asset-360',
+    label: 'أصل 360°',
+    en: 'Asset 360°',
+    color: 'text-cyan-400', border: 'border-cyan-500/30', bg: 'bg-cyan-500/20',
+    icon: RotateCcw,
+    items: ['دورة حياة الأصل', 'GIS والصيانة', 'المستندات'],
+  },
+  {
+    href: '/dashboard/admin-gateway/assets/registry',
+    label: 'سجل الأصول الرئيسية',
+    en: 'Assets Registry',
+    color: 'text-teal-400', border: 'border-teal-500/30', bg: 'bg-teal-500/20',
+    icon: Shield,
+    items: ['الأصول الهندسية المدرجة', 'الفئات والتصنيفات', 'التقييمات'],
+  },
+  {
+    href: '/dashboard/admin-gateway/assets/list',
+    label: 'قائمة الأصول',
+    en: 'Assets List',
+    color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/20',
+    icon: HardHat,
+    items: ['استعراض الأصول', 'البحث والتصفية', 'تفاصيل الأصل'],
+  },
+  {
+    href: '/dashboard/admin-gateway/maintenance/fault-analysis',
+    label: 'تحليل الأعطال الفنية',
+    en: 'Fault Analysis',
+    color: 'text-rose-400', border: 'border-rose-500/30', bg: 'bg-rose-500/20',
+    icon: Activity,
+    items: ['تشخيص الأعطال', 'جذور الإخفاقات', 'الأنماط التاريخية'],
+  },
+  {
+    href: '/dashboard/admin-gateway/maintenance/technical',
+    label: 'الجانب الفني والمعايير',
+    en: 'Technical Standards',
     color: 'text-orange-400', border: 'border-orange-500/30', bg: 'bg-orange-500/20',
     icon: Wrench,
-    items: ['أوامر العمل', 'الصيانة الوقائية', 'الآبار'],
-  },
-  {
-    href: '/dashboard/maintenance/technical',
-    label: 'قسم الدعم الفني والتحليل',
-    en: 'Technical Support & Analysis',
-    color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/20',
-    icon: Brain,
-    items: ['تحليل الأعطال', 'المعايير الفنية', 'مساحة العمل GIS'],
-  },
-  {
-    href: '/dashboard/maintenance/planning',
-    label: 'قسم التخطيط والموارد',
-    en: 'Planning & Resources',
-    color: 'text-violet-400', border: 'border-violet-500/30', bg: 'bg-violet-500/20',
-    icon: CalendarClock,
-    items: ['فرق الصيانة', 'قطع الغيار', 'التحكم الآلي'],
+    items: ['الإجراءات التقنية', 'المعايير الهندسية', 'الدعم الميداني'],
   },
 ];
 
 const monitoringLinks = [
-  { href: '/dashboard/admin-gateway/maintenance/executive',      icon: BarChart2,    label: 'التقرير التنفيذي',      hint: 'ملخص أداء الصيانة والعمليات الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/work-orders',    icon: ClipboardList, label: 'اعتماد أوامر العمل',   hint: 'مراجعة وإقرار أوامر العمل المعلقة' },
-  { href: '/dashboard/admin-gateway/maintenance/teams',          icon: Users,         label: 'فرق الصيانة',          hint: 'إدارة الكوادر والفرق الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/spare-parts',    icon: PackageOpen,   label: 'مخزون قطع الغيار',    hint: 'متابعة مستويات المخزون والطلبيات' },
-  { href: '/dashboard/admin-gateway/maintenance/fault-analysis', icon: Activity,      label: 'تحليل الأعطال',        hint: 'تشخيص الأنماط والأعطال المتكررة' },
-  { href: '/dashboard/admin-gateway/maintenance/bot-control',    icon: Bot,           label: 'التحكم الآلي الذكي',  hint: 'لوحة التحكم بالأتمتة الذكية' },
+  {
+    href: '/dashboard/admin-gateway/platform-intelligence/monitoring',
+    icon: Activity,
+    label: 'مراقبة المنصة التشغيلية',
+    hint: 'لوحة مراقبة مركزية عبر الإدارات',
+  },
+  {
+    href: '/dashboard/admin-gateway/reports/operations',
+    icon: BarChart2,
+    label: 'تقرير العمليات والأداء الهندسي',
+    hint: 'ملخص أداء الأصول والعمليات الميدانية',
+  },
+  {
+    href: '/dashboard/admin-gateway/assets/reviews',
+    icon: Settings,
+    label: 'مراجعة البيانات الهندسية',
+    hint: 'مراجعة واعتماد البيانات الجغرافية والهندسية',
+  },
 ];
 
-export default function MaintenanceManagerPage() {
+export default function EngineeringManagerPage() {
   const [activeTab, setActiveTab] = useState<'sections' | 'monitoring' | 'correspondence'>('sections');
 
   return (
@@ -51,24 +87,24 @@ export default function MaintenanceManagerPage() {
       <div className="max-w-5xl mx-auto space-y-8">
 
         <div>
-          <Link href="/dashboard/maintenance" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4">
+          <Link href="/dashboard/engineering" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4">
             <ArrowRight className="w-4 h-4" />
-            إدارة الهندسة والدعم الفني
+            الهندسة والدعم الفني
           </Link>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
-              <Crown className="w-6 h-6 text-orange-400" />
+            <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+              <Crown className="w-6 h-6 text-blue-400" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">لوحة مدير الهندسة والدعم الفني</h1>
-              <p className="text-slate-400 text-sm mt-0.5">نظرة شاملة على الأقسام الثلاثة والصلاحيات الإدارية</p>
+              <p className="text-slate-400 text-sm mt-0.5">Engineering & Technical Support — Department Manager</p>
             </div>
           </div>
         </div>
 
         <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-2 grid grid-cols-1 md:grid-cols-3 gap-2">
           {[
-            { key: 'sections',        label: 'أقسام الإدارة',                  active: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
+            { key: 'sections',        label: 'أقسام الإدارة',                  active: 'bg-blue-500/20 border-blue-500/40 text-blue-300' },
             { key: 'monitoring',      label: 'المؤشرات والمراقبة',             active: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
             { key: 'correspondence',  label: 'المراسلات الإدارية الداخلية',    active: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
           ].map(t => (
@@ -82,10 +118,10 @@ export default function MaintenanceManagerPage() {
         {activeTab === 'sections' && (
           <div>
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">الأقسام التابعة</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sections.map(({ href, label, en, color, border, bg, icon: Icon, items }) => (
                 <Link key={href} href={href} className="group block">
-                  <div className={`bg-slate-900 border ${border} rounded-2xl p-5 hover:bg-slate-800/70 transition-all h-full flex flex-col`}>
+                  <div className={`rounded-2xl border ${border} bg-slate-900 p-5 hover:bg-slate-800/70 transition-all h-full flex flex-col`}>
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
                         <Icon className={`w-5 h-5 ${color}`} />
@@ -103,8 +139,8 @@ export default function MaintenanceManagerPage() {
                         </li>
                       ))}
                     </ul>
-                    <div className={`mt-3 pt-3 border-t border-slate-800 ${color} text-xs font-semibold flex items-center gap-1`}>
-                      دخول القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
+                    <div className="mt-3 pt-3 border-t border-slate-800">
+                      <span className={`${color} text-xs font-semibold flex items-center gap-1`}>فتح القسم <span className="group-hover:translate-x-[-3px] transition-transform inline-block">←</span></span>
                     </div>
                   </div>
                 </Link>
@@ -133,11 +169,10 @@ export default function MaintenanceManagerPage() {
         )}
 
         {activeTab === 'correspondence' && (
-          <InternalMailTab department="maint_manager" title="نظام المراسلات الموحد - إدارة الهندسة والدعم الفني" />
+          <InternalMailTab department="engineering_manager" title="نظام المراسلات الموحد - إدارة الهندسة والدعم الفني" />
         )}
 
       </div>
     </div>
   );
 }
-

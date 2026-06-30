@@ -2,48 +2,100 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowRight, Crown, Wrench, Brain, CalendarClock,
-  ClipboardList, BarChart2, Users, PackageOpen, Activity, Bot, MapPin,
+  ArrowRight, Crown, ShoppingCart, CheckCircle, Truck, Warehouse,
+  Package, ClipboardList, FileText, BarChart2, Activity,
 } from 'lucide-react';
 import InternalMailTab from '@/components/InternalMailTab';
 
 const sections = [
   {
-    href: '/dashboard/maintenance/operations',
-    label: 'قسم العمليات الميدانية',
-    en: 'Field Operations',
-    color: 'text-orange-400', border: 'border-orange-500/30', bg: 'bg-orange-500/20',
-    icon: Wrench,
-    items: ['أوامر العمل', 'الصيانة الوقائية', 'الآبار'],
-  },
-  {
-    href: '/dashboard/maintenance/technical',
-    label: 'قسم الدعم الفني والتحليل',
-    en: 'Technical Support & Analysis',
-    color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/20',
-    icon: Brain,
-    items: ['تحليل الأعطال', 'المعايير الفنية', 'مساحة العمل GIS'],
-  },
-  {
-    href: '/dashboard/maintenance/planning',
-    label: 'قسم التخطيط والموارد',
-    en: 'Planning & Resources',
+    href: '/dashboard/admin-gateway/procurement/requests',
+    label: 'طلبات الشراء',
+    en: 'Procurement Requests',
     color: 'text-violet-400', border: 'border-violet-500/30', bg: 'bg-violet-500/20',
-    icon: CalendarClock,
-    items: ['فرق الصيانة', 'قطع الغيار', 'التحكم الآلي'],
+    icon: ShoppingCart,
+    items: ['طلبات الشراء', 'حالة الموافقة', 'التاريخ والتتبع'],
+  },
+  {
+    href: '/dashboard/admin-gateway/procurement/orders',
+    label: 'أوامر الشراء',
+    en: 'Purchase Orders',
+    color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/20',
+    icon: CheckCircle,
+    items: ['الأوامر المعتمدة', 'المنفذة', 'التسليم والاستلام'],
+  },
+  {
+    href: '/dashboard/admin-gateway/procurement/suppliers',
+    label: 'الموردون',
+    en: 'Suppliers',
+    color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/20',
+    icon: Truck,
+    items: ['قاعدة بيانات الموردين', 'التقييم والأداء', 'العقود'],
+  },
+  {
+    href: '/dashboard/admin-gateway/inventory/warehouses',
+    label: 'المستودعات',
+    en: 'Warehouses',
+    color: 'text-cyan-400', border: 'border-cyan-500/30', bg: 'bg-cyan-500/20',
+    icon: Warehouse,
+    items: ['المستودعات ومواقعها', 'الطاقة التخزينية', 'الإدارة'],
+  },
+  {
+    href: '/dashboard/admin-gateway/inventory/items',
+    label: 'الأصناف',
+    en: 'Inventory Items',
+    color: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-500/20',
+    icon: Package,
+    items: ['قائمة الأصناف', 'الرموز التعريفية', 'المخزون الحالي'],
+  },
+  {
+    href: '/dashboard/admin-gateway/inventory/receipts',
+    label: 'استلام البضاعة',
+    en: 'Receipts',
+    color: 'text-teal-400', border: 'border-teal-500/30', bg: 'bg-teal-500/20',
+    icon: ClipboardList,
+    items: ['سجل الاستلام', 'التحقق من الكميات', 'الجودة والمطابقة'],
+  },
+  {
+    href: '/dashboard/admin-gateway/inventory/issues',
+    label: 'إصدار البضاعة',
+    en: 'Goods Issues',
+    color: 'text-rose-400', border: 'border-rose-500/30', bg: 'bg-rose-500/20',
+    icon: FileText,
+    items: ['صرف المواد', 'للأقسام والمشاريع', 'سجل التوزيع'],
+  },
+  {
+    href: '/dashboard/admin-gateway/reports/procurement',
+    label: 'تقرير المشتريات',
+    en: 'Procurement Report',
+    color: 'text-indigo-400', border: 'border-indigo-500/30', bg: 'bg-indigo-500/20',
+    icon: BarChart2,
+    items: ['ملخص المشتريات', 'الإنفاق والموردون', 'التحليل والاتجاهات'],
   },
 ];
 
 const monitoringLinks = [
-  { href: '/dashboard/admin-gateway/maintenance/executive',      icon: BarChart2,    label: 'التقرير التنفيذي',      hint: 'ملخص أداء الصيانة والعمليات الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/work-orders',    icon: ClipboardList, label: 'اعتماد أوامر العمل',   hint: 'مراجعة وإقرار أوامر العمل المعلقة' },
-  { href: '/dashboard/admin-gateway/maintenance/teams',          icon: Users,         label: 'فرق الصيانة',          hint: 'إدارة الكوادر والفرق الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/spare-parts',    icon: PackageOpen,   label: 'مخزون قطع الغيار',    hint: 'متابعة مستويات المخزون والطلبيات' },
-  { href: '/dashboard/admin-gateway/maintenance/fault-analysis', icon: Activity,      label: 'تحليل الأعطال',        hint: 'تشخيص الأنماط والأعطال المتكررة' },
-  { href: '/dashboard/admin-gateway/maintenance/bot-control',    icon: Bot,           label: 'التحكم الآلي الذكي',  hint: 'لوحة التحكم بالأتمتة الذكية' },
+  {
+    href: '/dashboard/admin-gateway/reports/procurement',
+    icon: BarChart2,
+    label: 'مؤشرات المشتريات والإنفاق',
+    hint: 'ملخص الإنفاق وكفاءة سلسلة التوريد',
+  },
+  {
+    href: '/dashboard/admin-gateway/procurement/suppliers',
+    icon: Truck,
+    label: 'أداء الموردين وكفاءتهم',
+    hint: 'تقييم الموردين والالتزام بمواعيد التسليم',
+  },
+  {
+    href: '/dashboard/admin-gateway/platform-intelligence/monitoring',
+    icon: Activity,
+    label: 'مراقبة مستويات المخزون',
+    hint: 'لوحة مراقبة مركزية لحركة المواد والمخزون',
+  },
 ];
 
-export default function MaintenanceManagerPage() {
+export default function ProcurementManagerPage() {
   const [activeTab, setActiveTab] = useState<'sections' | 'monitoring' | 'correspondence'>('sections');
 
   return (
@@ -51,17 +103,17 @@ export default function MaintenanceManagerPage() {
       <div className="max-w-5xl mx-auto space-y-8">
 
         <div>
-          <Link href="/dashboard/maintenance" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4">
+          <Link href="/dashboard/procurement" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4">
             <ArrowRight className="w-4 h-4" />
-            إدارة الهندسة والدعم الفني
+            المشتريات والمستودعات
           </Link>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
               <Crown className="w-6 h-6 text-orange-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">لوحة مدير الهندسة والدعم الفني</h1>
-              <p className="text-slate-400 text-sm mt-0.5">نظرة شاملة على الأقسام الثلاثة والصلاحيات الإدارية</p>
+              <h1 className="text-2xl font-bold text-white">لوحة مدير المشتريات والمستودعات</h1>
+              <p className="text-slate-400 text-sm mt-0.5">Procurement & Warehouses — Department Manager</p>
             </div>
           </div>
         </div>
@@ -82,10 +134,10 @@ export default function MaintenanceManagerPage() {
         {activeTab === 'sections' && (
           <div>
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">الأقسام التابعة</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sections.map(({ href, label, en, color, border, bg, icon: Icon, items }) => (
                 <Link key={href} href={href} className="group block">
-                  <div className={`bg-slate-900 border ${border} rounded-2xl p-5 hover:bg-slate-800/70 transition-all h-full flex flex-col`}>
+                  <div className={`rounded-2xl border ${border} bg-slate-900 p-5 hover:bg-slate-800/70 transition-all h-full flex flex-col`}>
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
                         <Icon className={`w-5 h-5 ${color}`} />
@@ -103,8 +155,8 @@ export default function MaintenanceManagerPage() {
                         </li>
                       ))}
                     </ul>
-                    <div className={`mt-3 pt-3 border-t border-slate-800 ${color} text-xs font-semibold flex items-center gap-1`}>
-                      دخول القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
+                    <div className="mt-3 pt-3 border-t border-slate-800">
+                      <span className={`${color} text-xs font-semibold flex items-center gap-1`}>فتح القسم <span className="group-hover:translate-x-[-3px] transition-transform inline-block">←</span></span>
                     </div>
                   </div>
                 </Link>
@@ -133,11 +185,10 @@ export default function MaintenanceManagerPage() {
         )}
 
         {activeTab === 'correspondence' && (
-          <InternalMailTab department="maint_manager" title="نظام المراسلات الموحد - إدارة الهندسة والدعم الفني" />
+          <InternalMailTab department="procurement_manager" title="نظام المراسلات الموحد - إدارة المشتريات والمستودعات" />
         )}
 
       </div>
     </div>
   );
 }
-

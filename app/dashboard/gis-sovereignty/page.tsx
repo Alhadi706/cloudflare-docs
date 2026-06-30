@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { ReviewModal } from '../admin-gateway/components/ReviewModal';
 import { resolveTenantContext, tenantHeaders, withTenantQuery } from '@/lib/gis/tenantContext';
 import { GisWorkspaceSwitcher } from './components/GisWorkspaceSwitcher';
 import { getClientTenantHeaders } from '@/lib/getClientTenantId';
-import InternalMailTab from '@/components/InternalMailTab';
 
 interface GisStats {
   layers: number;
@@ -174,6 +173,24 @@ export default function GISHub() {
         )}
       </div>
 
+      {/* Manager Crown Card */}
+      <div className="max-w-5xl w-full relative z-10 mb-8">
+        <a href="/dashboard/gis-sovereignty/manager" className="group block">
+          <div className="bg-slate-900/80 border border-blue-500/30 rounded-2xl p-5 hover:border-blue-500/60 hover:bg-slate-800/70 transition-all duration-200 backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+                <Crown className="w-5 h-5 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-base font-bold text-white">مدير إدارة GIS والسيادة الجغرافية</h2>
+                <p className="text-blue-400/70 text-xs mt-0.5">لوحة المدير — الأقسام والمراسلات الإدارية</p>
+              </div>
+              <span className="text-blue-400 text-xs font-semibold flex items-center gap-1">فتح لوحة المدير <span className="group-hover:translate-x-[-3px] transition-transform inline-block">←</span></span>
+            </div>
+          </div>
+        </a>
+      </div>
+
       {/* ── إحصائيات gis_data الحية ──────────────────────────────── */}
       <div className="max-w-5xl w-full relative z-10 mb-8">
         <div className="flex items-center justify-between mb-3">
@@ -296,10 +313,6 @@ export default function GISHub() {
             </Link>
           ))}
         </div>
-      </div>
-
-      <div className="max-w-5xl w-full relative z-10 mt-8">
-        <InternalMailTab department="gis_manager" title="نظام المراسلات الموحد - إدارة GIS" />
       </div>
 
       {/* Floating review notification button */}

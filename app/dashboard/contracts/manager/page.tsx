@@ -2,48 +2,59 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowRight, Crown, Wrench, Brain, CalendarClock,
-  ClipboardList, BarChart2, Users, PackageOpen, Activity, Bot, MapPin,
+  ArrowRight, Crown, FileSignature, Users2, FileText, ShieldCheck, BarChart2, Activity,
 } from 'lucide-react';
 import InternalMailTab from '@/components/InternalMailTab';
 
 const sections = [
   {
-    href: '/dashboard/maintenance/operations',
-    label: 'قسم العمليات الميدانية',
-    en: 'Field Operations',
-    color: 'text-orange-400', border: 'border-orange-500/30', bg: 'bg-orange-500/20',
-    icon: Wrench,
-    items: ['أوامر العمل', 'الصيانة الوقائية', 'الآبار'],
+    href: '/dashboard/admin-gateway/contracts/list',
+    label: 'قائمة العقود',
+    en: 'Contracts List',
+    color: 'text-green-400', border: 'border-green-500/30', bg: 'bg-green-500/20',
+    icon: FileSignature,
+    items: ['جميع العقود', 'الحالة الحالية', 'التواريخ والمدد'],
   },
   {
-    href: '/dashboard/maintenance/technical',
-    label: 'قسم الدعم الفني والتحليل',
-    en: 'Technical Support & Analysis',
-    color: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/20',
-    icon: Brain,
-    items: ['تحليل الأعطال', 'المعايير الفنية', 'مساحة العمل GIS'],
+    href: '/dashboard/admin-gateway/contracts/contractors',
+    label: 'المقاولون والموردون',
+    en: 'Contractors & Suppliers',
+    color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/20',
+    icon: Users2,
+    items: ['سجل المقاولين المعتمدين', 'الموردون', 'تقييم الأداء'],
   },
   {
-    href: '/dashboard/maintenance/planning',
-    label: 'قسم التخطيط والموارد',
-    en: 'Planning & Resources',
-    color: 'text-violet-400', border: 'border-violet-500/30', bg: 'bg-violet-500/20',
-    icon: CalendarClock,
-    items: ['فرق الصيانة', 'قطع الغيار', 'التحكم الآلي'],
+    href: '/dashboard/admin-gateway/workflow/approvals',
+    label: 'موافقات العقود',
+    en: 'Contract Approvals',
+    color: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-500/20',
+    icon: FileText,
+    items: ['الاعتمادات المعلقة', 'التوقيعات', 'مسارات الموافقة'],
   },
 ];
 
 const monitoringLinks = [
-  { href: '/dashboard/admin-gateway/maintenance/executive',      icon: BarChart2,    label: 'التقرير التنفيذي',      hint: 'ملخص أداء الصيانة والعمليات الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/work-orders',    icon: ClipboardList, label: 'اعتماد أوامر العمل',   hint: 'مراجعة وإقرار أوامر العمل المعلقة' },
-  { href: '/dashboard/admin-gateway/maintenance/teams',          icon: Users,         label: 'فرق الصيانة',          hint: 'إدارة الكوادر والفرق الميدانية' },
-  { href: '/dashboard/admin-gateway/maintenance/spare-parts',    icon: PackageOpen,   label: 'مخزون قطع الغيار',    hint: 'متابعة مستويات المخزون والطلبيات' },
-  { href: '/dashboard/admin-gateway/maintenance/fault-analysis', icon: Activity,      label: 'تحليل الأعطال',        hint: 'تشخيص الأنماط والأعطال المتكررة' },
-  { href: '/dashboard/admin-gateway/maintenance/bot-control',    icon: Bot,           label: 'التحكم الآلي الذكي',  hint: 'لوحة التحكم بالأتمتة الذكية' },
+  {
+    href: '/dashboard/admin-gateway/workflow/approvals',
+    icon: ShieldCheck,
+    label: 'مؤشرات الامتثال التعاقدي',
+    hint: 'متابعة الموافقات ومعدلات الالتزام بالشروط',
+  },
+  {
+    href: '/dashboard/admin-gateway/reports',
+    icon: BarChart2,
+    label: 'تقارير العقود والمقاولين',
+    hint: 'ملخص أداء المقاولين والتزاماتهم التعاقدية',
+  },
+  {
+    href: '/dashboard/admin-gateway/platform-intelligence/monitoring',
+    icon: Activity,
+    label: 'مراقبة أداء سلسلة التعاقد',
+    hint: 'لوحة المراقبة المركزية لمؤشرات العقود',
+  },
 ];
 
-export default function MaintenanceManagerPage() {
+export default function ContractsManagerPage() {
   const [activeTab, setActiveTab] = useState<'sections' | 'monitoring' | 'correspondence'>('sections');
 
   return (
@@ -51,24 +62,24 @@ export default function MaintenanceManagerPage() {
       <div className="max-w-5xl mx-auto space-y-8">
 
         <div>
-          <Link href="/dashboard/maintenance" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4">
+          <Link href="/dashboard/contracts" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4">
             <ArrowRight className="w-4 h-4" />
-            إدارة الهندسة والدعم الفني
+            إدارة العقود
           </Link>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
-              <Crown className="w-6 h-6 text-orange-400" />
+            <div className="w-12 h-12 rounded-xl bg-green-500/20 border border-green-500/30 flex items-center justify-center">
+              <Crown className="w-6 h-6 text-green-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">لوحة مدير الهندسة والدعم الفني</h1>
-              <p className="text-slate-400 text-sm mt-0.5">نظرة شاملة على الأقسام الثلاثة والصلاحيات الإدارية</p>
+              <h1 className="text-2xl font-bold text-white">لوحة مدير إدارة العقود</h1>
+              <p className="text-slate-400 text-sm mt-0.5">Contracts Management — Department Manager</p>
             </div>
           </div>
         </div>
 
         <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-2 grid grid-cols-1 md:grid-cols-3 gap-2">
           {[
-            { key: 'sections',        label: 'أقسام الإدارة',                  active: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
+            { key: 'sections',        label: 'أقسام الإدارة',                  active: 'bg-green-500/20 border-green-500/40 text-green-300' },
             { key: 'monitoring',      label: 'المؤشرات والمراقبة',             active: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
             { key: 'correspondence',  label: 'المراسلات الإدارية الداخلية',    active: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
           ].map(t => (
@@ -82,10 +93,10 @@ export default function MaintenanceManagerPage() {
         {activeTab === 'sections' && (
           <div>
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">الأقسام التابعة</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sections.map(({ href, label, en, color, border, bg, icon: Icon, items }) => (
                 <Link key={href} href={href} className="group block">
-                  <div className={`bg-slate-900 border ${border} rounded-2xl p-5 hover:bg-slate-800/70 transition-all h-full flex flex-col`}>
+                  <div className={`rounded-2xl border ${border} bg-slate-900 p-5 hover:bg-slate-800/70 transition-all h-full flex flex-col`}>
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
                         <Icon className={`w-5 h-5 ${color}`} />
@@ -103,8 +114,8 @@ export default function MaintenanceManagerPage() {
                         </li>
                       ))}
                     </ul>
-                    <div className={`mt-3 pt-3 border-t border-slate-800 ${color} text-xs font-semibold flex items-center gap-1`}>
-                      دخول القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
+                    <div className="mt-3 pt-3 border-t border-slate-800">
+                      <span className={`${color} text-xs font-semibold flex items-center gap-1`}>فتح القسم <span className="group-hover:translate-x-[-3px] transition-transform inline-block">←</span></span>
                     </div>
                   </div>
                 </Link>
@@ -133,11 +144,10 @@ export default function MaintenanceManagerPage() {
         )}
 
         {activeTab === 'correspondence' && (
-          <InternalMailTab department="maint_manager" title="نظام المراسلات الموحد - إدارة الهندسة والدعم الفني" />
+          <InternalMailTab department="contracts_manager" title="نظام المراسلات الموحد - إدارة العقود" />
         )}
 
       </div>
     </div>
   );
 }
-

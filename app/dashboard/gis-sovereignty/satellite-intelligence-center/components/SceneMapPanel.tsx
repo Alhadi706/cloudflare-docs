@@ -67,6 +67,14 @@ interface SceneMapPanelProps {
   }[];
   /** Alert event markers from monitoring — shown as coloured circles */
   alertEventMarkers?: { lon: number; lat: number; severity: string; type: string; label: string }[];
+  /** Satellite overlay markers (fire, leak) — fully custom color + radius */
+  satelliteOverlayMarkers?: { lon: number; lat: number; color: string; radius?: number; label: string; layerKey: string }[];
+  /** Pipeline / route lines to draw on map (LineString) */
+  satelliteRouteLines?: { coords: [number, number][]; color: string; width?: number; label?: string; layerKey: string }[];
+  /** Change detection GeoJSON overlay */
+  changeDetectionGeojson?: any | null;
+  /** Risk assessment GeoJSON overlay */
+  riskGeojson?: any | null;
   /** Auto-generated network GeoJSON to render on the map */
   autoNetworkGeojson?: any | null;
 }
@@ -113,6 +121,10 @@ export function SceneMapPanel({
   onBaseStyleChange,
   extractionLayers,
   alertEventMarkers,
+  satelliteOverlayMarkers,
+  satelliteRouteLines,
+  changeDetectionGeojson,
+  riskGeojson,
   autoNetworkGeojson,
 }: SceneMapPanelProps) {
   const mapRef           = useRef<HTMLDivElement>(null);
@@ -694,7 +706,97 @@ export function SceneMapPanel({
     })();
   }, [alertEventMarkers, olLoaded]);
 
-  // ── Routing layer (start/end pins + path line) ─────────────────────────
+  // ── Satellite overlay markers (fire hotspots + leak detections) ──────────
+  useEffect(() => {
+    if (!olLoaded || !mapInstanceRef.current || !olCache.current) return;
+    const map = mapInstanceRef.current;
+    const { VectorSource, VectorLayer, Style, Fill, Stroke, CircleStyle, Text, fromLonLat } = olCache.current;
+
+    // Remove previous satellite overlay layers
+    map.getLayers().forEach((lyr: any) => {
+      if (lyr?.get?.('sat_overlay')) map.removeLayer(lyr);
+    });
+
+    if (!satelliteOverlayMarkers || satelliteOverlayMarkers.length === 0) return;
+
+    // Group by layerKey so each layer type has its own OL layer
+    const byKey: Record<string, typeof satelliteOverlayMarkers> = {};
+    satelliteOverlayMarkers.forEach(m => {
+      if (!byKey[m.layerKey]) byKey[m.layerKey] = [];
+      byKey[m.layerKey].push(m);
+    });
+
+    (async () => {
+      const { default: Feature } = await import('ol/Feature') as any;
+      const { default: Point }   = await import('ol/geom/Point') as any;
+
+      for (const [key, markers] of Object.entries(byKey)) {
+        const src = new VectorSource();
+        const lyr = new VectorLayer({ source: src, zIndex: 75 });
+        lyr.set('sat_overlay', key);
+        map.addLayer(lyr);
+
+        markers.forEach(m => {
+          const feat = new Feature(new Point(fromLonLat([m.lon, m.lat])));
+          const r = m.radius ?? 8;
+          feat.setStyle(new Style({
+            image: new CircleStyle({
+              radius: r,
+              fill:   new Fill({ color: m.color + 'bb' }),
+              stroke: new Stroke({ color: '#fff', width: 1.5 }),
+            }),
+            text: new Text({
+              text:        m.label,
+              offsetY:     -(r + 8),
+              font:        '11px sans-serif',
+              fill:        new Fill({ color: '#fff' }),
+              stroke:      new Stroke({ color: '#000', width: 3 }),
+              textAlign:   'center',
+            }),
+          }));
+          feat.set('sat_label', m.label);
+          src.addFeature(feat);
+        });
+      }
+    })();
+  }, [satelliteOverlayMarkers, olLoaded]);
+
+  // ── Pipeline / route lines (LineString) ──────────────────────────────────
+  const satRouteLinesLayerRef = useRef<any>(null);
+  useEffect(() => {
+    if (!olLoaded || !mapInstanceRef.current || !olCache.current) return;
+    const map = mapInstanceRef.current;
+    const { VectorSource, VectorLayer, Style, Stroke, fromLonLat } = olCache.current;
+
+    if (satRouteLinesLayerRef.current) {
+      map.removeLayer(satRouteLinesLayerRef.current);
+      satRouteLinesLayerRef.current = null;
+    }
+    if (!satelliteRouteLines || satelliteRouteLines.length === 0) return;
+
+    const src = new VectorSource();
+    const lyr = new VectorLayer({ source: src, zIndex: 72 });
+    map.addLayer(lyr);
+    satRouteLinesLayerRef.current = lyr;
+
+    (async () => {
+      const { default: Feature }    = await import('ol/Feature') as any;
+      const { default: LineString } = await import('ol/geom/LineString') as any;
+      for (const line of satelliteRouteLines) {
+        const coords = line.coords.map(c => fromLonLat(c));
+        const feat   = new Feature(new LineString(coords));
+        feat.setStyle(new Style({
+          stroke: new Stroke({
+            color: line.color,
+            width: line.width ?? 3,
+            lineDash: [8, 5],
+          }),
+        }));
+        feat.set('route_label', line.label ?? '');
+        src.addFeature(feat);
+      }
+    })();
+  }, [satelliteRouteLines, olLoaded]);
   useEffect(() => {
     if (!olLoaded || !mapInstanceRef.current || !olCache.current) return;
     const map = mapInstanceRef.current;
