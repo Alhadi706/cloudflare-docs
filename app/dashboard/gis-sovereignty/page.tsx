@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { ReviewModal } from '../admin-gateway/components/ReviewModal';
 import { resolveTenantContext, tenantHeaders, withTenantQuery } from '@/lib/gis/tenantContext';
 import { GisWorkspaceSwitcher } from './components/GisWorkspaceSwitcher';
 import { getClientTenantHeaders } from '@/lib/getClientTenantId';
-import InternalMailTab from '@/components/InternalMailTab';
-
 interface GisStats {
   layers: number;
   totalRows: number;
@@ -166,8 +164,15 @@ export default function GISHub() {
         <p className="text-slate-400 text-lg font-light tracking-wide uppercase">
           Geospatial Sovereignty Subsystem
         </p>
-        <div className="flex justify-center mt-4">
+        <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
           <GisWorkspaceSwitcher />
+          <Link
+            href="/dashboard/gis-sovereignty/manager"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-300 text-sm font-semibold hover:bg-blue-600/30 hover:border-blue-400 transition-all"
+          >
+            <Crown className="w-4 h-4" />
+            لوحة مدير الإدارة
+          </Link>
         </div>
         {!tenantReady && (
           <p className="text-xs text-amber-300 mt-2">لا يوجد Tenant نشط حالياً — سيتم تعطيل استدعاءات المراجعة حتى تفعيل السياق.</p>
@@ -296,10 +301,6 @@ export default function GISHub() {
             </Link>
           ))}
         </div>
-      </div>
-
-      <div className="max-w-5xl w-full relative z-10 mt-8">
-        <InternalMailTab department="gis_manager" title="نظام المراسلات الموحد - إدارة GIS" />
       </div>
 
       {/* Floating review notification button */}

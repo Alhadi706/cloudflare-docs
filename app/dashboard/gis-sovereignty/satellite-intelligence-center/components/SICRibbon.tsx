@@ -150,23 +150,64 @@ interface SICRibbonProps {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const GROUPS: { id: RibbonGroup; label: string; Icon: React.ElementType; color: string }[] = [
-  { id: 'monitoring',  label: 'رصد',          Icon: ScanSearch,   color: 'text-yellow-400' },
-  { id: 'detection',   label: 'كشف AI',      Icon: BellRing,     color: 'text-purple-400' },
-  { id: 'insar',       label: 'InSAR',       Icon: Radio,        color: 'text-violet-400' },
-  { id: 'cva',         label: 'CVA',         Icon: GitMerge,     color: 'text-teal-400' },
-  { id: 'scenes',      label: 'الصور',      Icon: Camera,      color: 'text-blue-400' },
-  { id: 'draw',        label: 'رسم',         Icon: Pencil,       color: 'text-emerald-400' },
-  { id: 'terrain',     label: 'التضاريس',   Icon: Mountain,     color: 'text-amber-400' },
-  { id: 'suitability', label: 'الملاءمة',   Icon: Target,       color: 'text-purple-400' },
-  { id: 'routing',     label: 'المسار',     Icon: Route,        color: 'text-cyan-400' },
-  { id: 'report',      label: 'التقرير',    Icon: FileText,     color: 'text-slate-300' },
-  { id: 'compliance',      label: 'المطابقة',   Icon: ShieldCheck,  color: 'text-rose-400' },
-  { id: 'layers',          label: 'الطبقات',    Icon: Layers3,      color: 'text-indigo-400' },
-  { id: 'spatial_analyst', label: 'Spatial',    Icon: Activity,    color: 'text-sky-400' },
-  { id: 'image_analyst',   label: 'Image',      Icon: Satellite,   color: 'text-emerald-400' },
-  { id: '3d_analyst',      label: '3D',         Icon: Box,         color: 'text-fuchsia-400' },
+// ── Ribbon group categories for visual grouping (UI only, no state change) ────
+type RibbonCategory = {
+  labelAr: string;
+  color: string;
+  groups: { id: RibbonGroup; label: string; Icon: React.ElementType; color: string }[];
+};
+
+const RIBBON_CATEGORIES: RibbonCategory[] = [
+  {
+    labelAr: 'الاستشعار عن بعد',
+    color: 'text-yellow-500',
+    groups: [
+      { id: 'scenes',       label: 'الصور',   Icon: Camera,    color: 'text-blue-400'   },
+      { id: 'monitoring',   label: 'رصد',     Icon: ScanSearch, color: 'text-yellow-400' },
+      { id: 'detection',    label: 'كشف AI', Icon: BellRing,  color: 'text-purple-400' },
+      { id: 'cva',          label: 'CVA',     Icon: GitMerge,  color: 'text-teal-400'   },
+      { id: 'insar',        label: 'InSAR',   Icon: Radio,     color: 'text-violet-400' },
+      { id: 'image_analyst',label: 'Image',   Icon: Satellite, color: 'text-emerald-400'},
+    ],
+  },
+  {
+    labelAr: 'التحليل المكاني',
+    color: 'text-sky-500',
+    groups: [
+      { id: 'terrain',        label: 'التضاريس',Icon: Mountain,   color: 'text-amber-400'  },
+      { id: 'suitability',    label: 'الملاءمة',Icon: Target,     color: 'text-purple-400' },
+      { id: 'routing',        label: 'المسار',  Icon: Route,      color: 'text-cyan-400'   },
+      { id: 'spatial_analyst',label: 'Spatial', Icon: Activity,   color: 'text-sky-400'    },
+      { id: '3d_analyst',     label: '3D',      Icon: Box,        color: 'text-fuchsia-400'},
+    ],
+  },
+  {
+    labelAr: 'الطبقات',
+    color: 'text-indigo-500',
+    groups: [
+      { id: 'layers', label: 'الطبقات', Icon: Layers3, color: 'text-indigo-400' },
+    ],
+  },
+  {
+    labelAr: 'التقارير',
+    color: 'text-slate-400',
+    groups: [
+      { id: 'report',     label: 'التقرير',  Icon: FileText,   color: 'text-slate-300' },
+      { id: 'compliance', label: 'المطابقة', Icon: ShieldCheck, color: 'text-rose-400'  },
+    ],
+  },
+  {
+    labelAr: 'رسم',
+    color: 'text-emerald-500',
+    groups: [
+      { id: 'draw', label: 'رسم', Icon: Pencil, color: 'text-emerald-400' },
+    ],
+  },
 ];
+
+// Flat list kept for compatibility with any code that iterates GROUPS
+const GROUPS: { id: RibbonGroup; label: string; Icon: React.ElementType; color: string }[] =
+  RIBBON_CATEGORIES.flatMap(cat => cat.groups);
 
 const SUITABILITY_CASES: { value: SuitabilityUseCase; label: string }[] = [
   { value: 'health_center', label: 'مركز صحي' },
@@ -540,29 +581,47 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
   return (
     <div className="shrink-0 bg-slate-900 border-b border-slate-800 z-[200] relative" dir="rtl">
 
-      {/* ── Row 1: Group buttons ────────────────────────────────── */}
-      <div className="flex items-stretch gap-0 border-b border-slate-800/60">
-        {GROUPS.map(g => {
-          const isActive = activeGroup === g.id;
-          return (
-            <button
-              key={g.id}
-              onClick={() => onRibbonChange({ activeGroup: g.id })}
-              className={`flex flex-col items-center justify-center gap-0.5 px-4 py-1.5 min-w-[60px] transition-colors relative border-l border-slate-800/40 last:border-0 ${
-                isActive
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-              }`}
-            >
-              <g.Icon size={16} className={isActive ? g.color : 'text-slate-500'} />
-              <span className="text-xs font-medium whitespace-nowrap">{g.label}</span>
-              {/* Active indicator line at bottom */}
-              {isActive && (
-                <span className={`absolute bottom-0 right-0 left-0 h-0.5 ${g.color.replace('text-', 'bg-')}`} />
-              )}
-            </button>
-          );
-        })}
+      {/* ── Row 1: Group buttons — categorized ──────────────────── */}
+      <div className="flex items-stretch gap-0 border-b border-slate-800/60 overflow-x-auto scrollbar-none">
+        {RIBBON_CATEGORIES.map((cat, catIdx) => (
+          <React.Fragment key={cat.labelAr}>
+            {/* Category label + its buttons */}
+            <div className="flex flex-col shrink-0">
+              {/* Category header */}
+              <div className={`text-[9px] font-bold uppercase tracking-widest px-3 pt-1 pb-0 ${cat.color} opacity-60 text-center`}>
+                {cat.labelAr}
+              </div>
+              {/* Buttons row */}
+              <div className="flex items-stretch flex-1">
+                {cat.groups.map(g => {
+                  const isActive = activeGroup === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => onRibbonChange({ activeGroup: g.id })}
+                      title={g.label}
+                      className={`flex flex-col items-center justify-center gap-0.5 px-3.5 py-1 min-w-[52px] transition-colors relative border-l border-slate-800/30 last:border-0 ${
+                        isActive
+                          ? 'bg-slate-800 text-white'
+                          : 'bg-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+                      }`}
+                    >
+                      <g.Icon size={14} className={isActive ? g.color : 'text-slate-500'} />
+                      <span className="text-[10px] font-medium whitespace-nowrap">{g.label}</span>
+                      {isActive && (
+                        <span className={`absolute bottom-0 right-0 left-0 h-0.5 ${g.color.replace('text-', 'bg-')}`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Category separator */}
+            {catIdx < RIBBON_CATEGORIES.length - 1 && (
+              <div className="w-px bg-slate-700/50 self-stretch mx-0.5 shrink-0" />
+            )}
+          </React.Fragment>
+        ))}
       </div>
 
       {/* ── Row 2: Contextual sub-tools ─────────────────────────── */}

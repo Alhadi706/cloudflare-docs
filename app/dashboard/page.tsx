@@ -791,6 +791,47 @@ export default function DashboardHome() {
             </Link>
           </div>
 
+          {/* إدارة GIS والسيادة الجغرافية */}
+          <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 border border-cyan-500/30">
+                <Globe2 className="h-5 w-5 text-cyan-300" />
+              </div>
+              <div>
+                <p className="text-xs text-cyan-300 font-semibold">الإدارة الحادية عشرة</p>
+                <h2 className="text-base font-black text-white">إدارة GIS</h2>
+              </div>
+            </div>
+            <Link href="/dashboard/gis-sovereignty/manager"
+              className="rounded-xl border border-cyan-400/40 bg-cyan-800/30 px-3 py-2.5 text-xs font-bold text-cyan-100 hover:bg-cyan-700/30 hover:border-cyan-400/60 transition-all flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Crown className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                دخول مدير الإدارة
+              </span>
+              <ChevronLeft className="h-3 w-3 text-cyan-400 shrink-0" />
+            </Link>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {[
+                { label: 'الاستخبارات الفضائية', href: '/dashboard/gis-sovereignty/satellite-intelligence-center' },
+                { label: 'مساحة العمل الهندسية',  href: '/dashboard/gis-sovereignty/engineering-workspace' },
+                { label: 'مركز القيادة الجغرافي', href: '/dashboard/gis-sovereignty/command-center' },
+                { label: 'مساحة الصيانة',         href: '/dashboard/gis-sovereignty/maintenance-workspace' },
+                { label: 'لوحة المشاريع',          href: '/dashboard/gis-sovereignty/erp-dashboard' },
+                { label: 'التحليل المكاني',        href: '/dashboard/gis-sovereignty/spatial-analytics' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="rounded-xl border border-cyan-500/20 bg-cyan-900/20 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-800/30 hover:border-cyan-400/40 transition-all flex items-center justify-between gap-1">
+                  {item.label}
+                  <ChevronLeft className="h-3 w-3 text-cyan-400 shrink-0" />
+                </Link>
+              ))}
+            </div>
+            <Link href="/dashboard/gis-sovereignty"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 py-2 text-sm font-bold text-cyan-200 hover:bg-cyan-500/20 transition-all">
+              دخول السيادة الجغرافية <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+
           {/* مكتب المدير العام */}
           <div className="xl:col-span-3 rounded-2xl border border-indigo-500/40 bg-gradient-to-br from-indigo-950/70 via-slate-950/80 to-indigo-950/40 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
             <div className="flex items-center gap-3">
@@ -831,7 +872,7 @@ export default function DashboardHome() {
         <p className="text-xs text-slate-500 font-semibold tracking-widest uppercase mt-2">أدوات وأنظمة</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[
-            { title: 'مركز الاستشعار عن بعد', href: '/dashboard/gis-sovereignty/remote-sensing-center', icon: Globe2,    desc: 'الأقمار الاصطناعية والتحليل المكاني والاستشعار الميداني' },
+            { title: 'السيادة الجغرافية (GIS)', href: '/dashboard/gis-sovereignty', icon: Globe2, desc: 'مركز الاستخبارات الفضائية والتحليل الجغرافي المتقدم' },
             { title: 'مركز القيادة',            href: '/dashboard/command-center',                         icon: BarChart2, desc: 'لوحة القرار التشغيلي والمؤشرات الفورية' },
             { title: 'المساعد الذكي',           href: '/dashboard/ai-assistant',                           icon: Cpu,       desc: 'استعلام وتحليل البيانات بالذكاء الاصطناعي' },
             { title: 'التقرير اليومي',          href: '/dashboard/daily-operations',                       icon: Activity,  desc: 'قراءات المحطات والتقارير التشغيلية اليومية' },
