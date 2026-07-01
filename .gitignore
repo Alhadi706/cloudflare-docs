@@ -1,3 +1,6 @@
 .next/
 next_runtime.log
 node_modules
+.data/map-digitization/
+.data/gis/
+.data/mobile-field/
