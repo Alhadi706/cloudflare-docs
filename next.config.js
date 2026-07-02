@@ -8,6 +8,140 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Phase 1 — UI Restructuring: Duplicate Route Redirects
+  // All duplicate/legacy routes are permanently redirected to their canonical
+  // destination. No page files are deleted — only HTTP-level redirects.
+  // ══════════════════════════════════════════════════════════════════════════
+  async redirects() {
+    return [
+      // ── HR: hr-center → admin-gateway/hr (canonical) ─────────────────────
+      {
+        source: '/dashboard/hr-center',
+        destination: '/dashboard/admin-gateway/hr',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/hr-center/manager',
+        destination: '/dashboard/admin-gateway/hr',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/hr-center/personnel',
+        destination: '/dashboard/admin-gateway/hr/employees',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/hr-center/staffing',
+        destination: '/dashboard/admin-gateway/hr/assignments',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/hr-center/:path*',
+        destination: '/dashboard/admin-gateway/hr',
+        permanent: true,
+      },
+
+      // ── Finance: finance-hub → admin-gateway/finance (canonical) ──────────
+      {
+        source: '/dashboard/finance-hub',
+        destination: '/dashboard/admin-gateway/finance',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/finance-hub/:path*',
+        destination: '/dashboard/admin-gateway/finance',
+        permanent: true,
+      },
+
+      // ── Maintenance: standalone hub → admin-gateway/maintenance (canonical)
+      {
+        source: '/dashboard/maintenance',
+        destination: '/dashboard/admin-gateway/maintenance',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/maintenance/manager',
+        destination: '/dashboard/admin-gateway/maintenance/executive',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/maintenance/operations',
+        destination: '/dashboard/admin-gateway/maintenance/work-orders',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/maintenance/planning',
+        destination: '/dashboard/admin-gateway/maintenance/preventive',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/maintenance/:path*',
+        destination: '/dashboard/admin-gateway/maintenance',
+        permanent: true,
+      },
+
+      // ── Procurement: legacy path → materials (canonical) ──────────────────
+      // Note: admin-gateway/procurement/page.tsx already redirects internally;
+      // this catches direct URL access before hitting the file.
+      {
+        source: '/dashboard/procurement',
+        destination: '/dashboard/admin-gateway/materials/procurement',
+        permanent: true,
+      },
+
+      // ── Asset 360: standalone → admin-gateway/assets (canonical) ──────────
+      // Detail pages: Phase 4 will create /admin-gateway/assets/[id].
+      // Until then, both index and detail redirect to the registry.
+      {
+        source: '/dashboard/asset-360',
+        destination: '/dashboard/admin-gateway/assets/registry',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/asset-360/:id',
+        destination: '/dashboard/admin-gateway/assets/registry',
+        permanent: true,
+      },
+
+      // ── Project 360: standalone → admin-gateway/projects (canonical) ──────
+      // Detail pages: Phase 5 will create /admin-gateway/projects/[id].
+      // Until then, both index and detail redirect to the project list.
+      {
+        source: '/dashboard/project-360',
+        destination: '/dashboard/admin-gateway/projects/list',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/project-360/:id',
+        destination: '/dashboard/admin-gateway/projects/list',
+        permanent: true,
+      },
+
+      // ── digital-assets: legacy → asset registry ───────────────────────────
+      {
+        source: '/dashboard/digital-assets',
+        destination: '/dashboard/admin-gateway/assets/registry',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/digital-assets/:path*',
+        destination: '/dashboard/admin-gateway/assets/registry',
+        permanent: true,
+      },
+
+      // ── GM Office: promote to top-level URL ───────────────────────────────
+      // Phase 7 will create /dashboard/gm-office as a wrapper.
+      // For now, /dashboard/gm-office → admin-gateway/gm-office.
+      {
+        source: '/dashboard/gm-office',
+        destination: '/dashboard/admin-gateway/gm-office',
+        permanent: false, // temporary until Phase 7 creates the real page
+      },
+    ];
+  },
+
   async rewrites() {
     return {
       beforeFiles: [],
