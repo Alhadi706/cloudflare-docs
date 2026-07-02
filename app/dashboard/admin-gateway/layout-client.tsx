@@ -179,18 +179,17 @@ export default function AdminGatewayLayout({ children }: { children: React.React
     <MapToggleButton showLabel={false} />
   );
 
-  // Phase 3: full-page mode (map hidden) — opaque overlay over the background map
+  // Phase 3 (updated): full-page mode when map is hidden.
+  // DashboardLayout now enables pointer-events when mapHidden=true,
+  // so we render in normal flex flow — content sits beside the Sidebar.
   if (mapHidden && !isMaintenancePage) {
     return (
-      <div
-        className="fixed inset-x-0 bottom-0 bg-[#080d1a] z-[38] overflow-y-auto pointer-events-auto"
-        style={{ top: '44px' }} // DashboardLayout header = h-11 = 44px
-      >
-        {/* Floating map toggle button — always accessible */}
-        <div className="sticky top-0 z-10 flex justify-end px-4 py-2 bg-[#080d1a]/90 backdrop-blur-sm border-b border-slate-800/50">
+      <div className="flex flex-col w-full min-h-0 bg-[#080d1a] overflow-y-auto h-full">
+        {/* Sticky map toggle bar — always accessible */}
+        <div className="sticky top-0 z-10 flex justify-end px-4 py-2 bg-[#080d1a]/90 backdrop-blur-sm border-b border-slate-800/50 pointer-events-auto">
           <MapToggleButton />
         </div>
-        <div className="pointer-events-auto">
+        <div className="flex-1 pointer-events-auto">
           {children}
         </div>
       </div>

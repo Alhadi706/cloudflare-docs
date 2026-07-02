@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { useGisEngine } from '@/store/gisEngine';
+import { useDeptMapStore } from '@/store/deptMapStore';
 import { clearServerSession } from '@/lib/client-auth-session';
 import { LogOut, User, Shield } from 'lucide-react';
 
@@ -61,8 +62,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [router]);
 
-  // Hide legacy global sidebar on all dashboard routes (new vertical dept list replaces it)
-  const hideLegacySidebar = pathname.startsWith('/dashboard');
+  // Phase 3 coordination: when map is hidden in admin-gateway, pointer-events should be enabled
+  // (map is not interactive/visible, so no need to pass through clicks to the background)
+  const { mapHidden: deptMapHidden } = useDeptMapStore();
+
+  // Disable pointer-events on content only when admin-gateway AND map is visible behind it
+  const disablePointerEvents = (passThroughToMap || isAdminGateway) && !deptMapHidden;
+
+  // Phase 2 fix: Show Sidebar on most dashboard pages.
+  // Hide ONLY on pages that are truly full-screen (home, GIS workspace, map-shell).
+  const hideSidebar =
+    pathname === '/dashboard' ||                                                         // home page — has its own full-screen grid
+    pathname.startsWith('/dashboard/gis-sovereignty/engineering-workspace') ||            // full-screen GIS canvas
+    pathname.startsWith('/dashboard/gis-sovereignty/satellite-intelligence-center') ||   // full-screen satellite view
+    pathname.startsWith('/dashboard/map-shell');                                          // full-screen map shell
 
   // Hide topbar on the main /dashboard page (it has its own full-screen UI)
   // and on GIS workspace pages (full-screen map)
@@ -124,9 +137,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* ── Main content ───────────────────────────────────────────────── */}
-      <div className={`${(passThroughToMap || isAdminGateway) ? 'pointer-events-none' : 'pointer-events-auto'} flex flex-1 w-full min-h-0 overflow-hidden flex-row-reverse`}>
-        {!hideLegacySidebar && <Sidebar />}
-        <main className={`${isGisWorkspace ? 'overflow-hidden' : 'overflow-y-auto h-full'} ${(passThroughToMap || isAdminGateway) ? 'pointer-events-none' : 'pointer-events-auto'} flex-1 min-h-0 bg-transparent`}>{children}</main>
+      <div className={`${disablePointerEvents ? 'pointer-events-none' : 'pointer-events-auto'} flex flex-1 w-full min-h-0 overflow-hidden flex-row-reverse`}>
+        {!hideSidebar && <Sidebar />}
+        <main className={`${isGisWorkspace ? 'overflow-hidden' : 'overflow-y-auto h-full'} ${disablePointerEvents ? 'pointer-events-none' : 'pointer-events-auto'} flex-1 min-h-0 bg-transparent`}>{children}</main>
       </div>
     </div>
   );
