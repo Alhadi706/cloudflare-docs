@@ -8,7 +8,7 @@ const BACKEND = 'http://127.0.0.1:7860';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
 export async function GET(req: NextRequest) {
-  const tenantId = req.headers.get('x-tenant-id') || req.headers.get('X-Tenant-ID') || '';
+  const tenantId = req.headers.get('x-verified-tenant-id') || req.headers.get('x-tenant-id') || req.headers.get('X-Tenant-ID') || '';
 
   try {
     const res = await fetch(

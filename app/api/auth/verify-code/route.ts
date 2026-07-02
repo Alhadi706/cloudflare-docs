@@ -24,7 +24,11 @@ export async function POST(req: NextRequest) {
     const fname = user?.full_name || storedName || null;
     const token = makeAuthToken(email, role, {
       full_name:         fname,
+      tenant_id:         user?.tenant_id,
+      tenant_code:       user?.tenant_code,
       organization_name: user?.organization_name,
+      department_code:   user?.department_code,
+      section_id:        user?.section_id,
       is_founder:        user?.is_founder ?? false,
     });
     return NextResponse.json({
@@ -32,6 +36,9 @@ export async function POST(req: NextRequest) {
       email,
       full_name:         fname,
       role,
+      tenant_id:         user?.tenant_id    ?? null,
+      tenant_code:       user?.tenant_code  ?? null,
+      department_code:   user?.department_code ?? null,
       is_founder:        user?.is_founder ?? false,
       organization_name: user?.organization_name,
       needs_bootstrap:   user?.is_founder && !user?.verified_at,
