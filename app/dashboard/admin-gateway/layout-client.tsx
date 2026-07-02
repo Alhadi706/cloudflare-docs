@@ -14,7 +14,7 @@ import { Compass } from 'lucide-react';
 import FloatingSidePanel from '@/components/FloatingSidePanel';
 import MapToggleButton from '@/components/MapToggleButton';
 import EmbeddedAssistant from '@/components/EmbeddedAssistant';
-import SharedAssetsPanel from './components/SharedAssetsPanel';
+// SharedAssetsPanel removed — GIS principal assets belong in Engineering Workspace only
 import { useGisEngine } from '@/store/gisEngine';
 import { useProjectStore } from '@/store/projectStore';
 import { useDeptMapStore } from '@/store/deptMapStore';
@@ -225,7 +225,11 @@ export default function AdminGatewayLayout({ children }: { children: React.React
             </div>
           )}
         >
-          <SharedAssetsPanel />
+          {/* SharedAssetsPanel removed — it showed GIS principal-assets which
+              conflicted visually with the ERP asset registry (two different
+              data sources, both called "assets"). Principal assets are now
+              accessible only from the GIS Engineering Workspace where they
+              belong contextually. */}
           <div className="flex-1 min-h-0">
             {children}
           </div>
