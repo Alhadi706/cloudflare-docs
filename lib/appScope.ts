@@ -36,6 +36,7 @@ const APP_SCOPE_VALUES: InstalledAppScope[] = [
 const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, string[]> = {
   corrosion: [
     '/dashboard/admin-gateway/corrosion',
+    '/dashboard/corrosion',
     '/dashboard/operations-maintenance',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
@@ -44,6 +45,7 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
   ],
   maintenance: [
     '/dashboard/admin-gateway/maintenance',
+    '/dashboard/maintenance',
     '/dashboard/admin-gateway/projects',
     '/dashboard/operations-maintenance',
     '/dashboard/map-shell',
@@ -55,10 +57,12 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
     '/dashboard/admin-control',
     '/dashboard/hr-center',
     '/dashboard/admin-gateway/hr',
+    '/dashboard/admin-gateway/admin-dept',
     '/dashboard/admin-gateway/security',
     '/dashboard/admin-gateway/correspondence',
     '/dashboard/admin-gateway/contracts',
     '/dashboard/admin-gateway/workflow',
+    '/dashboard/admin-gateway/org-structure',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
     '/dashboard/my-workspace',
@@ -67,6 +71,9 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
   finance: [
     '/dashboard/finance-hub',
     '/dashboard/admin-gateway/finance',
+    '/dashboard/admin-gateway/accounting',
+    '/dashboard/admin-gateway/revenue',
+    '/dashboard/admin-gateway/reports/financial',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
     '/dashboard/my-workspace',
@@ -78,6 +85,8 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
     '/dashboard/admin-gateway/assets',
     '/dashboard/admin-gateway/inventory',
     '/dashboard/admin-gateway/procurement',
+    '/dashboard/admin-gateway/materials',
+    '/dashboard/admin-gateway/vehicles',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
     '/dashboard/my-workspace',
@@ -191,34 +200,7 @@ export function getScopesForDepartmentCode(departmentCode?: string | null): Inst
   if (code.includes('hr') || code.includes('admin') || code.includes('legal')) return ['admin-affairs'];
   if (code.includes('asset') || code.includes('proc') || code.includes('warehouse') || code.includes('inventory')) return ['materials'];
   if (code.includes('gis') || code.includes('survey') || code.includes('remote')) return ['remote-sensing'];
-  if (code.includes('intel') || code.includes('service') || code.includes('ai') || code === 'it') return ['services'];
+  if (code.includes('intel') || code.includes('service') || code.includes('ai')) return ['services'];
 
   return ['all'];
-}
-
-export function getPreferredAppScopeForDepartmentCode(departmentCode?: string | null): InstalledAppScope {
-  const scopes = getScopesForDepartmentCode(departmentCode).filter((scope) => scope !== 'all');
-  return scopes[0] || 'all';
-}
-
-export function resolveCompatibleAppScope(
-  currentScopeValue?: string | null,
-  departmentCode?: string | null,
-): InstalledAppScope {
-  const currentScope = normalizeAppScope(currentScopeValue);
-  const preferredScope = getPreferredAppScopeForDepartmentCode(departmentCode);
-
-  if (preferredScope === 'all') {
-    return currentScope;
-  }
-
-  if (currentScope === preferredScope) {
-    return currentScope;
-  }
-
-  if (currentScope === 'all') {
-    return preferredScope;
-  }
-
-  return preferredScope;
 }

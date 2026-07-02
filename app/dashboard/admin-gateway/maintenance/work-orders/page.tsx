@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Wrench, Plus, Search, Filter, AlertCircle, ChevronLeft,
   User, Clock, CheckCircle, XCircle, RefreshCw, Activity,
-  ChevronDown, X, ExternalLink, Send, Settings2, Users, ArrowDownLeft, ArrowUpRight,
+  ChevronDown, X, Send, Settings2, Users, ArrowDownLeft, ArrowUpRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import WorkOrderDispatchModal, { type DispatchConfig } from '@/app/dashboard/shared/components/WorkOrderDispatchModal';
@@ -247,10 +247,7 @@ export default function WorkOrdersPage() {
             <div>
               <h1 className="text-2xl font-bold text-white">أوامر العمل — CMMS</h1>
               <p className="text-slate-400 text-sm mt-0.5">
-                مرتبط بـ نظام إدارة الصيانة المحوسب •{' '}
-                <Link href="/operations-maintenance-demo" className="text-amber-400 hover:underline inline-flex items-center gap-1">
-                  لوحة العمليات المتخصصة <ExternalLink className="w-3 h-3" />
-                </Link>
+                مرتبط بـ نظام إدارة الصيانة المحوسب (CMMS)
               </p>
             </div>
           </div>
