@@ -373,9 +373,9 @@ export default function AssetRegistryPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/dashboard/asset-360/${asset.id}`}
+                            href={`/dashboard/admin-gateway/assets/${asset.id}`}
                             className="px-3 py-1 bg-cyan-600/20 text-cyan-400 rounded-lg text-xs hover:bg-cyan-600/30 transition-colors font-semibold"
-                            title="أصل 360°"
+                            title="عرض الأصل 360°"
                           >
                             360°
                           </Link>

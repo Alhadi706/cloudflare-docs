@@ -92,8 +92,7 @@ const nextConfig = {
       },
 
       // ── Asset 360: standalone → admin-gateway/assets (canonical) ──────────
-      // Detail pages: Phase 4 will create /admin-gateway/assets/[id].
-      // Until then, both index and detail redirect to the registry.
+      // Phase 4: asset detail page now exists at /admin-gateway/assets/[id]
       {
         source: '/dashboard/asset-360',
         destination: '/dashboard/admin-gateway/assets/registry',
@@ -101,7 +100,7 @@ const nextConfig = {
       },
       {
         source: '/dashboard/asset-360/:id',
-        destination: '/dashboard/admin-gateway/assets/registry',
+        destination: '/dashboard/admin-gateway/assets/:id',
         permanent: true,
       },
 
