@@ -5,49 +5,54 @@ import {
   saveMonitoringReading, getPendingMonitoringReadings,
   STATION_PRESETS,
 } from '@/lib/mobile-field-store';
+import fs from 'fs';
+import path from 'path';
 
 const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
+const CORROSION_TEAMS_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
 
 function resolveEmpNo(req: NextRequest): string {
-  // Prefer the explicit employee_no claim injected by middleware
+  // Prefer injected verified header
   const fromHeader = (req.headers.get('x-verified-employee-no') ?? '').trim().toUpperCase();
   if (fromHeader) return fromHeader;
-  // Fallback: parse email (legacy format: dsf_2055@mobile.local)
   return (req.headers.get('x-verified-email') ?? '')
-    .replace(/@.*$/, '').split('_').slice(1).join('_').toUpperCase();
+    .replace('@mobile.local', '').split('_').slice(1).join('_').toUpperCase();
 }
 
-// Map backend zone labels → STATION_PRESETS keys
-const ZONE_TO_PRESET: Record<string, string> = {
-  'المسار الأوسط':   'central_branch',
-  'حقول الآبار':     'well_fields',
-  'المسار الشرقي':   'eastern_branch',
-  'منطقة طاز':       'taz',
-  'central_branch':  'central_branch',
-  'well_fields':     'well_fields',
-  'eastern_branch':  'eastern_branch',
-  'taz':             'taz',
-};
-
-function buildTeamFromDbRow(row: {
-  id: string; station_id: string; station_name: string;
-  zone: string; shift: string; status: string; member_role?: string;
-}) {
-  const presetKey = ZONE_TO_PRESET[row.zone] || 'central_branch';
-  const preset    = STATION_PRESETS[presetKey];
-  return {
-    id:                    row.id,
-    team_name:             row.station_name || row.station_id,
-    station_type:          presetKey,
-    location_label:        row.zone || '',
-    station_id:            row.station_id,
-    shift:                 row.shift || 'صباحي',
-    member_role:           row.member_role || 'راصد',
-    member_employee_nos:   [] as string[],
-    supervisor_employee_nos: [] as string[],
-    field_groups:          preset?.field_groups ?? [],
-    is_active:             row.status === 'نشط' || row.status === 'active',
-  };
+/** Load corrosion field teams from local JSON and filter to those matching empNo */
+function getMyCorrosionTeams(tenantId: string, empNo: string) {
+  try {
+    const file = path.join(CORROSION_TEAMS_DIR, `${tenantId}.json`);
+    if (!fs.existsSync(file)) return [];
+    const { teams } = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!Array.isArray(teams)) return [];
+    const preset = STATION_PRESETS['corrosion_field'];
+    return teams
+      .filter((t: any) =>
+        Array.isArray(t.members) &&
+        t.members.some((m: any) =>
+          (m.employeeNumber || '').toUpperCase() === empNo ||
+          String(m.empId) === empNo
+        )
+      )
+      .map((t: any) => ({
+        id:           t.id,
+        team_name:    t.name,
+        station_type: 'corrosion_field',
+        location_label: t.specialization || 'مكافحة التآكل',
+        station_id:   t.id,
+        shift:        'يومي',
+        member_role:  t.members.find((m: any) => (m.employeeNumber || '').toUpperCase() === empNo)?.role || 'فني',
+        member_employee_nos: t.members.map((m: any) => m.employeeNumber || '').filter(Boolean),
+        supervisor_employee_nos: t.members
+          .filter((m: any) => m.role === 'قائد الفريق')
+          .map((m: any) => m.employeeNumber || ''),
+        field_groups: preset?.field_groups ?? [],
+        is_active:    true,
+        source:       'corrosion_field',
+        updated_at:   t.updatedAt,
+      }));
+  } catch { return []; }
 }
 
 const SUPERVISOR_ROLES = ['supervisor','manager','admin','dept_manager','section_manager','founder'];
@@ -77,41 +82,6 @@ export async function GET(req: NextRequest) {
 
   // Fetch teams from DB backend (ctrl.monitoring_teams), fall back to in-memory
   try {
-    if (mode === 'my_team') {
-      // Use dedicated /by-employee endpoint which correctly resolves employee_id from employee_no
-      const res = await fetch(
-        `${B}/api/v1/ctrl/monitoring-teams/by-employee?employee_no=${encodeURIComponent(empNo)}`,
-        { cache: 'no-store', signal: AbortSignal.timeout(8000) }
-      );
-      if (res.ok) {
-        const d = await res.json();
-        const dbTeams = (d.teams || []) as Array<{
-          id: string; station_id: string; station_name: string;
-          zone: string; shift: string; status: string; member_role: string;
-        }>;
-        const builtTeams = dbTeams.map(buildTeamFromDbRow);
-        // Return primary team (prefer رئيس فريق, then first active)
-        const primary = builtTeams.find(t => t.member_role === 'رئيس فريق') ?? builtTeams[0] ?? null;
-
-        // Fetch recent readings for primary team
-        let recent_readings: unknown[] = [];
-        if (primary) {
-          try {
-            const rRes = await fetch(
-              `${B}/api/v1/ctrl/readings?station_id=${primary.station_id}&limit=10`,
-              { cache: 'no-store', signal: AbortSignal.timeout(5000) }
-            );
-            if (rRes.ok) {
-              const rData = await rRes.json();
-              recent_readings = rData.readings || [];
-            }
-          } catch { /* ignore */ }
-        }
-
-        return NextResponse.json({ ok: true, team: primary, teams: builtTeams, recent_readings, source: 'db' });
-      }
-    }
-
     const res = await fetch(`${B}/api/v1/ctrl/monitoring-teams`, {
       cache: 'no-store',
       headers: { 'X-Tenant-ID': auth.tenantId || 'aaaaaaaa-0000-4000-a000-000000000001' },
@@ -125,25 +95,49 @@ export async function GET(req: NextRequest) {
         members: Array<{ employee_id: number; name_ar: string; role: string }>;
       }>;
 
-      if (mode === 'team_detail') {
-        const teamId = req.nextUrl.searchParams.get('team_id') || '';
-        const raw    = dbTeams.find(t => t.id === teamId);
-        if (!raw) return NextResponse.json({ detail: 'الفريق غير موجود' }, { status: 404 });
-        return NextResponse.json({ ok: true, team: buildTeamFromDbRow(raw as any), source: 'db' });
+      if (mode === 'my_team') {
+        // filter teams where empNo matches any member
+        const myCtrlTeams = dbTeams.filter(t =>
+          t.members?.some(m => String(m.employee_id) === empNo || m.name_ar?.includes(empNo))
+        );
+        // Also include corrosion field teams
+        const myCorrosionTeams = getMyCorrosionTeams(auth.tenantId, empNo);
+        const allMyTeams = [...myCtrlTeams, ...myCorrosionTeams];
+        return NextResponse.json({
+          ok: true,
+          teams: allMyTeams,
+          has_corrosion_team: myCorrosionTeams.length > 0,
+          source: 'db',
+        });
       }
 
-      return NextResponse.json({ ok: true, teams: dbTeams, source: 'db' });
+      if (mode === 'team_detail') {
+        const teamId = req.nextUrl.searchParams.get('team_id') || '';
+        // Check corrosion teams first
+        const corrTeams = getMyCorrosionTeams(auth.tenantId, empNo);
+        const corrTeam = corrTeams.find(t => t.id === teamId);
+        if (corrTeam) return NextResponse.json({ ok: true, team: corrTeam, source: 'corrosion_field' });
+        const team   = dbTeams.find(t => t.id === teamId);
+        if (!team) return NextResponse.json({ detail: 'الفريق غير موجود' }, { status: 404 });
+        return NextResponse.json({ ok: true, team, source: 'db' });
+      }
+
+      // all_teams_summary: include corrosion teams for the employee
+      const myCorrosionTeams = getMyCorrosionTeams(auth.tenantId, empNo);
+      return NextResponse.json({
+        ok: true,
+        teams: [...dbTeams, ...myCorrosionTeams],
+        has_corrosion_team: myCorrosionTeams.length > 0,
+        source: 'db',
+      });
     }
   } catch { /* fall through to in-memory */ }
 
   // Fallback: in-memory store
   const { getMonitoringTeams } = await import('@/lib/mobile-field-store');
   if (mode === 'my_team') {
-    const teams = getMonitoringTeams(auth.tenantId).filter(t =>
-      t.member_employee_nos?.includes(empNo) || t.supervisor_employee_nos?.includes(empNo)
-    );
-    const primary = teams[0] ?? null;
-    return NextResponse.json({ ok: true, team: primary, teams, recent_readings: [], source: 'memory' });
+    const teams = getMonitoringTeams(auth.tenantId).filter(t => t.supervisor_employee_nos?.includes(empNo));
+    return NextResponse.json({ ok: true, teams, source: 'memory' });
   }
   if (mode === 'team_detail') {
     const teamId = req.nextUrl.searchParams.get('team_id') || '';

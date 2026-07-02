@@ -14,6 +14,7 @@ import AddChildAssetModal from './components/AddChildAssetModal';
 import AssetCenterPanel from './components/AssetCenterPanel';
 import IntelligencePanel from './components/IntelligencePanel';
 import ExtractionCatalog from '@/components/ExtractionCatalog';
+import LinearAssetImporter from '@/components/LinearAssetImporter';
 import MapCenterCanvas from '../components/MapCenterCanvas';
 
 const TENANT_ID =
@@ -322,6 +323,9 @@ function EngineeringWorkspaceInner() {
   // Child asset modal
   const [showChildModal, setShowChildModal]   = useState(false);
   const [principalAssets, setPrincipalAssets] = useState<PrincipalAsset[]>([]);
+
+  // Linear Asset Importer (LRS batch import)
+  const [showLrsImporter, setShowLrsImporter] = useState(false);
 
   // Redraw principal geometry flow
   const [redrawTarget, setRedrawTarget] = useState<{ assetId: string; geometryType: string | null } | null>(null);
@@ -876,9 +880,20 @@ function EngineeringWorkspaceInner() {
       <div className="flex flex-col h-screen w-full bg-slate-950 text-slate-200 overflow-hidden relative" dir="rtl">
 
         {/* Title strip */}
-        <div className="h-9 shrink-0 border-b border-slate-800 bg-slate-900/80 px-4 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.7)]"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span className="text-xs font-bold text-cyan-300 tracking-wide">وحدة الإدارة الهندسية السيادية</span>
+        <div className="h-9 shrink-0 border-b border-slate-800 bg-slate-900/80 px-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.7)]"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span className="text-xs font-bold text-cyan-300 tracking-wide">وحدة الإدارة الهندسية السيادية</span>
+          </div>
+          {/* LRS batch import button */}
+          <button
+            onClick={() => setShowLrsImporter(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-violet-500/40 bg-violet-500/10 text-xs text-violet-300 hover:bg-violet-500/20 hover:border-violet-400/60 transition-colors"
+            title="استيراد أصول خطية — وضع 32,000 معدة على الخريطة من CSV"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10H3M21 6H3M21 14H3M21 18H3"/></svg>
+            استيراد خطي (LRS)
+          </button>
         </div>
 
         {/* Asset-centric toolbar */}
@@ -1288,6 +1303,22 @@ function EngineeringWorkspaceInner() {
             onSaved={handleChildSaved}
             onClose={() => setShowChildModal(false)}
           />
+        )}
+
+        {/* ── Linear Asset Importer (LRS batch) ──────────────────────────────── */}
+        {showLrsImporter && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
+              <LinearAssetImporter
+                principalAssets={principalAssets}
+                onImportComplete={() => {
+                  // Refresh principal assets list after import
+                  void loadPrincipalAssets();
+                }}
+                onClose={() => setShowLrsImporter(false)}
+              />
+            </div>
+          </div>
         )}
 
       </div>

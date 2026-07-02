@@ -32,6 +32,7 @@ import ServiceLayerCreateDialog, { LAYER_TEMPLATES, type LayerTemplate } from '.
 import ServiceLayerFeaturesPanel, { type AddPointModePayload } from './ServiceLayerFeaturesPanel';
 import SICLayerEditorPanel from './SICLayerEditorPanel';
 import SmartAlertsPanel from './SmartAlertsPanel';
+import TaskLaunchPanel, { TaskGuideBar, TASKS, type TaskMode } from './TaskLaunchPanel';
 import AssetLeftPanel, { type PrincipalAsset } from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetLeftPanel';
 import AssetCenterPanel from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetCenterPanel';
 import CreatePrincipalAssetModal from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/CreatePrincipalAssetModal';
@@ -117,6 +118,10 @@ export default function SatelliteIntelLegacyShell() {
   // ── Ribbon state ──────────────────────────────────────────────────────────
   const [ribbonState, setRibbonState] = useState<RibbonState>(DEFAULT_RIBBON_STATE);
   const patchRibbon = useCallback((patch: Partial<RibbonState>) => setRibbonState(s => ({ ...s, ...patch })), []);
+
+  // ── Task Mode: guides user through a specific workflow ──────────────────
+  const [taskMode,    setTaskMode]    = useState<TaskMode | null>(null);
+  const [taskStep,    setTaskStep]    = useState(0);
 
   // ── Layer editor inline state (no separate map — uses SceneMapPanel) ──────
   const [layerSelectedAssetId, setLayerSelectedAssetId] = useState<string | null>(null);
@@ -376,7 +381,6 @@ export default function SatelliteIntelLegacyShell() {
   const [showUrbanLeakLayer, setShowUrbanLeakLayer] = useState(false);
   const [showEncroachLayer,  setShowEncroachLayer]  = useState(false);
   const [fireMarkers,        setFireMarkers]        = useState<any[]>([]);
-  const [fireShowAll,        setFireShowAll]        = useState(false); // false = confirmed only
   const [leakMarkers,        setLeakMarkers]        = useState<any[]>([]);
   const [urbanLeakMarkers,   setUrbanLeakMarkers]   = useState<any[]>([]);
   const [encroachMarkers,    setEncroachMarkers]    = useState<any[]>([]);
@@ -386,18 +390,14 @@ export default function SatelliteIntelLegacyShell() {
   const [urbanLeakLoading,   setUrbanLeakLoading]   = useState(false);
   const [encroachLoading,    setEncroachLoading]    = useState(false);
 
-  const loadFireLayer = useCallback(async (showAll = false) => {
+  const loadFireLayer = useCallback(async () => {
     if (fireLoading) return;
     setFireLoading(true);
     try {
       const res = await fetch('/api/v1/satellite/fire-monitor?days=7');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      // Default: use alert_clusters (confirmed + high-FRP only ~15 pts)
-      // showAll: use all_clusters (all 180 raw clusters)
-      const clusters: any[] = showAll
-        ? (data.all_clusters ?? [])
-        : (data.alert_clusters ?? data.all_clusters ?? []);
+      const clusters: any[] = data.all_clusters ?? [];
       const colorMap: Record<string, string> = {
         gas_flare:         '#a855f7',
         confirmed_fire:    '#ef4444',
@@ -410,16 +410,10 @@ export default function SatelliteIntelLegacyShell() {
           lon:      c.lon,
           lat:      c.lat,
           color:    colorMap[c.classification] ?? '#94a3b8',
-          // FRP-based radius: confirmed fires sized by power, others small
-          radius:   c.classification === 'confirmed_fire'
-            ? Math.min(22, 10 + (c.max_frp_mw ?? 1) * 0.4)
-            : c.classification === 'gas_flare'
-            ? Math.min(16, 8 + (c.max_frp_mw ?? 1) * 0.2)
-            : 7,
-          label:    c.classification === 'gas_flare'         ? `🟣 حرق غاز — ${c.max_frp_mw}MW` :
-                    c.classification === 'confirmed_fire'    ? `🔴 حريق مؤكد — ${c.max_frp_mw}MW` :
-                    c.classification === 'recurring_anomaly' ? `🟠 شذوذ متكرر — ${c.days_active}د` :
-                    `🟡 رصد فردي`,
+          radius:   Math.min(18, 6 + (c.observations ?? c.total_count ?? 1) * 0.5),
+          label:    c.classification === 'gas_flare' ? 'حرق غاز' :
+                    c.classification === 'confirmed_fire' ? 'حريق مؤكد' :
+                    c.classification === 'recurring_anomaly' ? 'شذوذ متكرر' : 'رصد واحد',
           layerKey: 'fire_viirs',
         }));
       setFireMarkers(markers);
@@ -926,6 +920,19 @@ export default function SatelliteIntelLegacyShell() {
     <div className="h-screen w-full bg-slate-950 text-slate-200 flex flex-col overflow-hidden" dir="rtl">
       <SICHeader systemOnline={systemOnline} activeSceneUid={activeSceneUid} />
 
+      {/* Task Guide Bar — shown when a task mode is active */}
+      {taskMode && taskMode !== 'custom' && (
+        <TaskGuideBar
+          taskId={taskMode}
+          currentStep={taskStep}
+          onStepClick={(idx, group) => {
+            setTaskStep(idx);
+            patchRibbon({ activeGroup: group as any });
+          }}
+          onClearTask={() => { setTaskMode(null); setTaskStep(0); }}
+        />
+      )}
+
       {/* Create layer dialog */}
       {showCreateDialog && (
         <ServiceLayerCreateDialog
@@ -956,7 +963,17 @@ export default function SatelliteIntelLegacyShell() {
         onRunAnalysis={handleRunAnalysis}
         onRefresh={triggerRefresh}
         ribbonState={ribbonState}
-        onRibbonChange={patchRibbon}
+        onRibbonChange={(patch) => {
+            patchRibbon(patch);
+            // Advance task step when user switches to the next group
+            if (taskMode && taskMode !== 'custom' && patch.activeGroup) {
+              const task = TASKS.find(t => t.id === taskMode);
+              if (task) {
+                const nextIdx = task.steps.findIndex(s => s.ribbonGroup === patch.activeGroup);
+                if (nextIdx >= 0 && nextIdx >= taskStep) setTaskStep(nextIdx);
+              }
+            }
+          }}
         onRscToolChange={(tool) => {
           setRscActiveTool(tool);
           patchRibbon({ rscActiveTool: tool });
@@ -987,17 +1004,10 @@ export default function SatelliteIntelLegacyShell() {
         leakCount={leakMarkers.length}
         urbanLeakCount={urbanLeakMarkers.length}
         encroachCount={encroachMarkers.length}
-        fireShowAll={fireShowAll}
-        onToggleFireShowAll={() => {
-          const next = !fireShowAll;
-          setFireShowAll(next);
-          setFireMarkers([]); // force reload with new filter
-          if (showFireLayer) loadFireLayer(next);
-        }}
         onToggleFireLayer={() => {
           const next = !showFireLayer;
           setShowFireLayer(next);
-          if (next && fireMarkers.length === 0) loadFireLayer(fireShowAll);
+          if (next && fireMarkers.length === 0) loadFireLayer();
           patchRibbon({ activeGroup: 'monitoring' });
         }}
         onToggleLeakLayer={() => {
@@ -1065,6 +1075,24 @@ export default function SatelliteIntelLegacyShell() {
         )}
 
         <div className={`min-w-0 relative transition-all duration-300 ${rightPanelSize === 'full' ? 'w-0 overflow-hidden flex-none' : 'flex-1'}`}>
+
+          {/* Task Launch Panel — shown when no task selected yet */}
+          {taskMode === null && (
+            <TaskLaunchPanel
+              onSelectTask={(mode) => {
+                setTaskMode(mode);
+                setTaskStep(0);
+                // Activate the first step's ribbon group
+                if (mode !== 'custom') {
+                  const task = TASKS.find(t => t.id === mode);
+                  if (task && task.steps.length > 0) {
+                    patchRibbon({ activeGroup: task.steps[0].ribbonGroup as any });
+                  }
+                }
+              }}
+            />
+          )}
+
           <SceneMapPanel
             scenes={scenes}
             projects={projects}

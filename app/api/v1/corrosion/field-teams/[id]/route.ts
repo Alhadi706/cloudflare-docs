@@ -10,6 +10,7 @@ const DATA_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
 
 function getTenantId(req: NextRequest): string {
   return (
+    req.headers.get('x-verified-tenant-id') ||
     req.headers.get('x-tenant-id') ||
     req.headers.get('X-Tenant-ID') ||
     'aaaaaaaa-0000-4000-a000-000000000001'

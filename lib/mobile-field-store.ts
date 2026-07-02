@@ -959,6 +959,53 @@ export const STATION_PRESETS: Record<string, { label: string; field_groups: Moni
       },
     ],
   },
+
+  // ── فريق مكافحة التآكل الميداني ─────────────────────────────────────────
+  corrosion_field: {
+    label: 'فريق المسح الميداني — مكافحة التآكل',
+    field_groups: [
+      {
+        group_key: 'cp_survey',
+        group_label: 'قراءات المسح الكاثودي CP',
+        ctrl_station_id: undefined,
+        fields: [
+          { key: 'cp_on_potential',      label: 'جهد التشغيل (On Potential)',   unit: 'mV', type: 'number', required: true },
+          { key: 'cp_off_potential',     label: 'جهد الإيقاف (Off Potential)',  unit: 'mV', type: 'number', required: true },
+          { key: 'cp_natural_potential', label: 'الجهد الطبيعي',                unit: 'mV', type: 'number', required: false },
+          { key: 'cp_current_output',    label: 'تيار الخروج',                  unit: 'mA', type: 'number', required: false },
+          { key: 'cp_chainage',          label: 'الكيلومتراج',                  unit: 'م',  type: 'number', required: true },
+          { key: 'cp_pipeline_id',       label: 'رقم المسار / الخط',            unit: '',   type: 'text',   required: true },
+        ],
+      },
+      {
+        group_key: 'coating_inspection',
+        group_label: 'فحص الطلاء والمكونات',
+        ctrl_station_id: undefined,
+        fields: [
+          { key: 'coating_condition',    label: 'حالة الطلاء',                  unit: '',   type: 'select', required: true,
+            options: ['ممتاز', 'جيد', 'مقبول', 'تالف', 'مفقود'] },
+          { key: 'coating_type',         label: 'نوع الطلاء',                   unit: '',   type: 'text',   required: false },
+          { key: 'holiday_detected',     label: 'وجود ثقوب في الطلاء',          unit: '',   type: 'boolean', required: true },
+          { key: 'holiday_count',        label: 'عدد الثقوب المكتشفة',          unit: 'عدد', type: 'number', required: false },
+          { key: 'anode_condition',      label: 'حالة الأنود',                  unit: '',   type: 'select', required: false,
+            options: ['فعّال', 'منتهي جزئياً', 'منتهي كلياً', 'غائب'] },
+        ],
+      },
+      {
+        group_key: 'obstacle_report',
+        group_label: 'تقرير عوائق وملاحظات ميدانية',
+        ctrl_station_id: undefined,
+        fields: [
+          { key: 'obstacle_type',        label: 'نوع العائق',                   unit: '',   type: 'select', required: false,
+            options: ['بناء', 'طريق مغلق', 'حفريات', 'منشآت خاصة', 'مخاطر أمنية', 'أخرى'] },
+          { key: 'obstacle_location',    label: 'موقع العائق',                  unit: '',   type: 'text',   required: false },
+          { key: 'gps_lat',              label: 'خط العرض GPS',                 unit: '',   type: 'number', required: false },
+          { key: 'gps_lon',              label: 'خط الطول GPS',                 unit: '',   type: 'number', required: false },
+          { key: 'field_notes',          label: 'ملاحظات ميدانية',              unit: '',   type: 'textarea', required: false },
+        ],
+      },
+    ],
+  },
 };
 
 function monitoringTeamsFile(tenantId: string) { return `monitoring_teams_${tenantId}.json`; }

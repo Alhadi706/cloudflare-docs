@@ -15,6 +15,8 @@ const ROLES_FILE = path.join(MOBILE_DIR, 'employee_mobile_roles.json');
 
 function getTenantId(req: NextRequest): string {
   return (
+    // x-verified-tenant-id is injected by middleware from the authenticated JWT — always correct
+    req.headers.get('x-verified-tenant-id') ||
     req.headers.get('x-tenant-id') ||
     req.headers.get('X-Tenant-ID') ||
     'aaaaaaaa-0000-4000-a000-000000000001'
@@ -22,7 +24,12 @@ function getTenantId(req: NextRequest): string {
 }
 
 function getTenantCode(req: NextRequest): string {
-  return req.headers.get('x-tenant-code') || req.headers.get('X-Tenant-Code') || 'INFRA_OPS';
+  return (
+    req.headers.get('x-verified-tenant-code') ||
+    req.headers.get('x-tenant-code') ||
+    req.headers.get('X-Tenant-Code') ||
+    'INFRA_OPS'
+  );
 }
 
 function getTeamsFile(tenantId: string): string {

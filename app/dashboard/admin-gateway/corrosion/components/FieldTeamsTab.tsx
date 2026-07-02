@@ -764,48 +764,6 @@ export default function FieldTeamsTab() {
                   </div>
                 )}
 
-                <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold text-slate-300">إضافة مباشرة من رئيس القسم</p>
-                    <span className="text-[11px] text-slate-500">للأعضاء غير الموجودين في قائمة الإدارة</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input
-                      value={manualName}
-                      onChange={e => setManualName(e.target.value)}
-                      placeholder="اسم العضو"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-                    />
-                    <input
-                      value={manualEmployeeNumber}
-                      onChange={e => setManualEmployeeNumber(e.target.value)}
-                      placeholder="الرقم الوظيفي"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-                    />
-                    <input
-                      value={manualPhone}
-                      onChange={e => setManualPhone(e.target.value)}
-                      placeholder="رقم الهاتف للربط بالتيليجرام"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-                    />
-                    <div className="flex gap-2">
-                      <select
-                        value={manualRole}
-                        onChange={e => setManualRole(e.target.value)}
-                        className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        {TEAM_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <button
-                        onClick={addManualMember}
-                        className="px-3 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 transition-colors text-sm font-semibold"
-                      >
-                        إضافة مباشرة
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
             {/* Members list */}
             {selectedMembers.length > 0 && (
               <div className="space-y-1.5 mt-2">
