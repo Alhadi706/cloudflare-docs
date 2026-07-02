@@ -48,6 +48,8 @@ export async function syncClientAuthState(data: SessionData): Promise<boolean> {
     if (data.app_scope)       setCookie('app_scope', data.app_scope as string);
     if (data.tenant_code)     setCookie('tenant_code', data.tenant_code as string);
     if (data.section_id)      setCookie('section_id', data.section_id as string);
+    // Store tenant_id cookie so middleware buildCookieVerifiedHeaders can read it
+    if (data.tenant_id)       setCookie('tenant_id', data.tenant_id as string);
 
     // Also store in localStorage (for client-side reads)
     if (typeof localStorage !== 'undefined') {
