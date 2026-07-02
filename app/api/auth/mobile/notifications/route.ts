@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const employeeNo = req.nextUrl.searchParams.get('employee_no') ||
-    (req.headers.get('x-verified-email') ?? '').replace('@mobile.local','').split('_').slice(1).join('_').toUpperCase();
+    (req.headers.get('x-verified-employee-no') ?? '').trim().toUpperCase() ||
+    (req.headers.get('x-verified-email') ?? '').replace(/@.*$/, '').split('_').slice(1).join('_').toUpperCase();
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '50'), 100);
   const unreadOnly = req.nextUrl.searchParams.get('unread_only') === 'true';
 

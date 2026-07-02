@@ -19,8 +19,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: 'subscription مطلوبة' }, { status: 400 });
   }
 
-  const employeeNo = (req.headers.get('x-verified-email') ?? '')
-    .replace('@mobile.local', '').split('_').slice(1).join('_').toUpperCase();
+  const employeeNo = (req.headers.get('x-verified-employee-no') ?? '').trim().toUpperCase() ||
+    (req.headers.get('x-verified-email') ?? '').replace(/@.*$/, '').split('_').slice(1).join('_').toUpperCase();
 
   savePushSub(auth.tenantId, employeeNo || auth.email, auth.role, sub);
   return NextResponse.json({ ok: true });

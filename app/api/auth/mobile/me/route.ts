@@ -8,22 +8,20 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   const tenantCode = (req.headers.get('x-verified-tenant-code') ?? '').trim();
-  const employeeNo = (req.headers.get('x-verified-email') ?? '')
-    .split('@')[0]
-    .toUpperCase()
-    .replace(/^[A-Z0-9]+_/, ''); // strip tenant prefix if present
+  // Use the employee_no from JWT (set by middleware as x-verified-employee-no)
+  const employeeNo = (req.headers.get('x-verified-employee-no') ?? '').trim().toUpperCase()
+    || (req.headers.get('x-verified-email') ?? '').replace(/@.*$/, '').split('_').slice(1).join('_').toUpperCase();
 
-  // Resolve employee_no from email pattern "code_empno@mobile.local"
-  const email = req.headers.get('x-verified-email') ?? '';
-  const username = email.replace('@mobile.local', '');
-  const user = findByUsername(username);
+  const email    = req.headers.get('x-verified-email') ?? '';
+  const username = buildEmployeeUsername(tenantCode, employeeNo);
+  const user     = findByUsername(username) ?? findByUsername(email.replace(/@.*$/, ''));
 
   const tenant = getTenantByCode(tenantCode);
 
   return NextResponse.json({
     ok: true,
-    employee_no:       user?.username?.split('_').slice(1).join('_') || employeeNo,
-    full_name:         user?.full_name || '',
+    employee_no:       employeeNo || user?.username?.split('.').pop() || '',
+    full_name:         user?.full_name || req.headers.get('x-verified-full-name') || '',
     email:             user?.email || email,
     role:              auth.role,
     department_code:   auth.departmentCode || user?.department_code || '',

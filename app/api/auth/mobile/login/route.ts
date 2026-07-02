@@ -7,6 +7,8 @@ import fs from 'fs';
 import path from 'path';
 
 const TEAMS_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
+const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
+const DEFAULT_TENANT_UUID = 'aaaaaaaa-0000-4000-a000-000000000001';
 
 function getCorrosionTeamForEmployee(tenantId: string, employeeNo: string): { teamName: string; teamId: string } | null {
   try {
@@ -16,7 +18,7 @@ function getCorrosionTeamForEmployee(tenantId: string, employeeNo: string): { te
     if (!Array.isArray(teams)) return null;
     for (const team of teams) {
       if (Array.isArray(team.members)) {
-        const found = team.members.some((m: any) =>
+        const found = team.members.some((m: { employeeNumber?: string; empId?: number | string }) =>
           m.employeeNumber === employeeNo ||
           m.employeeNumber === employeeNo.toUpperCase() ||
           String(m.empId) === employeeNo
@@ -26,6 +28,28 @@ function getCorrosionTeamForEmployee(tenantId: string, employeeNo: string): { te
     }
     return null;
   } catch { return null; }
+}
+
+async function getMonitoringTeamsForEmployee(
+  tenantId: string, employeeNo: string
+): Promise<{ is_monitor: boolean; teams: Array<{ id: string; station_id: string; station_name: string; zone: string; shift: string; member_role: string }> }> {
+  try {
+    // Use UUID tenant - fall back to default if tenantId is not a valid UUID
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const tenantUUID = UUID_RE.test(tenantId) ? tenantId : DEFAULT_TENANT_UUID;
+    const res = await fetch(
+      `${B}/api/v1/ctrl/monitoring-teams/by-employee?employee_no=${encodeURIComponent(employeeNo)}`,
+      {
+        headers: { 'X-Tenant-ID': tenantUUID },
+        signal: AbortSignal.timeout(4000),
+      }
+    );
+    if (res.ok) {
+      const d = await res.json();
+      return { is_monitor: d.is_monitor ?? false, teams: d.teams ?? [] };
+    }
+  } catch { /* ignore */ }
+  return { is_monitor: false, teams: [] };
 }
 
 export async function POST(req: NextRequest) {
@@ -71,6 +95,7 @@ export async function POST(req: NextRequest) {
   clearMobileLoginFailures(attemptKey);
 
   const corrosionTeam = getCorrosionTeamForEmployee(tenant.id, employeeNo);
+  const monitoring    = await getMonitoringTeamsForEmployee(tenant.id, employeeNo);
 
   const token = makeAuthToken(user.email, user.role, {
     tenant_id:   tenant.id,
@@ -80,6 +105,12 @@ export async function POST(req: NextRequest) {
     full_name:   user.full_name || '',
   });
 
+  // Build mobile tabs based on team assignments
+  const tabs: string[] = ['home'];
+  if (monitoring.is_monitor) tabs.push('monitoring');
+  if (corrosionTeam)         tabs.push('my_team');
+  tabs.push('tasks', 'profile');
+
   return NextResponse.json({
     ok: true,
     token,
@@ -88,13 +119,21 @@ export async function POST(req: NextRequest) {
     organization_name: tenant.name,
     department_code:   user.department_code || '',
     tenant_code:       tenant.code,
-    // Corrosion field team info (if employee is assigned)
-    has_corrosion_team: corrosionTeam !== null,
+    // Corrosion field team info
+    has_corrosion_team:  corrosionTeam !== null,
     corrosion_team_name: corrosionTeam?.teamName ?? null,
     corrosion_team_id:   corrosionTeam?.teamId ?? null,
-    // Mobile tab hints based on team assignment
-    mobile_tabs: corrosionTeam
-      ? ['home', 'my_team', 'tasks', 'profile']
-      : ['home', 'tasks', 'profile'],
+    // Monitoring team info (فرق الرصد الميداني)
+    has_monitoring_team:    monitoring.is_monitor,
+    monitoring_teams:       monitoring.teams,
+    monitoring_team_count:  monitoring.teams.length,
+    // Primary monitoring team (first active team)
+    monitoring_team_id:     monitoring.teams[0]?.id ?? null,
+    monitoring_station_id:  monitoring.teams[0]?.station_id ?? null,
+    monitoring_station:     monitoring.teams[0]?.station_name ?? null,
+    monitoring_shift:       monitoring.teams[0]?.shift ?? null,
+    monitoring_role:        monitoring.teams[0]?.member_role ?? null,
+    // Mobile tab configuration
+    mobile_tabs: tabs,
   });
 }

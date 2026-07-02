@@ -210,16 +210,17 @@ export default function AdminGatewayLayout({ children }: { children: React.React
           expandable
           onClose={() => router.push('/dashboard')}
           headerExtra={(
-            <div className="flex items-center gap-2">
-              <MapToggleButton showLabel={false} />
+            <div className="flex items-center gap-1.5">
+              {/* Map toggle — prominent, with label on sm+ */}
+              <MapToggleButton showLabel={true} />
               <button
                 type="button"
                 onClick={openEngineeringWorkspace}
-                className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-3 py-1.5 text-[13px] font-semibold text-emerald-100 shadow-sm hover:bg-emerald-500/25 transition-colors"
-                title="فتح الفضاء الهندسي — مركز الرسم والتعديل والاستخراج"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-100 shadow-sm hover:bg-emerald-500/25 transition-colors"
+                title="فتح الفضاء الهندسي"
               >
-                <Compass className="h-4 w-4" />
-                <span>الفضاء الهندسي</span>
+                <Compass className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">الهندسي</span>
               </button>
             </div>
           )}

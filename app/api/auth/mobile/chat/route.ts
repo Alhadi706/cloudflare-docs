@@ -17,8 +17,10 @@ function writeMessages(file: string, msgs: any[]) {
 }
 
 function resolveEmpNo(req: NextRequest): string {
+  const fromHeader = (req.headers.get('x-verified-employee-no') ?? '').trim().toUpperCase();
+  if (fromHeader) return fromHeader;
   return (req.headers.get('x-verified-email') ?? '')
-    .replace('@mobile.local', '').split('_').slice(1).join('_').toUpperCase();
+    .replace(/@.*$/, '').split('_').slice(1).join('_').toUpperCase();
 }
 
 export async function GET(req: NextRequest) {

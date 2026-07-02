@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Database, Package, Activity, FileText, ChevronLeft, Building2, MapPin, Crown } from 'lucide-react';
+import { Database, Package, Activity, FileText, ChevronLeft, Building2, MapPin, Crown, Layers, ArrowLeft } from 'lucide-react';
 import { useErpContextStore } from '@/store/erpContextStore';
 
 const submodules = [
@@ -110,6 +110,29 @@ export default function AssetsPage() {
                   {!activeSite && <span className="text-gray-500">— كل المواقع</span>}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Asset 360 explanation card */}
+        <div className="rounded-2xl border border-cyan-500/25 bg-cyan-950/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0">
+              <Layers className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-cyan-200">عرض الأصل 360° — كيف يعمل؟</p>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                في <strong className="text-slate-300">سجل الأصول</strong>، يوجد زر <span className="bg-cyan-600/20 text-cyan-400 px-1.5 py-0.5 rounded font-bold text-[11px]">360°</span> بجانب كل أصل.
+                الضغط عليه يفتح عرضاً شاملاً: الملخص، الموقع على الخريطة، تاريخ الصيانة، الوثائق، الحوكمة، والجدول الزمني.
+              </p>
+              <Link
+                href="/dashboard/admin-gateway/assets/registry"
+                className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold text-cyan-300 hover:text-cyan-100 transition-colors"
+              >
+                فتح سجل الأصول ← ابحث عن أصل ← اضغط 360°
+                <ArrowLeft className="w-3 h-3" />
+              </Link>
             </div>
           </div>
         </div>

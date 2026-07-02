@@ -1,33 +1,77 @@
 /**
  * GET/POST /api/v1/satellite/insar-subsidence
- * كشف هبوط الأرض (Subsidence) عبر InSAR — مؤشر تسريب الأنابيب المدفونة
+ * كشف هبوط الأرض (Subsidence) عبر InSAR — ASF HyP3 + NASA Earthdata
  *
- * النظرية:
- *   تسريب أنبوب مياه مدفون → ترطيب التربة → ضغط ميكانيكي → هبوط أو انتفاخ سطح الأرض
- *   بدقة مم/سنة → كاشف ممتاز لتسريبات شبكة المياه والصرف الصحي داخل المدن
- *
- * المصادر:
- *   1. NASA ASF HyP3 (مجاني) — https://hyp3.asf.alaska.edu/
- *      يعالج أزواج Sentinel-1 ويُنتج interferograms + displacement maps
- *      الدقة: 20-80 مم (coherent areas)
- *
- *   2. COMET-LiCS (مجاني) — https://comet.nerc.ac.uk/COMET-LiCS-portal/
- *      Cumulative displacement series لجميع Sentinel-1 tracks
- *      يُنتج displacement بالسنتيمتر للفترة 2014-الآن
- *
- *   3. Copernicus DEM + SRTM (مجاني) — للرقابة على التغيّر الطبوغرافي
- *
- * هذا الـ route:
- *   - يُقدّم خطوات التحليل والروابط للمستخدم
- *   - يستعلم عن Sentinel-1 scene pairs المتاحة للمنطقة المطلوبة
- *   - يُنتج تقرير قابلية InSAR لكل منطقة (coherence estimate)
- *   - يُرجع نقاط اهتمام مُرتبة حسب احتمال وجود subsidence
+ * معتمد: حساب NASA Earthdata alhadiasd — 8000 credit متاحة
+ * وظائف قيد المعالجة: 6 وظائف InSAR_GAMMA (طرابلس × 2 + GMMR × 2 + مزيد)
+ * الوقت المتوقع للإنجاز: 2-8 ساعات
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { searchSTAC, daysAgo, today } from '@/lib/stac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// NASA Earthdata credentials (from .env.local)
+const ED_USER = process.env.NASA_EARTHDATA_USER || '';
+const ED_PASS = process.env.NASA_EARTHDATA_PASS || '';
+const HYP3_API = 'https://hyp3-api.asf.alaska.edu';
+
+/** Get a fresh Earthdata token for ASF HyP3 */
+async function getEdToken(): Promise<string | null> {
+  if (!ED_USER || !ED_PASS) return null;
+  try {
+    const creds = Buffer.from(`${ED_USER}:${ED_PASS}`).toString('base64');
+    const res = await fetch('https://urs.earthdata.nasa.gov/api/users/find_or_create_token', {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${creds}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return d.access_token || null;
+  } catch { return null; }
+}
+
+/** Fetch all HyP3 jobs for our account */
+async function fetchHyP3Jobs(token: string): Promise<any[]> {
+  try {
+    const res = await fetch(`${HYP3_API}/jobs?limit=50`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return [];
+    const d = await res.json();
+    return d.jobs || [];
+  } catch { return []; }
+}
+
+/** Submit a new InSAR job pair */
+async function submitInSARJob(token: string, granule1: string, granule2: string, name: string) {
+  const body = JSON.stringify({
+    jobs: [{
+      job_type: 'INSAR_GAMMA',
+      name: name.slice(0, 30),
+      job_parameters: {
+        granules: [granule1, granule2],
+        include_los_displacement: true,
+        looks: '20x4',
+        apply_water_mask: false,
+      },
+    }],
+  });
+  const res = await fetch(`${HYP3_API}/jobs`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body,
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`HyP3 ${res.status}: ${err.slice(0, 100)}`);
+  }
+  return await res.json();
+}
 
 // ── مناطق الكشف الحضري في ليبيا ──────────────────────────────────────────
 const URBAN_MONITORING_ZONES = [
@@ -102,8 +146,165 @@ function estimateCoherence(scenesCount: number, zoneType: string): 'high' | 'med
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+  const t0   = Date.now();
+
+  // ── Mode: historical query (custom bbox + date range → submit HyP3 jobs) ──
+  if (body.mode === 'historical' || body.bbox || body.date_from) {
+    const bbox: [number,number,number,number] = body.bbox ?? [12.5, 32.5, 14.0, 33.2];
+    const dateFrom: string = body.date_from ?? daysAgo(365);
+    const dateTo:   string = body.date_to   ?? today();
+    const areaName: string = body.area_name ?? 'منطقة مخصصة';
+    const maxPairs: number = Math.min(body.max_pairs ?? 4, 10);
+
+    const token = await getEdToken();
+    if (!token) {
+      return NextResponse.json({ ok: false, error: 'NASA Earthdata credentials مطلوبة', data_real: false }, { status: 401 });
+    }
+
+    // Search CMR for S1A SLC scenes in the bbox/date range
+    const bboxStr = bbox.join(',');
+    const cmrUrl  = `https://cmr.earthdata.nasa.gov/search/granules.json?short_name=SENTINEL-1A_SLC&bounding_box=${bboxStr}&temporal=${dateFrom},${dateTo}&page_size=50&sort_key=-start_date`;
+    let scenes: any[] = [];
+    try {
+      const cmrRes = await fetch(cmrUrl, { signal: AbortSignal.timeout(20_000) });
+      if (cmrRes.ok) {
+        const d = await cmrRes.json();
+        scenes = d.feed?.entry ?? [];
+      }
+    } catch { /* ignore */ }
+
+    if (scenes.length < 2) {
+      return NextResponse.json({
+        ok:    false,
+        error: `لم يُعثر على مشاهد S1 كافية في الفترة ${dateFrom} → ${dateTo}. الحد الأدنى: 2 مشاهد.`,
+        scenes_found: scenes.length,
+        data_real: true,
+      }, { status: 422 });
+    }
+
+    // Group scenes by approximate overpass time to find same-path pairs
+    // Also try direct pairing by date (any 10-18 day window = valid InSAR pair)
+    const byPass: Record<string, {date: string; name: string}[]> = {};
+    for (const s of scenes) {
+      const t    = s.time_start ?? '';
+      const pass = t.slice(11, 14); // hour group e.g. "05" or "17"
+      const name = s.title.replace('-SLC', '');
+      const date = t.slice(0, 10);
+      if (!byPass[pass]) byPass[pass] = [];
+      byPass[pass].push({ date, name });
+    }
+
+    // Build pairs: first try same-pass-time groups (most reliable)
+    // then fall back to any 10-18 day window
+    const pairs: {ref: string; sec: string; date_ref: string; date_sec: string}[] = [];
+
+    // Pass 1: same-time-group pairs
+    for (const [, passScenes] of Object.entries(byPass)) {
+      passScenes.sort((a, b) => b.date.localeCompare(a.date));
+      for (let i = 0; i < passScenes.length - 1 && pairs.length < maxPairs; i++) {
+        const s1 = passScenes[i];
+        const s2 = passScenes[i + 1];
+        const diffDays = (new Date(s1.date).getTime() - new Date(s2.date).getTime()) / 86400_000;
+        if (diffDays >= 10 && diffDays <= 18) {
+          pairs.push({ ref: s1.name, sec: s2.name, date_ref: s1.date, date_sec: s2.date });
+        }
+      }
+    }
+
+    // Pass 2: if still not enough pairs, try any scene combination with 10-18 day gap
+    if (pairs.length < maxPairs) {
+      const allScenes = scenes.map((s: any) => ({
+        date: (s.time_start ?? '').slice(0, 10),
+        name: s.title.replace('-SLC', ''),
+      })).sort((a: any, b: any) => b.date.localeCompare(a.date));
+
+      for (let i = 0; i < allScenes.length - 1 && pairs.length < maxPairs; i++) {
+        for (let j = i + 1; j < allScenes.length && pairs.length < maxPairs; j++) {
+          const d1 = new Date(allScenes[i].date).getTime();
+          const d2 = new Date(allScenes[j].date).getTime();
+          const diffDays = (d1 - d2) / 86400_000;
+          if (diffDays >= 10 && diffDays <= 18) {
+            const already = pairs.some(p => p.ref === allScenes[i].name || p.sec === allScenes[j].name);
+            if (!already) {
+              pairs.push({ ref: allScenes[i].name, sec: allScenes[j].name, date_ref: allScenes[i].date, date_sec: allScenes[j].date });
+              break; // move to next i
+            }
+          }
+        }
+      }
+    }
+
+    if (pairs.length === 0) {
+      return NextResponse.json({
+        ok:    false,
+        error: 'لم يُعثر على أزواج InSAR صالحة (يحتاج زوجان من نفس المسار بفارق 10-18 يوماً)',
+        scenes_found: scenes.length,
+        scene_dates: scenes.slice(0, 8).map(s => s.time_start?.slice(0, 10)),
+        data_real: true,
+      }, { status: 422 });
+    }
+
+    // Submit HyP3 INSAR_GAMMA jobs
+    const jobs_body = {
+      jobs: pairs.map((p, idx) => ({
+        job_type: 'INSAR_GAMMA',
+        name: `${areaName.slice(0, 20)}_${p.date_ref}`.replace(/\s/g, '_').slice(0, 30),
+        job_parameters: {
+          granules: [p.ref, p.sec],
+          include_los_displacement: true,
+          looks: '20x4',
+          apply_water_mask: false,
+        },
+      })),
+    };
+
+    let submitted: any[] = [];
+    let submitError: string | null = null;
+    try {
+      const res = await fetch(`${HYP3_API}/jobs`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(jobs_body),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        submitted = d.jobs ?? [];
+      } else {
+        submitError = `HyP3 ${res.status}: ${(await res.text()).slice(0, 100)}`;
+      }
+    } catch (e: any) {
+      submitError = e.message?.slice(0, 100);
+    }
+
+    return NextResponse.json({
+      ok:              submitted.length > 0,
+      data_real:       true,
+      mode:            'historical',
+      query_ms:        Date.now() - t0,
+      area_name:       areaName,
+      bbox,
+      date_from:       dateFrom,
+      date_to:         dateTo,
+      scenes_found:    scenes.length,
+      pairs_built:     pairs.length,
+      jobs_submitted:  submitted.length,
+      submit_error:    submitError,
+      jobs: submitted.map(j => ({
+        job_id:   j.job_id,
+        name:     j.name,
+        status:   j.status_code,
+        granules: j.job_parameters?.granules ?? [],
+      })),
+      pairs,
+      message: submitted.length > 0
+        ? `✅ أُرسلت ${submitted.length} وظيفة InSAR — النتائج خلال 2-8 ساعات`
+        : `❌ فشل الإرسال: ${submitError}`,
+    });
+  }
+
+  // ── Default mode: zone feasibility assessment ──────────────────────────────
   const zones = body.zones ?? URBAN_MONITORING_ZONES;
-  const t0    = Date.now();
 
   const results: ZoneInSARReadiness[] = await Promise.all(
     zones.map(async (zone: typeof URBAN_MONITORING_ZONES[0]) => {
@@ -268,9 +469,119 @@ result = hyp3.watch(job)
 }
 
 export async function GET(req: NextRequest) {
-  return POST(new NextRequest(req.url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+  const t0 = Date.now();
+  const hasCredentials = !!(ED_USER && ED_PASS);
+
+  // Get HyP3 jobs status if credentials available
+  let hyp3Jobs: any[] = [];
+  let hyp3Error: string | null = null;
+  let accountInfo: any = null;
+
+  if (hasCredentials) {
+    const token = await getEdToken();
+    if (token) {
+      [hyp3Jobs] = await Promise.all([
+        fetchHyP3Jobs(token),
+      ]);
+      // Get account info
+      try {
+        const res = await fetch(`${HYP3_API}/user`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (res.ok) accountInfo = await res.json();
+      } catch { /* ignore */ }
+    } else {
+      hyp3Error = 'فشل الحصول على NASA Earthdata token';
+    }
+  }
+
+  // Categorize jobs
+  const pending    = hyp3Jobs.filter(j => j.status_code === 'PENDING');
+  const running    = hyp3Jobs.filter(j => j.status_code === 'RUNNING');
+  const succeeded  = hyp3Jobs.filter(j => j.status_code === 'SUCCEEDED');
+  const failed     = hyp3Jobs.filter(j => j.status_code === 'FAILED');
+
+  // Parse displacement results from completed jobs
+  const results = succeeded.map(j => {
+    const files = j.files || [];
+    const dispFile = files.find((f: any) => f.filename?.includes('displacement') || f.filename?.includes('los'));
+    const browseFile = files.find((f: any) => f.filename?.endsWith('.png') || f.filename?.endsWith('.browse.png'));
+    return {
+      job_id:        j.job_id,
+      name:          j.name,
+      status:        j.status_code,
+      expiration:    j.expiration_time,
+      files_count:   files.length,
+      displacement_url: dispFile?.url || null,
+      browse_url:    browseFile?.url || null,
+      files: files.slice(0, 5).map((f: any) => ({ name: f.filename, url: f.url, size_mb: f.size ? (f.size/1048576).toFixed(1) : '?' })),
+    };
+  });
+
+  // Check S1 scene availability for monitoring zones (from STAC)
+  const zones = await Promise.all(URBAN_MONITORING_ZONES.map(async z => {
+    const scenes = await searchSTAC({ bbox: z.bbox, date_from: daysAgo(180), date_to: today(), collections: ['sentinel-1-grd'], max_cloud: 100, limit: 10 }).catch(() => []);
+    return {
+      ...z,
+      center: [z.lon, z.lat] as [number, number],
+      s1_scenes_6m: scenes.length,
+      insar_feasible: scenes.length >= 2,
+      coherence_est: estimateCoherence(scenes.length, z.city),
+      recommended_method: scenes.length >= 4 ? 'InSAR_GAMMA (12-day pairs)' : scenes.length >= 2 ? 'InSAR_GAMMA (single pair)' : 'أضف مزيداً من المشاهد',
+    };
   }));
+
+  return NextResponse.json({
+    ok: true,
+    data_real: true,
+    source: 'ASF HyP3 INSAR_GAMMA + NASA Earthdata',
+    query_ms: Date.now() - t0,
+    has_credentials: hasCredentials,
+    error: hyp3Error,
+
+    account: accountInfo ? {
+      user_id:           accountInfo.user_id,
+      status:            accountInfo.application_status,
+      remaining_credits: accountInfo.remaining_credits,
+    } : null,
+
+    jobs_summary: {
+      total:     hyp3Jobs.length,
+      pending:   pending.length,
+      running:   running.length,
+      succeeded: succeeded.length,
+      failed:    failed.length,
+    },
+
+    pending_jobs: pending.map(j => ({
+      job_id: j.job_id,
+      name:   j.name,
+      type:   j.job_type,
+      submitted: j.request_time,
+      granules: j.job_parameters?.granules || [],
+    })),
+
+    completed_results: results,
+
+    zone_readiness: {
+      zones_analyzed: zones.length,
+      insar_ready:    zones.filter(z => z.insar_feasible).length,
+      high_priority:  zones.filter(z => z.priority === 'high').length,
+      zones,
+    },
+
+    interpretation: succeeded.length > 0
+      ? `${succeeded.length} خريطة إزاحة InSAR جاهزة للتحميل — ابحث عن مناطق هبوط ≥5 مم/فترة`
+      : pending.length > 0
+      ? `${pending.length} وظيفة قيد المعالجة — النتائج متوقعة خلال 2-8 ساعات`
+      : 'لا توجد وظائف InSAR نشطة — أرسل طلب POST لبدء المعالجة',
+
+    how_to_read: {
+      displacement_positive: 'حركة نحو القمر الصناعي (انتفاخ) → تراكم مياه تحت السطح',
+      displacement_negative: 'حركة بعيداً عن القمر (هبوط) → تسرب + ترسب + انهيار',
+      alert_threshold: 'هبوط > 5 مم في 12 يوم = إشارة خطر أنبوب مدفون',
+      coherence: 'Coherence > 0.5 = نتائج موثوقة | < 0.3 = صخب عالي (غطاء نباتي أو رياح)',
+    },
+  });
 }

@@ -176,9 +176,13 @@ export function hashPassword(password: string, salt?: string): { hash: string; s
 }
 
 export function verifyPassword(password: string, hash: string, salt: string): boolean {
+  if (!hash || !salt) return false;
   const { hash: h } = hashPassword(password, salt);
-  // Constant-time compare
-  return crypto.timingSafeEqual(Buffer.from(h, 'hex'), Buffer.from(hash, 'hex'));
+  const a = Buffer.from(h, 'hex');
+  const b = Buffer.from(hash, 'hex');
+  // Constant-time compare (requires same length)
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 export function generateUsername(fullName: string, deptCode: string, existingUsernames: string[]): string {

@@ -32,8 +32,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const { id } = params;
   try {
     const body = await request.json();
-    const response = await fetch(`http://localhost:7860/work-orders/${id}`, {
-      method: 'PUT',
+    // Forward to the correct backend endpoint for status updates
+    const response = await fetch(`http://localhost:7860/api/v1/workflow/work-orders/${id}/status`, {
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         ...buildTenantHeaders(request),
