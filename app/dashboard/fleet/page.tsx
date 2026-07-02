@@ -23,7 +23,7 @@ export default function FleetPage() {
               <Truck className="w-5 h-5 text-yellow-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-100">إدارة الأسطول</h1>
+              <h1 className="text-2xl font-bold text-slate-100">إدارة الخدمات</h1>
               <p className="text-sm text-slate-500">المركبات والمعدات والوقود</p>
             </div>
           </div>
@@ -44,10 +44,10 @@ export default function FleetPage() {
           ))}
         </div>
         <div className="mt-6">
-          <InternalMailTab department="fleet_manager" title="نظام المراسلات الموحد - إدارة الأسطول" />
+          <InternalMailTab department="fleet_manager" title="نظام المراسلات الموحد - إدارة الخدمات" />
         </div>
         <div className="mt-6">
-          <DepartmentAssetInbox department="fleet" title="أصول إدارة الأسطول" />
+          <DepartmentAssetInbox department="fleet" title="أصول إدارة الخدمات" />
         </div>
       </div>
     </div>

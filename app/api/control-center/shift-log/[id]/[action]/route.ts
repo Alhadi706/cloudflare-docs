@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
 const ALLOWED = new Set(['entry', 'close']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getTenant(req: NextRequest): string {
   try {
@@ -16,10 +17,12 @@ function getTenant(req: NextRequest): string {
     const token = cookie || bearer;
     if (token) {
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-      if (payload.tenant_id) return String(payload.tenant_id);
+      const tid = String(payload.tenant_id ?? '');
+      if (UUID_RE.test(tid)) return tid;
     }
   } catch { /* fall through */ }
-  return req.headers.get('x-verified-tenant-id') ?? 'aaaaaaaa-0000-4000-a000-000000000001';
+  const hdr = req.headers.get('x-verified-tenant-id') ?? '';
+  return UUID_RE.test(hdr.trim()) ? hdr.trim() : 'aaaaaaaa-0000-4000-a000-000000000001';
 }
 
 export async function POST(

@@ -261,6 +261,25 @@ export default function GISManagerPage() {
           <div className="space-y-4">
             <GisLiveStats />
 
+            {/* SLA Indicators */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">مؤشرات الأداء والسلامة التشغيلية</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: 'وقت الاستجابة',    value: '< 24 ساعة', sub: 'هدف SLA الطلبات الميدانية', color: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/5'  },
+                  { label: 'تحديث الطبقات',    value: 'يومي',       sub: 'دورة تحديث البيانات الجغرافية', color: 'text-blue-400',    border: 'border-blue-500/20',    bg: 'bg-blue-500/5'    },
+                  { label: 'دقة المواقع',       value: '± 1 م',      sub: 'GPS differential — RTK',    color: 'text-purple-400',  border: 'border-purple-500/20',  bg: 'bg-purple-500/5'  },
+                  { label: 'تغطية المراقبة',    value: '24/7',       sub: 'Sentinel-2 + VIIRS تلقائي',  color: 'text-amber-400',   border: 'border-amber-500/20',   bg: 'bg-amber-500/5'   },
+                ].map(({ label, value, sub, color, border, bg }) => (
+                  <div key={label} className={`rounded-xl border ${border} ${bg} p-3 text-center`}>
+                    <div className={`text-lg font-bold ${color}`}>{value}</div>
+                    <div className="text-xs font-semibold text-slate-300 mt-1">{label}</div>
+                    <div className="text-[10px] text-slate-600 mt-0.5 leading-tight">{sub}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div>
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">الروابط التنفيذية والمراقبة</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

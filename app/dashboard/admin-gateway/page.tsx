@@ -6,13 +6,12 @@ import {
   ShoppingCart, Warehouse, BookOpen, CheckSquare, FileSignature,
   DollarSign, Truck, ClipboardList, Bell, Building2,
   MapPin, Activity, ChevronLeft, ZapOff, BarChart2, Upload, Layers, AlertTriangle,
-  X,
+  X, Crown,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGisEngine } from '@/store/gisEngine';
 import DepartmentAssetInbox from '@/components/DepartmentAssetInbox';
-import InternalMailTab from '@/components/InternalMailTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +69,7 @@ const DEPARTMENTS_BASE = [
       { title: 'الميزانية والمصروفات', icon: <Wallet className="w-5 h-5 text-amber-400" />,        iconBg: 'bg-amber-900/40 border-amber-500/30',     description: 'الميزانيات — المصروفات — التخصيصات',             href: '/dashboard/admin-gateway/finance/budgets' },
       { title: 'المحاسبة المالية',    icon: <BookOpen className="w-5 h-5 text-indigo-400" />,      iconBg: 'bg-indigo-900/40 border-indigo-500/30',   description: 'دليل الحسابات — مراكز التكلفة — القيود',         href: '/dashboard/admin-gateway/accounting' },
       { title: 'الإيرادات والتحصيلات',icon: <DollarSign className="w-5 h-5 text-emerald-400" />,  iconBg: 'bg-emerald-900/40 border-emerald-500/30', description: 'الفواتير — التحصيلات — العملاء',                  href: '/dashboard/admin-gateway/revenue' },
+      { title: 'المشتريات',            icon: <ShoppingCart className="w-5 h-5 text-orange-400" />, iconBg: 'bg-orange-900/40 border-orange-500/30',   description: 'الموردون — طلبات الشراء — أوامر الشراء',         href: '/dashboard/admin-gateway/procurement' },
     ],
   },
   {
@@ -82,7 +82,7 @@ const DEPARTMENTS_BASE = [
     approvalCard: { label: 'موافقات المواد', href: '/dashboard/admin-gateway/workflow/approvals?role=supervisor&dept=materials' },
     subModules: [
       { title: 'إدارة الأصول',         icon: <Shield className="w-5 h-5 text-teal-400" />,         iconBg: 'bg-teal-900/40 border-teal-500/30',       description: 'سجل الأصول — الفئات — التقييمات',                 href: '/dashboard/admin-gateway/assets/registry' },
-      { title: 'المخزون والمستودعات', icon: <Warehouse className="w-5 h-5 text-cyan-400" />,       iconBg: 'bg-cyan-900/40 border-cyan-500/30',       description: 'المستودعات — الأصناف — الاستلام والإصدار',        href: '/dashboard/admin-gateway/materials/inventory' },
+      { title: 'المخزون والمستودعات', icon: <Warehouse className="w-5 h-5 text-cyan-400" />,       iconBg: 'bg-cyan-900/40 border-cyan-500/30',       description: 'المستودعات — الأصناف — الاستلام والإصدار',        href: '/dashboard/admin-gateway/inventory' },
       { title: 'المركبات والمعدات',   icon: <Truck className="w-5 h-5 text-orange-400" />,         iconBg: 'bg-orange-900/40 border-orange-500/30',   description: 'سجل المركبات — التعيين للمشاريع — الوقود',        href: '/dashboard/admin-gateway/vehicles' },
     ],
   },
@@ -347,6 +347,12 @@ export default function AdminGateway() {
                 {DEPARTMENTS_BASE.length} إدارات
               </span>
               <Link
+                href="/dashboard/admin-gateway/gm-office"
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-amber-200 font-semibold transition hover:bg-amber-500/25"
+              >
+                <Crown className="h-3.5 w-3.5" /> مكتب المدير العام
+              </Link>
+              <Link
                 href="/dashboard/admin-gateway/my-dashboard"
                 className="inline-flex items-center gap-1.5 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3 py-1.5 text-indigo-200 transition hover:bg-indigo-500/20"
               >
@@ -372,10 +378,6 @@ export default function AdminGateway() {
           <>
             <div className="w-full">
               <DepartmentAssetInbox department="administrative" title="أصول الشؤون الإدارية" compact />
-            </div>
-
-            <div className="w-full">
-              <InternalMailTab department="admin_manager" title="نظام المراسلات الموحد - البوابة الإدارية" />
             </div>
 
             {/* Grouped department cards */}

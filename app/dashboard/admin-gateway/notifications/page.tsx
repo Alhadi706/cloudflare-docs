@@ -1,13 +1,18 @@
 'use client';
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Bell, ChevronLeft, RefreshCw, CheckCheck, AlertTriangle, AlertCircle, Info, Filter } from 'lucide-react';
+import { Bell, ChevronLeft, RefreshCw, CheckCheck, AlertTriangle, AlertCircle, Info, Filter, Send, X, Users, Smartphone, Radio } from 'lucide-react';
 
 const getTenantId = (): string | null => {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('tenant_id');
 };
+const getToken = (): string => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
+};
 const BASE   = '/api/v1/integration';
+const MOBILE = '/api/auth/mobile';
 
 interface Notification {
   id: number;
@@ -45,6 +50,236 @@ const SEV_CONFIG = {
   info:     { bg: 'bg-slate-800/50 border-slate-700',    icon: <Info className="w-5 h-5 text-blue-400"/>,           badge: 'bg-blue-500/20 text-blue-300',   label: 'معلومة' },
 };
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface Subscriber {
+  employee_no: string;
+  full_name:   string;
+  role:        string;
+  push_count:  number;
+  last_seen:   string;
+}
+
+// ── Send Notification Dialog ──────────────────────────────────────────────────
+function SendNotifDialog({ onClose, onSent }: { onClose: () => void; onSent: (result: any) => void }) {
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [loadingSubs, setLoadingSubs] = useState(true);
+  const [hasPush, setHasPush]         = useState(false);
+  const [form, setForm] = useState({
+    recipient:   'broadcast',  // 'broadcast' or employee_no
+    title:       '',
+    body:        '',
+    urgency:     'normal',
+    type:        'info',
+    url:         '/m',
+  });
+  const [sending, setSending] = useState(false);
+  const [result,  setResult]  = useState<{ ok: boolean; push_sent?: number; error?: string } | null>(null);
+
+  useEffect(() => {
+    fetch(`${MOBILE}/subscribers`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        setSubscribers(d.subscribers || []);
+        setHasPush(d.has_push_enabled ?? false);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSubs(false));
+  }, []);
+
+  const send = async () => {
+    if (!form.title.trim()) return;
+    setSending(true);
+    setResult(null);
+    try {
+      const payload: Record<string, any> = {
+        title:   form.title.trim(),
+        body:    form.body.trim(),
+        urgency: form.urgency,
+        type:    form.type,
+        url:     form.url,
+      };
+      if (form.recipient === 'broadcast') {
+        payload.broadcast = true;
+      } else {
+        payload.employee_no = form.recipient;
+      }
+
+      const res = await fetch(`${MOBILE}/notifications`, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          Authorization:   `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setResult({ ok: true, push_sent: data.push_sent });
+        onSent(data);
+      } else {
+        setResult({ ok: false, error: data.detail || 'فشل الإرسال' });
+      }
+    } catch {
+      setResult({ ok: false, error: 'خطأ في الاتصال' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const URGENCY_OPTS = [
+    { value: 'normal',   label: 'عادي',  color: 'text-slate-300' },
+    { value: 'high',     label: 'عالي',  color: 'text-amber-400' },
+    { value: 'critical', label: 'عاجل',  color: 'text-red-400'   },
+  ];
+  const TYPE_OPTS = [
+    { value: 'info',    label: 'معلومة' },
+    { value: 'warning', label: 'تحذير'  },
+    { value: 'alert',   label: 'تنبيه'  },
+    { value: 'task',    label: 'مهمة'   },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" dir="rtl">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg mx-4 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="bg-violet-600/20 p-2 rounded-lg border border-violet-500/40">
+              <Smartphone className="w-5 h-5 text-violet-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-100">إرسال تنبيه للموظفين الميدانيين</h2>
+              <p className="text-xs text-slate-500">Web Push → تطبيق الجوال مباشرة</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Push status */}
+          {!hasPush && !loadingSubs && (
+            <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-300 text-sm">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>مفاتيح VAPID غير مهيأة — التنبيهات ستُحفظ لكن لن تُرسل فورياً للجوال</span>
+            </div>
+          )}
+
+          {/* Recipient */}
+          <div>
+            <label className="block text-sm text-slate-400 mb-2">المستلم</label>
+            {loadingSubs ? (
+              <div className="h-10 bg-slate-800 rounded-lg animate-pulse" />
+            ) : (
+              <select
+                value={form.recipient}
+                onChange={e => setForm(p => ({ ...p, recipient: e.target.value }))}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-violet-500"
+              >
+                <option value="broadcast">
+                  📡 جميع الموظفين الميدانيين ({subscribers.length} مشترك)
+                </option>
+                {subscribers.map(s => (
+                  <option key={s.employee_no} value={s.employee_no}>
+                    👤 {s.full_name} — {s.role} ({s.push_count} جهاز)
+                  </option>
+                ))}
+              </select>
+            )}
+            {!loadingSubs && subscribers.length === 0 && (
+              <p className="text-xs text-slate-500 mt-1">لا يوجد موظفون مسجلون في التطبيق بعد</p>
+            )}
+          </div>
+
+          {/* Title */}
+          <div>
+            <label className="block text-sm text-slate-400 mb-2">عنوان التنبيه <span className="text-red-400">*</span></label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+              placeholder="مثال: مهمة صيانة عاجلة في محطة الضخ 3"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-violet-500"
+              maxLength={80}
+            />
+          </div>
+
+          {/* Body */}
+          <div>
+            <label className="block text-sm text-slate-400 mb-2">تفاصيل الرسالة</label>
+            <textarea
+              value={form.body}
+              onChange={e => setForm(p => ({ ...p, body: e.target.value }))}
+              placeholder="تفاصيل إضافية تظهر في الإشعار..."
+              rows={3}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-violet-500 resize-none"
+              maxLength={200}
+            />
+          </div>
+
+          {/* Urgency + Type row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-slate-400 mb-2">الأولوية</label>
+              <select
+                value={form.urgency}
+                onChange={e => setForm(p => ({ ...p, urgency: e.target.value }))}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-violet-500"
+              >
+                {URGENCY_OPTS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-2">النوع</label>
+              <select
+                value={form.type}
+                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-violet-500"
+              >
+                {TYPE_OPTS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Result */}
+          {result && (
+            <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${result.ok ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border border-red-500/30 text-red-300'}`}>
+              {result.ok ? (
+                <>✅ تم الإرسال بنجاح — <strong>{result.push_sent ?? 0}</strong> إشعار مباشر للجوال</>
+              ) : (
+                <>❌ {result.error}</>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-800">
+          <button onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm">
+            إغلاق
+          </button>
+          <button
+            onClick={send}
+            disabled={sending || !form.title.trim()}
+            className="px-5 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm flex items-center gap-2 font-medium"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? 'جاري الإرسال...' : 'إرسال التنبيه'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function NotificationsPage() {
   const [notifs, setNotifs]       = useState<Notification[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -53,6 +288,7 @@ export default function NotificationsPage() {
   const [filter, setFilter]       = useState<'all'|'critical'|'warning'|'info'>('all');
   const [modFilter, setModFilter] = useState('');
   const [showResolved, setShowResolved] = useState(false);
+  const [showSendDialog, setShowSendDialog] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,6 +337,14 @@ export default function NotificationsPage() {
     <div className="min-h-screen bg-slate-950 p-6 md:p-8" dir="rtl">
       <div className="max-w-5xl mx-auto space-y-6">
 
+        {/* Send Dialog */}
+        {showSendDialog && (
+          <SendNotifDialog
+            onClose={() => setShowSendDialog(false)}
+            onSent={() => { setShowSendDialog(false); }}
+          />
+        )}
+
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-slate-400">
           <Link href="/dashboard/admin-gateway" className="hover:text-slate-200">بوابة النظام</Link>
@@ -125,12 +369,16 @@ export default function NotificationsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowSendDialog(true)}
+              className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm flex items-center gap-2 font-medium">
+              <Smartphone className="w-4 h-4" /> إرسال للموظفين
+            </button>
             <button onClick={readAll} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm flex items-center gap-2">
               <CheckCheck className="w-4 h-4" /> قراءة الكل
             </button>
-            <button onClick={triggerSync} disabled={syncing} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-50">
+            <button onClick={triggerSync} disabled={syncing} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-50">
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'جاري المزامنة...' : 'مزامنة الآن'}
+              {syncing ? 'جاري المزامنة...' : 'مزامنة'}
             </button>
           </div>
         </div>

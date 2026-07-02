@@ -32,7 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // other admin-gateway pages — only sub-pages need GIS workspace treatment.
   const isAdminGateway = pathname.startsWith('/dashboard/admin-gateway') &&
                           !pathname.startsWith('/dashboard/admin-gateway/maintenance/');
-  const isGisWorkspace = pathname.startsWith('/dashboard/gis-sovereignty') ||
+  const isGisWorkspace = (pathname.startsWith('/dashboard/gis-sovereignty/') &&
+                         !pathname.startsWith('/dashboard/gis-sovereignty/manager')) ||
                          (pathname.startsWith('/dashboard/admin-gateway/maintenance/') &&
                           !pathname.startsWith('/dashboard/admin-gateway/maintenance/preventive') &&
                           !pathname.startsWith('/dashboard/admin-gateway/maintenance/admin') &&

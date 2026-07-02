@@ -9,10 +9,11 @@ export const dynamic = 'force-dynamic';
 
 const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
 const DEFAULT_TENANT = 'aaaaaaaa-0000-4000-a000-000000000001';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getTenantHeader(req: NextRequest): string {
   const verified = req.headers.get('x-verified-tenant-id')?.trim();
-  if (verified) return verified;
+  if (verified && UUID_RE.test(verified)) return verified;
   const auth = req.headers.get('authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : (req.cookies.get('auth_token')?.value ?? '');
   if (token) {

@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { resolveTenantContext } from '@/lib/gis/tenantContext';
 import 'ol/ol.css';
-import Map from 'ol/Map';
+import OlMap from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
@@ -12,7 +13,6 @@ import { Style, Fill, Stroke, Circle as CircleStyle, Text as OLText } from 'ol/s
 import { fromLonLat } from 'ol/proj';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
-import { Map as OLMap } from 'ol';
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 interface ProjectPin {
@@ -26,10 +26,7 @@ interface ExecutionSummary { budgets_count:number; allocated_amount:number; spen
 interface ProjectDetail { loading:boolean; error:string|null; project?:any; spatial?:SpatialSummary; execution?:ExecutionSummary; sites?:any[]; layers?:any[]; asset_depts?:Record<string,{total:number;healthy:number;critical:number}>; }
 
 /* ─── Constants ──────────────────────────────────────────────────────────────── */
-const getTenantId = () => {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('tenant_id') || localStorage.getItem('active_tenant_id') || '';
-};
+const getTenantId = () => resolveTenantContext().tenantId ?? '';
 const STATUS_LABEL:Record<string,string> = { active:'نشط', completed:'مكتمل', on_hold:'معلق', cancelled:'ملغي', planning:'تخطيط' };
 const STATUS_COLOR:Record<string,string> = { active:'#22c55e', completed:'#60a5fa', on_hold:'#f59e0b', cancelled:'#ef4444', planning:'#a78bfa' };
 type BaseMap = 'dark'|'satellite'|'light';
@@ -67,10 +64,10 @@ function pinStyle(pin:ProjectPin, sel:boolean):Style {
 /* ─── Page ───────────────────────────────────────────────────────────────────── */
 export default function ERPGisDashboardPage() {
   const mapRef      = useRef<HTMLDivElement>(null);
-  const mapObj      = useRef<OLMap|null>(null);
+  const mapObj      = useRef<OlMap|null>(null);
   const pinSrcRef   = useRef<VectorSource|null>(null);
   const baseTile    = useRef<TileLayer<any>|null>(null);
-  const featById    = useRef<Map<number,Feature>>(new Map());
+  const featById    = useRef<globalThis.Map<number,Feature>>(new globalThis.Map<number,Feature>());
 
   const [pins, setPins]       = useState<ProjectPin[]>([]);
   const [loading, setLoad]    = useState(true);
@@ -119,7 +116,7 @@ export default function ERPGisDashboardPage() {
     const src = new VectorSource();
     pinSrcRef.current = src;
     const vec = new VectorLayer({source:src,zIndex:10});
-    const map = new OLMap({target:mapRef.current,layers:[tile,vec],view:new View({center:fromLonLat([13.18,32.9]),zoom:10})});
+    const map = new OlMap({target:mapRef.current,layers:[tile,vec],view:new View({center:fromLonLat([13.18,32.9]),zoom:10})});
     mapObj.current = map;
     map.on('click',(evt)=>{
       const feat = map.forEachFeatureAtPixel(evt.pixel,f=>f,{hitTolerance:10});
@@ -165,7 +162,7 @@ export default function ERPGisDashboardPage() {
     return ()=>map.un('moveend',h);
   },[selected]);
 
-  const doSelect=(pin:ProjectPin,map?:OLMap|null)=>{
+  const doSelect=(pin:ProjectPin,map?:OlMap|null)=>{
     setSel(pin);
     const m=map??mapObj.current;
     if(m){

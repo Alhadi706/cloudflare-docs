@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   ArrowRight, Users, MapPin, Radio, Plus, Save,
   X, ChevronDown, ChevronUp, User, RefreshCw, Clock,
-  AlertCircle, Phone, Trash2, Loader2,
+  AlertCircle, Phone, Trash2, Loader2, CheckCircle2, XCircle,
 } from 'lucide-react';
 
 function getAuthHeaders(): Record<string, string> {
@@ -73,6 +73,12 @@ export default function MonitoringTeamsPage() {
   const [newMemberRole, setNewMemberRole] = useState<TeamMember['role']>('راصد');
   const [newNotes, setNewNotes] = useState('');
   const [tempMembers, setTempMembers] = useState<TeamMember[]>([]);
+  const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
+
+  function showToast(type: 'ok' | 'err', msg: string) {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 5000);
+  }
   const formRef = useRef<HTMLDivElement>(null);
 
   const loadTeams = useCallback(async () => {
@@ -114,16 +120,45 @@ export default function MonitoringTeamsPage() {
 
   const saveNewTeam = async () => {
     const station = STATIONS.find(s => s.id === newStation);
-    if (!station || tempMembers.length === 0) return;
+    if (!station) return;
+
+    // Auto-add the currently selected member if tempMembers is still empty
+    let members = [...tempMembers];
+    if (members.length === 0 && newMemberEmpId) {
+      const emp = employees.find(e => e.id === +newMemberEmpId);
+      if (emp) {
+        members = [{ employee_id: emp.id, employee_number: emp.employee_number || String(emp.id), name_ar: emp.full_name_ar || emp.full_name_en, role: newMemberRole, phone: emp.phone ?? null }];
+        setTempMembers(members);
+      }
+    }
+    if (members.length === 0) return;
+
     setSaving(true);
     try {
       const res = await fetch('/api/control-center/monitoring-teams', {
         method: 'POST', headers: getAuthHeaders(),
-        body: JSON.stringify({ station_id: station.id, station_name: station.name, station_name_en: station.name_en, zone: station.zone, lat: station.lat, lng: station.lng, shift: newShift, status: 'نشط', notes: newNotes, members: tempMembers }),
+        body: JSON.stringify({ station_id: station.id, station_name: station.name, station_name_en: station.name_en, zone: station.zone, lat: station.lat, lng: station.lng, shift: newShift, status: 'نشط', notes: newNotes, members }),
       });
       const d = await res.json();
-      if (d.success) { setTeams(d.teams ?? []); setShowAddForm(false); setNewStation(''); setNewShift('صباحي'); setTempMembers([]); setNewNotes(''); if (d.id) setExpandedId(d.id); }
-    } catch { /* ignore */ }
+      if (d.success) {
+        setTeams(d.teams ?? []);
+        setShowAddForm(false);
+        setNewStation(''); setNewShift('صباحي'); setTempMembers([]); setNewNotes('');
+        if (d.id) setExpandedId(d.id);
+        showToast('ok', `✓ تم إنشاء فريق رصد لـ ${station.name} بنجاح`);
+        // Scroll to teams list
+        setTimeout(() => {
+          const list = document.getElementById('teams-list');
+          if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 200);
+      } else {
+        showToast('err', `خطأ في الحفظ: ${JSON.stringify(d)}`);
+        console.error('Save team failed:', d);
+      }
+    } catch (err) {
+      showToast('err', `حدث خطأ في الاتصال: ${String(err)}`);
+      console.error('Save team error:', err);
+    }
     setSaving(false);
   };
 
@@ -141,6 +176,8 @@ export default function MonitoringTeamsPage() {
 
   const openAddForStation = (stationId: string) => {
     setNewStation(stationId); setTempMembers([]); setNewNotes(''); setNewShift('صباحي'); setShowAddForm(true);
+    // Scroll to form whether it was already open or not
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
   };
 
   return (
@@ -195,6 +232,18 @@ export default function MonitoringTeamsPage() {
           ))}
         </div>
 
+        {/* Toast */}
+        {toast && (
+          <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium ${
+            toast.type === 'ok'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+          }`}>
+            {toast.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0"/> : <XCircle className="w-4 h-4 shrink-0"/>}
+            {toast.msg}
+          </div>
+        )}
+
         {/* Add form */}
         {showAddForm && (
           <div ref={formRef} className="bg-slate-900 border border-violet-500/40 rounded-2xl p-5 space-y-4">
@@ -219,6 +268,9 @@ export default function MonitoringTeamsPage() {
             </div>
             <div>
               <label className="text-xs text-slate-400 block mb-1">إضافة راصد من قائمة الموظفين {loadingEmp && <Loader2 className="inline w-3 h-3 mr-1 animate-spin" />}</label>
+              {tempMembers.length === 0 && !newMemberEmpId && (
+                <p className="text-[10px] text-amber-400/80 mb-1">⚠ اختر موظفاً ثم اضغط + لإضافته للفريق (أو اضغط حفظ مباشرة بعد الاختيار)</p>
+              )}
               <div className="flex gap-2">
                 <select value={newMemberEmpId} onChange={e => setNewMemberEmpId(e.target.value)} className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500">
                   <option value="">اختر موظفاً...</option>
@@ -249,7 +301,7 @@ export default function MonitoringTeamsPage() {
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded-lg text-xs bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors">إلغاء</button>
-              <button onClick={saveNewTeam} disabled={!newStation || tempMembers.length === 0 || saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold">
+              <button onClick={saveNewTeam} disabled={!newStation || (tempMembers.length === 0 && !newMemberEmpId) || saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold" title={!newStation ? 'اختر محطة أولاً' : (tempMembers.length === 0 && !newMemberEmpId) ? 'أضف راصداً واحداً على الأقل' : ''}>
                 {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> جاري الحفظ...</> : <><Save className="w-3.5 h-3.5" /> حفظ الفريق</>}
               </button>
             </div>
@@ -257,6 +309,7 @@ export default function MonitoringTeamsPage() {
         )}
 
         {/* Teams list */}
+        <div id="teams-list">
         {loadingTeams ? (
           <div className="flex items-center justify-center py-16 text-slate-500">
             <Loader2 className="w-6 h-6 animate-spin ml-2" /><span className="text-sm">جاري تحميل الفرق...</span>
@@ -340,6 +393,7 @@ export default function MonitoringTeamsPage() {
             })}
           </div>
         )}
+        </div>{/* end teams-list */}
 
         {/* Stations without teams */}
         {!loadingTeams && (

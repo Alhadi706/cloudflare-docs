@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorize } from '@/lib/authorize';
 import {
-  getMonitoringTeams, getMonitoringTeam, saveMonitoringTeam,
+  getMonitoringTeam, saveMonitoringTeam,
   saveMonitoringReading, getPendingMonitoringReadings,
 } from '@/lib/mobile-field-store';
+
+const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
 
 function resolveEmpNo(req: NextRequest): string {
   return (req.headers.get('x-verified-email') ?? '')
@@ -20,25 +22,69 @@ export async function GET(req: NextRequest) {
   const empNo = resolveEmpNo(req);
   const isSup = SUPERVISOR_ROLES.includes(auth.role);
 
-  if (mode === 'my_team') {
-    const teams = getMonitoringTeams(auth.tenantId).filter(t => t.supervisor_employee_nos?.includes(empNo));
-    return NextResponse.json({ ok: true, teams });
-  }
-
+  // pending readings — from backend DB (approved workflow)
   if (mode === 'pending' && isSup) {
+    try {
+      const res = await fetch(`${B}/api/v1/ctrl/readings/pending?level=supervisor`, {
+        cache: 'no-store', signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        return NextResponse.json({ ok: true, readings: d.readings || [] });
+      }
+    } catch { /* fall through to in-memory */ }
     const pending = getPendingMonitoringReadings(auth.tenantId);
     return NextResponse.json({ ok: true, readings: pending });
   }
 
+  // Fetch teams from DB backend (ctrl.monitoring_teams), fall back to in-memory
+  try {
+    const res = await fetch(`${B}/api/v1/ctrl/monitoring-teams`, {
+      cache: 'no-store',
+      headers: { 'X-Tenant-ID': auth.tenantId || 'aaaaaaaa-0000-4000-a000-000000000001' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      const dbTeams = (d.teams || []) as Array<{
+        id: string; station_id: string; station_name: string;
+        zone: string; shift: string; status: string;
+        members: Array<{ employee_id: number; name_ar: string; role: string }>;
+      }>;
+
+      if (mode === 'my_team') {
+        // filter teams where empNo matches any member
+        const myTeams = dbTeams.filter(t =>
+          t.members?.some(m => String(m.employee_id) === empNo || m.name_ar?.includes(empNo))
+        );
+        return NextResponse.json({ ok: true, teams: myTeams, source: 'db' });
+      }
+
+      if (mode === 'team_detail') {
+        const teamId = req.nextUrl.searchParams.get('team_id') || '';
+        const team   = dbTeams.find(t => t.id === teamId);
+        if (!team) return NextResponse.json({ detail: 'الفريق غير موجود' }, { status: 404 });
+        return NextResponse.json({ ok: true, team, source: 'db' });
+      }
+
+      return NextResponse.json({ ok: true, teams: dbTeams, source: 'db' });
+    }
+  } catch { /* fall through to in-memory */ }
+
+  // Fallback: in-memory store
+  const { getMonitoringTeams } = await import('@/lib/mobile-field-store');
+  if (mode === 'my_team') {
+    const teams = getMonitoringTeams(auth.tenantId).filter(t => t.supervisor_employee_nos?.includes(empNo));
+    return NextResponse.json({ ok: true, teams, source: 'memory' });
+  }
   if (mode === 'team_detail') {
     const teamId = req.nextUrl.searchParams.get('team_id') || '';
     const team   = getMonitoringTeam(auth.tenantId, teamId);
     if (!team) return NextResponse.json({ detail: 'الفريق غير موجود' }, { status: 404 });
-    return NextResponse.json({ ok: true, team });
+    return NextResponse.json({ ok: true, team, source: 'memory' });
   }
-
   const teams = getMonitoringTeams(auth.tenantId);
-  return NextResponse.json({ ok: true, teams });
+  return NextResponse.json({ ok: true, teams, source: 'memory' });
 }
 
 export async function POST(req: NextRequest) {
@@ -48,10 +94,27 @@ export async function POST(req: NextRequest) {
   const body  = await req.json().catch(() => ({}));
   const empNo = resolveEmpNo(req);
 
-  // Supervisors can create/update teams
+  // Supervisors can create/update teams — save to DB backend
   if (body.action === 'save_team' && SUPERVISOR_ROLES.includes(auth.role)) {
-    const team = saveMonitoringTeam(auth.tenantId, body.team || {});
-    return NextResponse.json({ ok: true, team });
+    const teamData = body.team || {};
+    try {
+      const res = await fetch(`${B}/api/v1/ctrl/monitoring-teams`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': auth.tenantId || 'aaaaaaaa-0000-4000-a000-000000000001',
+        },
+        body: JSON.stringify(teamData),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        return NextResponse.json({ ok: true, team: d, source: 'db' });
+      }
+    } catch { /* fall through to in-memory */ }
+    // Fallback
+    const team = saveMonitoringTeam(auth.tenantId, teamData);
+    return NextResponse.json({ ok: true, team, source: 'memory' });
   }
 
   // Submit a reading — write to ctrl.station_readings (DB) instead of in-memory store
@@ -59,7 +122,7 @@ export async function POST(req: NextRequest) {
 
   // Map mobile body fields to ctrl.station_readings format
   const v = body.values || {};
-  const stationId = body.station_id || team?.station_id || body.team_id || '';
+  const stationId = body.station_id || (team as unknown as Record<string, string>)?.station_id || body.team_id || '';
 
   if (stationId) {
     try {
@@ -102,7 +165,7 @@ export async function POST(req: NextRequest) {
   const reading = saveMonitoringReading(auth.tenantId, {
     tenant_id:         auth.tenantId,
     team_id:           body.team_id || '',
-    team_name:         team?.name || body.team_name || '',
+    team_name:         (team as unknown as Record<string, string>)?.name || body.team_name || '',
     station_type:      team?.station_type || body.station_type || '',
     location_label:    body.location || body.location_label || '',
     reading_date:      body.reading_date || new Date().toISOString().slice(0, 10),

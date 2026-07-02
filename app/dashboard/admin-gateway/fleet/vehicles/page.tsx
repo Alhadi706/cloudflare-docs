@@ -58,7 +58,7 @@ export default function FleetVehiclesPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-100">وحدة المركبات</h1>
-              <p className="text-sm text-slate-500">بوابة تنقل سريعة لصفحات تشغيل وإدارة الأسطول</p>
+              <p className="text-sm text-slate-500">بوابة تنقل سريعة لصفحات تشغيل وإدارة الخدمات</p>
             </div>
           </div>
           <div className="h-px bg-slate-800 mt-4" />

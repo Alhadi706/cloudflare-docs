@@ -58,11 +58,13 @@ export function hasCDSECredentials(): boolean {
 // ── Sentinel Hub Process API ─────────────────────────────────────────────────
 // يُعيد إحصاءات مجمّعة (mean, min, max, std) لـ evalscript محدد على AOI وفترة زمنية
 interface SHStatsRequest {
-  bbox:       [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
-  dateFrom:   string;  // "YYYY-MM-DD"
-  dateTo:     string;
-  evalscript: string;
-  collection: 'sentinel-2-l2a' | 'sentinel-1-grd' | 'sentinel-2-l1c';
+  bbox:        [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
+  dateFrom:    string;  // "YYYY-MM-DD"
+  dateTo:      string;
+  evalscript:  string;
+  collection:  'sentinel-2-l2a' | 'sentinel-1-grd' | 'sentinel-2-l1c' | 'sentinel-5p-l2' | string;
+  productType?: string; // S5P product type e.g. 'L2__CO____', 'L2__CH4___', 'L2__NO2___'
+  intervalDays?: number; // aggregation interval in days (default 30)
 }
 
 interface SHBandStats {
@@ -92,6 +94,7 @@ export async function fetchSHStats(req: SHStatsRequest): Promise<SHStatsResult> 
     'sentinel-2-l2a':  'S2L2A',
     'sentinel-1-grd':  'S1GRD',
     'sentinel-2-l1c':  'S2L1C',
+    'sentinel-5p-l2':  'S5PL2',
   };
   const collectionId = collectionMap[req.collection] ?? req.collection;
 
@@ -128,14 +131,14 @@ export async function fetchSHStats(req: SHStatsRequest): Promise<SHStatsResult> 
       data: [{
         dataFilter: {
           timeRange: { from: `${req.dateFrom}T00:00:00Z`, to: `${req.dateTo}T23:59:59Z` },
-          mosaickingOrder: 'leastCC',
+          ...(req.productType ? { processing: { productType: req.productType } } : {}),
         },
         type: collectionId,
       }],
     },
     aggregation: {
       timeRange:      { from: `${req.dateFrom}T00:00:00Z`, to: `${req.dateTo}T23:59:59Z` },
-      aggregationInterval: { of: 'P30D' },
+      aggregationInterval: { of: req.intervalDays ? `P${req.intervalDays}D` : 'P30D' },
       evalscript:     req.evalscript,
       // Use width/height — avoids unit confusion with WGS84 degree CRS
       width:  256,
@@ -172,14 +175,20 @@ export async function fetchSHStats(req: SHStatsRequest): Promise<SHStatsResult> 
       const outputs = interval?.outputs ?? {};
       for (const [bandName, bandData] of Object.entries(outputs as Record<string, any>)) {
         const b0stats = (bandData as any)?.bands?.B0?.stats ?? {};
-        if (b0stats.mean != null) {
-          bands[bandName] = {
-            mean:    b0stats.mean    ?? null,
-            min:     b0stats.min     ?? null,
-            max:     b0stats.max     ?? null,
-            std:     b0stats.stDev   ?? null,
-            samples: b0stats.sampleCount ?? 0,
-          };
+        // SH may return 'NaN' as a string for no-data intervals — parse to number
+        const rawMean = b0stats.mean;
+        const meanVal = typeof rawMean === 'string' ? parseFloat(rawMean) : rawMean;
+        if (meanVal != null && !isNaN(meanVal as number)) {
+          // Only update if this interval has a better (non-NaN) value
+          if (!bands[bandName] || bands[bandName].mean === null) {
+            bands[bandName] = {
+              mean:    meanVal,
+              min:     typeof b0stats.min  === 'string' ? parseFloat(b0stats.min)  : (b0stats.min  ?? null),
+              max:     typeof b0stats.max  === 'string' ? parseFloat(b0stats.max)  : (b0stats.max  ?? null),
+              std:     typeof b0stats.stDev === 'string' ? parseFloat(b0stats.stDev) : (b0stats.stDev ?? null),
+              samples: b0stats.sampleCount ?? 0,
+            };
+          }
         }
       }
     }
@@ -344,5 +353,83 @@ export async function computeSARSigma0(
     error:      result.error,
     vv_db_mean: result.bands['vv_db']?.mean ?? null,
     vh_db_mean: result.bands['vh_db']?.mean ?? null,
+  };
+}
+
+// ── Sentinel-5P TROPOMI evalscripts ──────────────────────────────────────────
+// Each S5P product is a SEPARATE collection in SH Stats API:
+// S5PL2-CO, S5PL2-CH4, S5PL2-NO2
+// CO column number density (mol/m²) — دخان + احتراق ناقص
+export const S5P_CO_EVALSCRIPT = `//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["CO", "dataMask"] }],
+    output: [
+      { id: "co",      bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask",bands: 1, sampleType: "UINT8" }
+    ]
+  };
+}
+function evaluatePixel(s) {
+  return { co: [s.CO], dataMask: [s.dataMask] };
+}`;
+
+// CH4 column mixing ratio (ppb) — الميثان من تسريبات الغاز / مدافن النفايات
+export const S5P_CH4_EVALSCRIPT = `//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["CH4", "dataMask"] }],
+    output: [
+      { id: "ch4",     bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask",bands: 1, sampleType: "UINT8" }
+    ]
+  };
+}
+function evaluatePixel(s) {
+  return { ch4: [s.CH4], dataMask: [s.dataMask] };
+}`;
+
+// NO2 tropospheric column (mol/m²) — حرق وقود + صناعة
+export const S5P_NO2_EVALSCRIPT = `//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["NO2", "dataMask"] }],
+    output: [
+      { id: "no2",     bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask",bands: 1, sampleType: "UINT8" }
+    ]
+  };
+}
+function evaluatePixel(s) {
+  return { no2: [s.NO2], dataMask: [s.dataMask] };
+}`;
+
+/**
+ * computeS5P — قياس S5P TROPOMI لثلاثة غازات دفعة واحدة على نفس AOI
+ * bbox يجب أن يكون أكبر من 0.1° × 0.1° (S5P دقته ~5.5km)
+ */
+export async function computeS5P(
+  bbox: [number, number, number, number],
+  dateFrom: string,
+  dateTo: string,
+): Promise<{
+  co_mean:  number | null;   // mol/m²  background ~0.03
+  ch4_mean: number | null;   // ppb      background ~1850
+  no2_mean: number | null;   // mol/m²  background ~0.00003
+  ok: boolean;
+  error?: string;
+}> {
+  // S5P pixel is ~5.5×3.5km — use 7-day aggregation interval
+  // Each gas needs separate productType filter within the S5PL2 collection
+  const [co, ch4, no2] = await Promise.all([
+    fetchSHStats({ bbox, dateFrom, dateTo, evalscript: S5P_CO_EVALSCRIPT,  collection: 'sentinel-5p-l2', productType: 'L2__CO____', intervalDays: 7 }).catch(() => null),
+    fetchSHStats({ bbox, dateFrom, dateTo, evalscript: S5P_CH4_EVALSCRIPT, collection: 'sentinel-5p-l2', productType: 'L2__CH4___', intervalDays: 7 }).catch(() => null),
+    fetchSHStats({ bbox, dateFrom, dateTo, evalscript: S5P_NO2_EVALSCRIPT, collection: 'sentinel-5p-l2', productType: 'L2__NO2___', intervalDays: 7 }).catch(() => null),
+  ]);
+  return {
+    ok:       (co?.ok || ch4?.ok || no2?.ok) ?? false,
+    co_mean:  co?.bands?.['co']?.mean  ?? null,
+    ch4_mean: ch4?.bands?.['ch4']?.mean ?? null,
+    no2_mean: no2?.bands?.['no2']?.mean ?? null,
   };
 }

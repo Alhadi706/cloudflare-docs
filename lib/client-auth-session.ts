@@ -57,6 +57,9 @@ export async function syncClientAuthState(data: SessionData): Promise<boolean> {
       if (data.department_code) localStorage.setItem('dept_code', data.department_code as string);
       if (data.tenant_code)     localStorage.setItem('tenant_code', data.tenant_code as string);
       if (data.section_id)      localStorage.setItem('section_id', data.section_id as string);
+      // Store tenant_id so buildHeaders() can send it for dept-admin and other API calls
+      if (data.tenant_id)       localStorage.setItem('tenant_id', data.tenant_id as string);
+      if (data.tenant_id)       localStorage.setItem('active_tenant_id', data.tenant_id as string);
     }
 
     return true;

@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function getTenant(req: NextRequest): string {
   try {
     const cookie = req.cookies.get('auth_session')?.value;
@@ -18,7 +20,7 @@ function getTenant(req: NextRequest): string {
     }
   } catch { /* fall through */ }
   const hdr = req.headers.get('x-verified-tenant-id');
-  if (hdr) return hdr;
+  if (hdr && UUID_RE.test(hdr.trim())) return hdr.trim();
   return 'aaaaaaaa-0000-4000-a000-000000000001';
 }
 

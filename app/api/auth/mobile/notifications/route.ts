@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorize } from '@/lib/authorize';
+import { getPushSubsByEmployee, getAllPushSubs } from '@/lib/push-store';
+import { sendPushToMany } from '@/lib/push-sender';
 import fs from 'fs';
 import path from 'path';
 
@@ -44,7 +46,31 @@ export async function POST(req: NextRequest) {
   const notifs = readNotifs(auth.tenantId);
   notifs.push(notif);
   writeNotifs(auth.tenantId, notifs);
-  return NextResponse.json({ ok: true, id: notif.id });
+
+  // ── Send Web Push to subscribed device(s) ──────────────────────────────────
+  let pushSent = 0;
+  const pushPayload = {
+    title:   notif.title,
+    body:    notif.body,
+    tag:     notif.id,
+    urgency: (notif.urgency || 'normal') as 'critical' | 'high' | 'normal',
+    url:     notif.url || '/m',
+    icon:    '/icons/icon-192.png',
+  };
+
+  if (notif.employee_no) {
+    // Targeted push: send to specific employee's devices
+    const subs = getPushSubsByEmployee(auth.tenantId, notif.employee_no);
+    await sendPushToMany(auth.tenantId, subs, pushPayload).catch(() => {});
+    pushSent = subs.length;
+  } else if (notif.broadcast) {
+    // Broadcast: send to all subscribed employees
+    const subs = getAllPushSubs(auth.tenantId);
+    await sendPushToMany(auth.tenantId, subs, pushPayload).catch(() => {});
+    pushSent = subs.length;
+  }
+
+  return NextResponse.json({ ok: true, id: notif.id, push_sent: pushSent });
 }
 
 export async function PATCH(req: NextRequest) {

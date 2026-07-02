@@ -376,6 +376,7 @@ export default function SatelliteIntelLegacyShell() {
   const [showUrbanLeakLayer, setShowUrbanLeakLayer] = useState(false);
   const [showEncroachLayer,  setShowEncroachLayer]  = useState(false);
   const [fireMarkers,        setFireMarkers]        = useState<any[]>([]);
+  const [fireShowAll,        setFireShowAll]        = useState(false); // false = confirmed only
   const [leakMarkers,        setLeakMarkers]        = useState<any[]>([]);
   const [urbanLeakMarkers,   setUrbanLeakMarkers]   = useState<any[]>([]);
   const [encroachMarkers,    setEncroachMarkers]    = useState<any[]>([]);
@@ -385,14 +386,18 @@ export default function SatelliteIntelLegacyShell() {
   const [urbanLeakLoading,   setUrbanLeakLoading]   = useState(false);
   const [encroachLoading,    setEncroachLoading]    = useState(false);
 
-  const loadFireLayer = useCallback(async () => {
+  const loadFireLayer = useCallback(async (showAll = false) => {
     if (fireLoading) return;
     setFireLoading(true);
     try {
       const res = await fetch('/api/v1/satellite/fire-monitor?days=7');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const clusters: any[] = data.all_clusters ?? [];
+      // Default: use alert_clusters (confirmed + high-FRP only ~15 pts)
+      // showAll: use all_clusters (all 180 raw clusters)
+      const clusters: any[] = showAll
+        ? (data.all_clusters ?? [])
+        : (data.alert_clusters ?? data.all_clusters ?? []);
       const colorMap: Record<string, string> = {
         gas_flare:         '#a855f7',
         confirmed_fire:    '#ef4444',
@@ -405,10 +410,16 @@ export default function SatelliteIntelLegacyShell() {
           lon:      c.lon,
           lat:      c.lat,
           color:    colorMap[c.classification] ?? '#94a3b8',
-          radius:   Math.min(18, 6 + (c.observations ?? c.total_count ?? 1) * 0.5),
-          label:    c.classification === 'gas_flare' ? 'حرق غاز' :
-                    c.classification === 'confirmed_fire' ? 'حريق مؤكد' :
-                    c.classification === 'recurring_anomaly' ? 'شذوذ متكرر' : 'رصد واحد',
+          // FRP-based radius: confirmed fires sized by power, others small
+          radius:   c.classification === 'confirmed_fire'
+            ? Math.min(22, 10 + (c.max_frp_mw ?? 1) * 0.4)
+            : c.classification === 'gas_flare'
+            ? Math.min(16, 8 + (c.max_frp_mw ?? 1) * 0.2)
+            : 7,
+          label:    c.classification === 'gas_flare'         ? `🟣 حرق غاز — ${c.max_frp_mw}MW` :
+                    c.classification === 'confirmed_fire'    ? `🔴 حريق مؤكد — ${c.max_frp_mw}MW` :
+                    c.classification === 'recurring_anomaly' ? `🟠 شذوذ متكرر — ${c.days_active}د` :
+                    `🟡 رصد فردي`,
           layerKey: 'fire_viirs',
         }));
       setFireMarkers(markers);
@@ -976,10 +987,17 @@ export default function SatelliteIntelLegacyShell() {
         leakCount={leakMarkers.length}
         urbanLeakCount={urbanLeakMarkers.length}
         encroachCount={encroachMarkers.length}
+        fireShowAll={fireShowAll}
+        onToggleFireShowAll={() => {
+          const next = !fireShowAll;
+          setFireShowAll(next);
+          setFireMarkers([]); // force reload with new filter
+          if (showFireLayer) loadFireLayer(next);
+        }}
         onToggleFireLayer={() => {
           const next = !showFireLayer;
           setShowFireLayer(next);
-          if (next && fireMarkers.length === 0) loadFireLayer();
+          if (next && fireMarkers.length === 0) loadFireLayer(fireShowAll);
           patchRibbon({ activeGroup: 'monitoring' });
         }}
         onToggleLeakLayer={() => {

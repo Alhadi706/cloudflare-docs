@@ -52,7 +52,7 @@ function StatsBar() {
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/90 flex-wrap shrink-0" dir="rtl">
-      <h1 className="text-sm font-bold text-white ml-1">مساحة الصيانة الجغرافية</h1>
+      <h1 className="text-sm font-bold text-white ml-1">الصيانة الميدانية والأصول</h1>
       <GisWorkspaceSwitcher />
       <div className="flex-1" />
       {[

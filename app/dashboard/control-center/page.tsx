@@ -1,27 +1,25 @@
 'use client';
 
-/**
- * إدارة التحكم — Network Control Department Hub
- * هيكل تنظيمي: مدير الإدارة → أقسام متخصصة → فرق الرصد
- */
-
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  Radio, Activity, BarChart3, Bell, BookOpen,
-  MonitorDot, Gauge, Users, Crown, ArrowRight,
-  MapPin, ClipboardList, Zap, Settings,
-  PenLine, CheckSquare,
+  Crown, ArrowRight, Activity, Bell, MonitorDot,
+  BarChart3, Gauge, BookOpen, Users, Radio,
+  PenLine, CheckSquare, MapPin, Zap, Shield,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function ControlCenterPage() {
   const [pendingSup, setPendingSup] = useState(0);
   const [pendingDept, setPendingDept] = useState(0);
+  const [alarms, setAlarms]         = useState(0);
 
   useEffect(() => {
-    fetch('/api/control-center/readings/pending-count')
-      .then(r => r.json())
+    fetch('/api/control-center/readings/pending-count').then(r => r.json())
       .then(d => { if (d.success) { setPendingSup(d.supervisor); setPendingDept(d.dept); } })
+      .catch(() => {});
+    fetch('/api/control-center/alarms?state=active&limit=1').then(r => r.json())
+      .then(d => { if (d.success) setAlarms(d.count ?? 0); })
       .catch(() => {});
   }, []);
 
@@ -29,272 +27,245 @@ export default function ControlCenterPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8" dir="rtl">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-7">
 
-        {/* ── Breadcrumb ── */}
+        {/* ── Breadcrumb ─────────────────────────────────────────────────── */}
         <div>
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4"
-          >
-            <ArrowRight className="w-4 h-4" />
-            الداشبورد الرئيسي
+          <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 text-sm mb-3">
+            <ArrowRight className="w-4 h-4"/>الداشبورد الرئيسي
           </Link>
-          <h1 className="text-3xl font-bold text-white tracking-tight">إدارة التحكم</h1>
-          <p className="text-slate-400 mt-2">مركز التحكم الشبكي — مراقبة 24/7 لمنظومة الحساوات</p>
+          <h1 className="text-2xl font-bold text-white">إدارة التحكم</h1>
+          <p className="text-slate-400 text-sm mt-1">مركز التحكم الشبكي — مراقبة 24/7 لمنظومة الحساوات</p>
         </div>
 
-        {/* ══ مدير الإدارة ══════════════════════════════════════════════════ */}
-        <Link href="/dashboard/control-center/real-time" className="group block">
-          <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-6 hover:border-cyan-500/60 hover:bg-slate-800/70 transition-all duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center shrink-0">
-                <Crown className="w-6 h-6 text-cyan-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">مدير إدارة التحكم</h2>
-                <p className="text-cyan-400/70 text-xs mt-0.5">Network Control Manager</p>
-              </div>
-              <span className="mr-auto text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 animate-pulse">
-                LIVE
-              </span>
-            </div>
-            <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-              لوحة المراقبة الآنية الكاملة: P&ID ميميك، حالة المحطات، الضغوط، التدفق، وتنبيهات الشبكة في الوقت الفعلي.
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-4">
-              {[
-                { icon: Activity,   label: 'مراقبة الشبكة' },
-                { icon: Gauge,      label: 'الضغوط الآنية' },
-                { icon: Bell,       label: 'إنذارات فورية' },
-                { icon: MonitorDot, label: 'لوحة SCADA' },
-              ].map(({ icon: Icon, label }) => (
-                <div key={label} className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-slate-300 flex items-center gap-2">
-                  <Icon className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  {label}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-slate-800">
-              <span className="text-cyan-400 font-semibold text-sm flex items-center gap-1.5">
-                فتح لوحة المدير
-                <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
-              </span>
-            </div>
-          </div>
-        </Link>
-
-        {/* ══ الأقسام الثلاثة ══════════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-          {/* قسم تشغيل المنظومة */}
-          <Link href="/dashboard/control-center/scada" className="group block">
-            <div className="bg-slate-900 border border-rose-500/30 rounded-2xl p-6 hover:border-rose-500/60 hover:bg-slate-800/70 transition-all duration-200 h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-xl bg-rose-500/20 flex items-center justify-center shrink-0">
-                  <MonitorDot className="w-5 h-5 text-rose-400" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-white">قسم تشغيل المنظومة</h2>
-                  <p className="text-rose-400/70 text-xs mt-0.5">System Operations</p>
-                </div>
-              </div>
-              <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-                رفع وتحليل تقارير التشغيل اليومية، عرض P&ID الكامل، مخطط المضخات، جودة المياه.
-              </p>
-              <div className="grid grid-cols-1 gap-2 text-xs text-slate-400 flex-1">
-                <div className="flex items-center gap-2"><MonitorDot className="w-3.5 h-3.5 text-rose-400" /> SCADA P&ID الكامل</div>
-                <div className="flex items-center gap-2"><ClipboardList className="w-3.5 h-3.5 text-rose-400" /> التقارير اليومية (Excel)</div>
-                <div className="flex items-center gap-2"><Zap className="w-3.5 h-3.5 text-rose-400" /> حالة المضخات والمحركات</div>
-              </div>
-              <div className="mt-auto pt-4 border-t border-slate-800">
-                <span className="text-rose-400 font-semibold text-sm flex items-center gap-1.5">فتح القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span></span>
-              </div>
-            </div>
-          </Link>
-
-          {/* قسم التحليل والجدولة */}
-          <Link href="/dashboard/control-center/production-schedule" className="group block">
-            <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 hover:border-emerald-500/60 hover:bg-slate-800/70 transition-all duration-200 h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
-                  <BarChart3 className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-white">قسم التحليل والجدولة</h2>
-                  <p className="text-emerald-400/70 text-xs mt-0.5">Analysis & Scheduling</p>
-                </div>
-              </div>
-              <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-                جدولة الإنتاج، تحليل الفاقد NRW، مناطق الضغط، تخصيص المصادر اليومي.
-              </p>
-              <div className="grid grid-cols-1 gap-2 text-xs text-slate-400 flex-1">
-                <div className="flex items-center gap-2"><BarChart3 className="w-3.5 h-3.5 text-emerald-400" /> جدولة الإنتاج اليومي</div>
-                <div className="flex items-center gap-2"><Gauge className="w-3.5 h-3.5 text-emerald-400" /> تحليل مناطق الضغط</div>
-                <div className="flex items-center gap-2"><Settings className="w-3.5 h-3.5 text-emerald-400" /> صمامات PRV والشبكة</div>
-              </div>
-              <div className="mt-auto pt-4 border-t border-slate-800">
-                <span className="text-emerald-400 font-semibold text-sm flex items-center gap-1.5">فتح القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span></span>
-              </div>
-            </div>
-          </Link>
-
-          {/* قسم الإنذارات والنوبات */}
-          <Link href="/dashboard/control-center/alarm-management" className="group block">
-            <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 hover:border-amber-500/60 hover:bg-slate-800/70 transition-all duration-200 h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-                  <Bell className="w-5 h-5 text-amber-400" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-white">قسم الإنذارات والنوبات</h2>
-                  <p className="text-amber-400/70 text-xs mt-0.5">Alarms & Shift Management</p>
-                </div>
-              </div>
-              <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-                إدارة الإنذارات والتنبيهات، سجل النوبات الرقمي، تسليم الوردية والملاحظات.
-              </p>
-              <div className="grid grid-cols-1 gap-2 text-xs text-slate-400 flex-1">
-                <div className="flex items-center gap-2"><Bell className="w-3.5 h-3.5 text-amber-400" /> تصنيف الإنذارات (حرج/تحذير)</div>
-                <div className="flex items-center gap-2"><BookOpen className="w-3.5 h-3.5 text-amber-400" /> سجل تسليم النوبات</div>
-                <div className="flex items-center gap-2"><ClipboardList className="w-3.5 h-3.5 text-amber-400" /> أوامر الصيانة الطارئة</div>
-              </div>
-              <div className="mt-auto pt-4 border-t border-slate-800">
-                <span className="text-amber-400 font-semibold text-sm flex items-center gap-1.5">فتح القسم <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span></span>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        {/* ══ فرق الرصد الميداني ══════════════════════════════════════════ */}
-        <Link href="/dashboard/control-center/monitoring-teams" className="group block">
-          <div className="bg-slate-900 border border-violet-500/30 rounded-2xl p-6 hover:border-violet-500/60 hover:bg-slate-800/70 transition-all duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
-                <Users className="w-6 h-6 text-violet-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">فرق الرصد الميداني</h2>
-                <p className="text-violet-400/70 text-xs mt-0.5">Field Monitoring Teams</p>
-              </div>
-            </div>
-            <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-              تكوين فرق الراصدين حسب المحطات، تحديد مواقعهم على الخريطة الأساسية، متابعة المهام الميدانية وجداول الرصد.
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-4">
-              {[
-                { icon: Users,        label: 'تكوين الفرق' },
-                { icon: MapPin,       label: 'مواقع المحطات' },
-                { icon: Radio,        label: 'تخصيص الراصدين' },
-                { icon: ClipboardList,label: 'جداول الرصد' },
-              ].map(({ icon: Icon, label }) => (
-                <div key={label} className="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-slate-300 flex items-center gap-2">
-                  <Icon className="w-3.5 h-3.5 text-violet-400 shrink-0" />
-                  {label}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-slate-800">
-              <span className="text-violet-400 font-semibold text-sm flex items-center gap-1.5">
-                فتح إدارة الفرق
-                <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
-              </span>
-            </div>
-          </div>
-        </Link>
-
-        {/* ══ تسجيل القراءات واعتمادها ═══════════════════════════════════ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-          {/* تسجيل القراءات الميدانية */}
-          <Link href="/dashboard/control-center/field-readings" className="group block">
-            <div className="bg-slate-900 border border-teal-500/30 rounded-2xl p-6 hover:border-teal-500/60 hover:bg-slate-800/70 transition-all duration-200 h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-xl bg-teal-500/20 flex items-center justify-center shrink-0">
-                  <PenLine className="w-5 h-5 text-teal-400" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-white">تسجيل القراءات الميدانية</h2>
-                  <p className="text-teal-400/70 text-xs mt-0.5">Field Data Entry — الراصد</p>
-                </div>
-              </div>
-              <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-                الراصد يُعبئ قراءات المحطة أو الخزان يومياً — التدفق، الضغط، المنسوب، الكلور — ويُرسلها للمشرف.
-              </p>
-              <div className="flex flex-wrap gap-2 text-xs text-slate-400 mb-4">
-                <span className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1">14 محطة</span>
-                <span className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1">4 ورديات</span>
-                <span className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1">حفظ مسودة</span>
-              </div>
-              <div className="mt-auto pt-4 border-t border-slate-800">
-                <span className="text-teal-400 font-semibold text-sm flex items-center gap-1.5">
-                  فتح نموذج الإدخال
-                  <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
-                </span>
-              </div>
-            </div>
-          </Link>
-
-          {/* اعتماد القراءات */}
-          <Link href="/dashboard/control-center/readings-approval" className="group block">
-            <div className="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 hover:border-indigo-500/60 hover:bg-slate-800/70 transition-all duration-200 h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
-                  <CheckSquare className="w-5 h-5 text-indigo-400" />
+        {/* ══ 1. مدير الإدارة ════════════════════════════════════════════ */}
+        <section>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">الإدارة العليا</p>
+          <Link href="/dashboard/control-center/manager" className="group block">
+            <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-5 hover:border-cyan-500/60 hover:bg-slate-800/60 transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                  <Crown className="w-6 h-6 text-cyan-400"/>
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-base font-bold text-white">مراجعة واعتماد القراءات</h2>
-                  <p className="text-indigo-400/70 text-xs mt-0.5">Approval Workflow — المشرف & الإدارة</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-bold text-white">لوحة مدير إدارة التحكم</h2>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse font-bold">LIVE</span>
+                  </div>
+                  <p className="text-slate-400 text-xs mt-0.5">KPIs حية · موافقات مباشرة · تنبيهات · حالة 14 محطة · تحديث تلقائي</p>
                 </div>
-                {totalPending > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500 text-white font-bold animate-pulse shrink-0">
-                    {totalPending}
-                  </span>
-                )}
-              </div>
-              {totalPending > 0 && (
-                <div className="flex gap-2 text-xs mb-2">
-                  {pendingSup > 0 && <span className="bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg px-2 py-1">{pendingSup} بانتظار المشرف</span>}
-                  {pendingDept > 0 && <span className="bg-blue-500/20 border border-blue-500/30 text-blue-300 rounded-lg px-2 py-1">{pendingDept} بانتظار إدارة التحكم</span>}
+                {/* Live badges */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {totalPending > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500 text-white font-bold animate-pulse">
+                      {totalPending} معلق
+                    </span>
+                  )}
+                  {alarms > 0 && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-500 text-white font-bold">
+                      {alarms} إنذار
+                    </span>
+                  )}
                 </div>
-              )}
-              <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-                مراجعة القراءات المُرسلة من الرصاد وموافقة المشرف ثم إدارة التحكم لإدراجها في النظام المباشر.
-              </p>
-              <div className="flex flex-wrap gap-2 text-xs mb-4">
-                <span className="bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg px-2 py-1">مشرف</span>
-                <span className="bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-lg px-2 py-1">إدارة التحكم</span>
-                <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-lg px-2 py-1">→ النظام المباشر</span>
+                <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-cyan-400 transition-colors shrink-0"/>
               </div>
-              <div className="mt-auto pt-4 border-t border-slate-800">
-                <span className="text-indigo-400 font-semibold text-sm flex items-center gap-1.5">
-                  فتح لوحة الاعتماد
-                  <span className="group-hover:translate-x-[-4px] transition-transform inline-block">←</span>
-                </span>
+              {/* Quick tools row inside manager card */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 text-[11px]">
+                {[
+                  { icon: Activity,  label: 'SCADA المباشر',       href: '/dashboard/control-center/real-time' },
+                  { icon: Shield,    label: 'اعتماد القراءات',      href: '/dashboard/control-center/readings-approval' },
+                  { icon: Bell,      label: 'إدارة الإنذارات',      href: '/dashboard/control-center/alarm-management' },
+                  { icon: BookOpen,  label: 'سجل النوبات',          href: '/dashboard/control-center/shift-log' },
+                ].map(({ icon: Icon, label, href }) => (
+                  <Link key={href} href={href} onClick={e => e.stopPropagation()}
+                    className="flex items-center gap-2 bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/30 transition-colors">
+                    <Icon className="w-3.5 h-3.5 text-cyan-400 shrink-0"/>{label}
+                  </Link>
+                ))}
               </div>
             </div>
           </Link>
+        </section>
 
-        </div>
+        {/* ══ 2. الأقسام التشغيلية ═══════════════════════════════════════ */}
+        <section>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">الأقسام التشغيلية</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        {/* ══ روابط سريعة ══════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { href: '/dashboard/control-center/field-readings',      label: 'تسجيل القراءات',   color: 'border-teal-500/20 text-teal-300 bg-teal-500/5' },
-            { href: '/dashboard/control-center/readings-approval',   label: `اعتماد القراءات${totalPending > 0 ? ` (${totalPending})` : ''}`,   color: 'border-indigo-500/20 text-indigo-300 bg-indigo-500/5' },
-            { href: '/dashboard/control-center/real-time',           label: 'المراقبة الآنية',   color: 'border-cyan-500/20 text-cyan-300 bg-cyan-500/5' },
-            { href: '/dashboard/control-center/shift-log',           label: 'سجل النوبات',       color: 'border-violet-500/20 text-violet-300 bg-violet-500/5' },
-            { href: '/dashboard/control-center/alarm-management',    label: 'إدارة الإنذارات',   color: 'border-amber-500/20 text-amber-300 bg-amber-500/5' },
-            { href: '/dashboard/control-center/pressure-zones',      label: 'مناطق الضغط',       color: 'border-blue-500/20 text-blue-300 bg-blue-500/5' },
-            { href: '/dashboard/control-center/production-schedule', label: 'جدولة الإنتاج',     color: 'border-emerald-500/20 text-emerald-300 bg-emerald-500/5' },
-            { href: '/dashboard/control-center/scada',               label: 'SCADA الكامل',       color: 'border-rose-500/20 text-rose-300 bg-rose-500/5' },
-          ].map(item => (
-            <Link key={item.href} href={item.href}
-              className={`rounded-xl border px-4 py-3 text-sm font-semibold ${item.color} hover:opacity-80 transition-opacity text-center`}>
-              {item.label}
+            {/* قسم تشغيل المنظومة */}
+            <Link href="/dashboard/control-center/scada" className="group">
+              <div className="bg-slate-900 border border-rose-500/25 rounded-2xl p-5 hover:border-rose-500/50 hover:bg-slate-800/60 transition-all h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center shrink-0">
+                    <MonitorDot className="w-5 h-5 text-rose-400"/>
+                  </div>
+                  <div>
+                    <p className="font-bold text-white text-sm">قسم تشغيل المنظومة</p>
+                    <p className="text-[10px] text-rose-400/70">System Operations</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-400 flex-1">
+                  <div className="flex items-center gap-2"><MonitorDot className="w-3 h-3 text-rose-400"/>SCADA P&ID الكامل</div>
+                  <div className="flex items-center gap-2"><Zap className="w-3 h-3 text-rose-400"/>حالة المضخات والمحركات</div>
+                  <div className="flex items-center gap-2"><Activity className="w-3 h-3 text-rose-400"/>التقارير اليومية (Excel)</div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-rose-400 font-semibold flex items-center gap-1">
+                  دخول القسم<ChevronRight className="w-3.5 h-3.5"/>
+                </div>
+              </div>
             </Link>
-          ))}
-        </div>
+
+            {/* قسم التحليل والجدولة */}
+            <Link href="/dashboard/control-center/production-schedule" className="group">
+              <div className="bg-slate-900 border border-emerald-500/25 rounded-2xl p-5 hover:border-emerald-500/50 hover:bg-slate-800/60 transition-all h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <BarChart3 className="w-5 h-5 text-emerald-400"/>
+                  </div>
+                  <div>
+                    <p className="font-bold text-white text-sm">قسم التحليل والجدولة</p>
+                    <p className="text-[10px] text-emerald-400/70">Analysis & Scheduling</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-400 flex-1">
+                  <div className="flex items-center gap-2"><BarChart3 className="w-3 h-3 text-emerald-400"/>جدولة الإنتاج اليومي</div>
+                  <div className="flex items-center gap-2"><Gauge className="w-3 h-3 text-emerald-400"/>تحليل مناطق الضغط</div>
+                  <div className="flex items-center gap-2"><Activity className="w-3 h-3 text-emerald-400"/>تحليل الفاقد NRW</div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                  دخول القسم<ChevronRight className="w-3.5 h-3.5"/>
+                </div>
+              </div>
+            </Link>
+
+            {/* قسم الإنذارات والنوبات */}
+            <Link href="/dashboard/control-center/alarm-management" className="group">
+              <div className="bg-slate-900 border border-amber-500/25 rounded-2xl p-5 hover:border-amber-500/50 hover:bg-slate-800/60 transition-all h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <Bell className="w-5 h-5 text-amber-400"/>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-white text-sm">قسم الإنذارات والنوبات</p>
+                    <p className="text-[10px] text-amber-400/70">Alarms & Shift Management</p>
+                  </div>
+                  {alarms > 0 && <span className="text-[10px] px-2 py-0.5 bg-rose-500 text-white font-bold rounded-full">{alarms}</span>}
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-400 flex-1">
+                  <div className="flex items-center gap-2"><Bell className="w-3 h-3 text-amber-400"/>تصنيف الإنذارات (حرج/تحذير)</div>
+                  <div className="flex items-center gap-2"><BookOpen className="w-3 h-3 text-amber-400"/>سجل تسليم النوبات</div>
+                  <div className="flex items-center gap-2"><CheckSquare className="w-3 h-3 text-amber-400"/>أوامر الصيانة الطارئة</div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-amber-400 font-semibold flex items-center gap-1">
+                  دخول القسم<ChevronRight className="w-3.5 h-3.5"/>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        {/* ══ 3. العمليات الميدانية ════════════════════════════════════════ */}
+        <section>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">العمليات الميدانية — الراصدون</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* فرق الرصد */}
+            <Link href="/dashboard/control-center/monitoring-teams" className="group">
+              <div className="bg-slate-900 border border-violet-500/25 rounded-2xl p-5 hover:border-violet-500/50 hover:bg-slate-800/60 transition-all h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
+                    <Users className="w-5 h-5 text-violet-400"/>
+                  </div>
+                  <div>
+                    <p className="font-bold text-white text-sm">فرق الرصد الميداني</p>
+                    <p className="text-[10px] text-violet-400/70">Field Monitoring Teams</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-400 flex-1">
+                  <div className="flex items-center gap-2"><Users className="w-3 h-3 text-violet-400"/>تكوين فرق الراصدين</div>
+                  <div className="flex items-center gap-2"><MapPin className="w-3 h-3 text-violet-400"/>تخصيص المحطات</div>
+                  <div className="flex items-center gap-2"><Radio className="w-3 h-3 text-violet-400"/>ربط التطبيق المحمول</div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-violet-400 font-semibold flex items-center gap-1">
+                  إدارة الفرق<ChevronRight className="w-3.5 h-3.5"/>
+                </div>
+              </div>
+            </Link>
+
+            {/* تسجيل القراءات */}
+            <Link href="/dashboard/control-center/field-readings" className="group">
+              <div className="bg-slate-900 border border-teal-500/25 rounded-2xl p-5 hover:border-teal-500/50 hover:bg-slate-800/60 transition-all h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center shrink-0">
+                    <PenLine className="w-5 h-5 text-teal-400"/>
+                  </div>
+                  <div>
+                    <p className="font-bold text-white text-sm">تسجيل القراءات</p>
+                    <p className="text-[10px] text-teal-400/70">Field Data Entry — الراصد</p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-400 flex-1">
+                  <div className="flex items-center gap-2"><PenLine className="w-3 h-3 text-teal-400"/>تدفق · ضغط · منسوب · كلور</div>
+                  <div className="flex items-center gap-2"><Activity className="w-3 h-3 text-teal-400"/>14 محطة · 4 ورديات</div>
+                  <div className="flex items-center gap-2"><CheckSquare className="w-3 h-3 text-teal-400"/>إرسال للمشرف للاعتماد</div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-teal-400 font-semibold flex items-center gap-1">
+                  نموذج الإدخال<ChevronRight className="w-3.5 h-3.5"/>
+                </div>
+              </div>
+            </Link>
+
+            {/* اعتماد القراءات */}
+            <Link href="/dashboard/control-center/readings-approval" className="group">
+              <div className="bg-slate-900 border border-indigo-500/25 rounded-2xl p-5 hover:border-indigo-500/50 hover:bg-slate-800/60 transition-all h-full flex flex-col">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
+                    <Shield className="w-5 h-5 text-indigo-400"/>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-white text-sm">اعتماد القراءات</p>
+                    <p className="text-[10px] text-indigo-400/70">Approval Workflow</p>
+                  </div>
+                  {totalPending > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 bg-amber-500 text-white font-bold rounded-full animate-pulse shrink-0">{totalPending}</span>
+                  )}
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-400 flex-1">
+                  {pendingSup > 0 && <div className="text-amber-300 font-medium">{pendingSup} قراءة بانتظار المشرف</div>}
+                  {pendingDept > 0 && <div className="text-blue-300 font-medium">{pendingDept} قراءة بانتظار إدارة التحكم</div>}
+                  {totalPending === 0 && <div className="text-emerald-400">✓ لا توجد قراءات معلقة</div>}
+                  <div className="flex items-center gap-2 text-slate-400"><Activity className="w-3 h-3 text-indigo-400"/>موافقة → SCADA مباشرة</div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-800 text-xs text-indigo-400 font-semibold flex items-center gap-1">
+                  لوحة الاعتماد<ChevronRight className="w-3.5 h-3.5"/>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        {/* ══ 4. روابط سريعة ════════════════════════════════════════════ */}
+        <section>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">وصول سريع</p>
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            {[
+              { href: '/dashboard/control-center/manager',            icon: Crown,        label: 'لوحة المدير',     color: 'border-cyan-500/20 text-cyan-400 bg-cyan-500/10' },
+              { href: '/dashboard/control-center/real-time',          icon: Activity,     label: 'SCADA مباشر',    color: 'border-sky-500/20 text-sky-400 bg-sky-500/10' },
+              { href: '/dashboard/control-center/alarm-management',   icon: Bell,         label: 'الإنذارات',       color: 'border-rose-500/20 text-rose-400 bg-rose-500/10' },
+              { href: '/dashboard/control-center/shift-log',          icon: BookOpen,     label: 'سجل النوبات',    color: 'border-violet-500/20 text-violet-400 bg-violet-500/10' },
+              { href: '/dashboard/control-center/monitoring-teams',   icon: Users,        label: 'فرق الرصد',       color: 'border-indigo-500/20 text-indigo-400 bg-indigo-500/10' },
+              { href: '/dashboard/control-center/pressure-zones',     icon: Gauge,        label: 'مناطق الضغط',    color: 'border-amber-500/20 text-amber-400 bg-amber-500/10' },
+              { href: '/dashboard/control-center/production-schedule',icon: BarChart3,    label: 'الإنتاج',         color: 'border-emerald-500/20 text-emerald-400 bg-emerald-500/10' },
+              { href: '/dashboard/control-center/scada',              icon: MonitorDot,   label: 'SCADA كامل',     color: 'border-rose-500/20 text-rose-400 bg-rose-500/10' },
+            ].map(({ href, icon: Icon, label, color }) => (
+              <Link key={href} href={href}
+                className={`border rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center hover:opacity-80 transition-opacity ${color}`}>
+                <Icon className="w-4 h-4"/>
+                <span className="text-[10px] font-semibold leading-tight">{label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
 
       </div>
     </div>

@@ -347,7 +347,7 @@ export default function DashboardHome() {
   }, [groupedActions, quickActions.length]);
 
   return (
-    <div className="pointer-events-auto relative min-h-screen overflow-hidden bg-slate-950/70 px-4 py-6 md:px-6" dir="rtl">
+    <div className="pointer-events-auto relative min-h-screen bg-slate-950/70 px-4 py-6 md:px-6" dir="rtl">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_24%),radial-gradient(circle_at_left,rgba(14,165,233,0.12),transparent_20%),linear-gradient(180deg,rgba(2,6,23,0.2),rgba(2,6,23,0.82))]" />
 
       <button
@@ -714,7 +714,7 @@ export default function DashboardHome() {
             </Link>
           </div>
 
-          {/* إدارة الأسطول */}
+          {/* إدارة الخدمات */
           <div className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/15 border border-sky-500/30">
@@ -722,7 +722,7 @@ export default function DashboardHome() {
               </div>
               <div>
                 <p className="text-xs text-sky-300 font-semibold">الإدارة التاسعة</p>
-                <h2 className="text-base font-black text-white">إدارة الأسطول</h2>
+                <h2 className="text-base font-black text-white">إدارة الخدمات</h2>
               </div>
             </div>
             <Link href="/dashboard/admin-gateway/fleet/manager"
@@ -749,7 +749,7 @@ export default function DashboardHome() {
             </div>
             <Link href="/dashboard/admin-gateway/fleet"
               className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 py-2 text-sm font-bold text-sky-200 hover:bg-sky-500/20 transition-all">
-              دخول إدارة الأسطول <ArrowUpRight className="h-4 w-4" />
+              دخول إدارة الخدمات <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
 

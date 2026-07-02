@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Camera, Pencil, Mountain, Target, Route, FileText,
   ShieldCheck, Trash2, Square, Hexagon, MousePointer2,
@@ -143,6 +144,8 @@ interface SICRibbonProps {
   urbanLeakCount?: number;
   encroachCount?: number;
   onToggleFireLayer?: () => void;
+  fireShowAll?: boolean;
+  onToggleFireShowAll?: () => void;
   onToggleLeakLayer?: () => void;
   onToggleUrbanLeakLayer?: () => void;
   onToggleEncroachLayer?: () => void;
@@ -171,36 +174,20 @@ const RIBBON_CATEGORIES: RibbonCategory[] = [
     ],
   },
   {
-    labelAr: 'التحليل المكاني',
+    labelAr: 'تحليل متقدم',
     color: 'text-sky-500',
     groups: [
-      { id: 'terrain',        label: 'التضاريس',Icon: Mountain,   color: 'text-amber-400'  },
-      { id: 'suitability',    label: 'الملاءمة',Icon: Target,     color: 'text-purple-400' },
-      { id: 'routing',        label: 'المسار',  Icon: Route,      color: 'text-cyan-400'   },
-      { id: 'spatial_analyst',label: 'Spatial', Icon: Activity,   color: 'text-sky-400'    },
-      { id: '3d_analyst',     label: '3D',      Icon: Box,        color: 'text-fuchsia-400'},
+      { id: 'spatial_analyst', label: 'Spatial', Icon: Activity, color: 'text-sky-400'    },
+      { id: '3d_analyst',      label: '3D',      Icon: Box,      color: 'text-fuchsia-400'},
     ],
   },
   {
-    labelAr: 'الطبقات',
-    color: 'text-indigo-500',
-    groups: [
-      { id: 'layers', label: 'الطبقات', Icon: Layers3, color: 'text-indigo-400' },
-    ],
-  },
-  {
-    labelAr: 'التقارير',
-    color: 'text-slate-400',
-    groups: [
-      { id: 'report',     label: 'التقرير',  Icon: FileText,   color: 'text-slate-300' },
-      { id: 'compliance', label: 'المطابقة', Icon: ShieldCheck, color: 'text-rose-400'  },
-    ],
-  },
-  {
-    labelAr: 'رسم',
+    labelAr: 'أدوات',
     color: 'text-emerald-500',
     groups: [
-      { id: 'draw', label: 'رسم', Icon: Pencil, color: 'text-emerald-400' },
+      { id: 'draw',       label: 'رسم',      Icon: Pencil,     color: 'text-emerald-400' },
+      { id: 'report',     label: 'التقرير',  Icon: FileText,   color: 'text-slate-300'  },
+      { id: 'compliance', label: 'المطابقة', Icon: ShieldCheck, color: 'text-rose-400'   },
     ],
   },
 ];
@@ -622,6 +609,29 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
             )}
           </React.Fragment>
         ))}
+        {/* ── Navigation shortcuts to specialist pages ── */}
+        <div className="w-px bg-slate-700/50 self-stretch mx-0.5 shrink-0" />
+        <div className="flex flex-col shrink-0 justify-center">
+          <div className="text-[9px] font-bold uppercase tracking-widest px-2 pt-1 pb-0 text-slate-600 text-center">انتقال</div>
+          <div className="flex items-stretch flex-1">
+            <Link
+              href="/dashboard/gis-sovereignty/spatial-analytics"
+              className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 min-w-[52px] text-slate-500 hover:text-blue-300 hover:bg-slate-800/40 transition-colors border-l border-slate-800/30"
+              title="مختبر التحليل المكاني — تضاريس، ملاءمة، مسار أمثل"
+            >
+              <Mountain size={14} className="text-amber-500/70" />
+              <span className="text-[10px] font-medium whitespace-nowrap">التحليل</span>
+            </Link>
+            <Link
+              href="/dashboard/gis-sovereignty/engineering-workspace"
+              className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 min-w-[52px] text-slate-500 hover:text-emerald-300 hover:bg-slate-800/40 transition-colors border-l border-slate-800/30"
+              title="مساحة العمل الهندسية — الطبقات والرسم الهندسي"
+            >
+              <Layers3 size={14} className="text-indigo-500/70" />
+              <span className="text-[10px] font-medium whitespace-nowrap">الطبقات</span>
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* ── Row 2: Contextual sub-tools ─────────────────────────── */}
@@ -737,9 +747,18 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
                 <div className="flex items-center gap-2 text-[10px] text-slate-400 px-1">
                   {props.showFireLayer && (
                     <>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block"/>حرق غاز</span>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>حريق</span>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>شذوذ</span>
+                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>حريق مؤكد</span>
+                      {props.fireShowAll && <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block"/>حرق غاز</span>}
+                      {props.fireShowAll && <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>شذوذ</span>}
+                      <button
+                        onClick={props.onToggleFireShowAll}
+                        className={`ml-1 text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+                          props.fireShowAll
+                            ? 'border-orange-400/60 text-orange-300 bg-orange-900/30'
+                            : 'border-slate-600 text-slate-400 hover:text-orange-300 hover:border-orange-400/40'
+                        }`}
+                        title={props.fireShowAll ? 'عرض المؤكد فقط' : 'عرض كل الرصد (180 نقطة)'}
+                      >{props.fireShowAll ? 'مؤكد فقط ↑' : 'كل الرصد ↓'}</button>
                     </>
                   )}
                   {props.showLeakLayer && (
@@ -805,33 +824,7 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
             onDrawModeChange={props.onDrawModeChange}
           />
         )}
-        {activeGroup === 'terrain' && (
-          <SubBarTerrain
-            ribbonState={ribbonState}
-            onRibbonChange={onRibbonChange}
-            running={props.running}
-            onRunAnalysis={props.onRunAnalysis}
-          />
-        )}
-        {activeGroup === 'suitability' && (
-          <SubBarSuitability
-            ribbonState={ribbonState}
-            onRibbonChange={onRibbonChange}
-            running={props.running}
-            onRunAnalysis={props.onRunAnalysis}
-          />
-        )}
-        {activeGroup === 'routing' && (
-          <SubBarRouting
-            ribbonState={ribbonState}
-            onRibbonChange={onRibbonChange}
-            routingPickMode={props.routingPickMode}
-            routingStartPoint={props.routingStartPoint}
-            routingEndPoint={props.routingEndPoint}
-            onStartRoutingPick={props.onStartRoutingPick}
-            onClearRoutingPoints={props.onClearRoutingPoints}
-          />
-        )}
+        {/* terrain/suitability/routing/layers moved to /spatial-analytics and /engineering-workspace */}
         {activeGroup === 'report' && (
           <SubBarReport
             ribbonState={ribbonState}
@@ -846,18 +839,7 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
             تقييم مطابقة بيانات ArcGIS والجودة — النتائج تظهر في لوحة التحليل
           </span>
         )}
-        {activeGroup === 'layers' && (
-          <div className="flex items-center w-full overflow-visible">
-            <AssetTopBar
-              onAddChildAsset={props.onAddChildAsset ?? (() => {})}
-              onStartLayerExtractionPolygon={props.onStartLayerExtractionPolygon}
-              onRunMunicipalityExtraction={props.onRunMunicipalityExtraction}
-              onMunicipalityChange={props.onMunicipalityChange}
-              onCancelExtractionSelection={props.onCancelExtractionSelection}
-              extractionBusy={props.extractionBusy}
-            />
-          </div>
-        )}
+        {/* layers moved to engineering-workspace */}
         {/* ── RSC Spatial Analyst sub-tools ────────────────────────────── */}
         {activeGroup === 'spatial_analyst' && (
           <div className="flex items-center gap-1 flex-wrap">

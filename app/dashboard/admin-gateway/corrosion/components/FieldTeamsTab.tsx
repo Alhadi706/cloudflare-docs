@@ -75,6 +75,8 @@ function uid() { return Math.random().toString(36).slice(2, 10); }
 export default function FieldTeamsTab() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [empLoading, setEmpLoading] = useState(true);
+  const [empError, setEmpError] = useState(false);
+  const [empSearch, setEmpSearch] = useState('');
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [teams, setTeams] = useState<FieldTeam[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -107,13 +109,21 @@ export default function FieldTeamsTab() {
 
   const telegramConnected = Boolean(telegramIntegration?.is_active);
 
-  // Load employees from dept API
+  // Load employees from HR dept API
   useEffect(() => {
     setEmpLoading(true);
-    fetch(`${API_DEPT}/corrosion/employees?limit=100`, { headers: buildHeaders() })
-      .then(r => r.ok ? r.json() : [])
-      .then((d: Employee[]) => setEmployees(d))
-      .catch(() => setEmployees([]))
+    setEmpError(false);
+    fetch(`${API_DEPT}/corrosion/employees?limit=200`, { headers: buildHeaders() })
+      .then(r => {
+        if (!r.ok) { setEmpError(true); return []; }
+        return r.json();
+      })
+      .then((d: any) => {
+        const list = Array.isArray(d) ? d : (d?.employees ?? d?.data ?? []);
+        setEmployees(list);
+        if (!list.length) setEmpError(true);
+      })
+      .catch(() => { setEmpError(true); setEmployees([]); })
       .finally(() => setEmpLoading(false));
   }, []);
 
@@ -690,48 +700,67 @@ export default function FieldTeamsTab() {
           {/* Add Member */}
           <div className="bg-slate-800/50 rounded-xl p-4 space-y-3">
                 <p className="text-xs font-semibold text-slate-300">إضافة أعضاء الفريق</p>
-                {employees.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="text-[11px] text-slate-500">
-                      يمكن الاختيار من قائمة الشؤون الإدارية مباشرة، أو استخدام الإدخال المباشر إذا احتجت ربط عضو غير موجود في القائمة.
-                    </div>
-                    {empLoading ? (
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> جاري تحميل قوائم الموظفين...
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <select
-                          value={addEmpId}
-                          onChange={e => setAddEmpId(e.target.value)}
-                          className="min-w-[240px] flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                        >
-                          <option value="">— اختر موظفاً —</option>
-                          {employees.map(e => (
-                            <option key={e.id} value={e.id}>
-                              {e.first_name_ar} {e.last_name_ar} ({e.employee_number})
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={addRole}
-                          onChange={e => setAddRole(e.target.value)}
-                          className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                        >
-                          {TEAM_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                        <button
-                          onClick={addMember}
-                          className="px-3 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-600/30 transition-colors text-sm font-semibold"
-                        >
-                          إضافة من القائمة
-                        </button>
-                      </div>
-                    )}
+                {/* HR Employee Selector — always visible with loading/error states */}
+                {empLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> جاري تحميل قوائم الموارد البشرية...
                   </div>
-                ) : (
+                ) : empError || employees.length === 0 ? (
                   <div className="text-[11px] text-amber-300 bg-amber-900/20 border border-amber-500/20 rounded-lg px-3 py-2">
                     قائمة الشؤون الإدارية غير متاحة حالياً، استخدم الإدخال المباشر أدناه لبناء الفريق يدوياً.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-[11px] text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> مرتبط مع الشؤون الإدارية — {employees.length} موظف متاح
+                    </div>
+                    <input
+                      value={empSearch}
+                      onChange={e => setEmpSearch(e.target.value)}
+                      placeholder="ابحث باسم الموظف أو رقمه الوظيفي..."
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <select
+                        value={addEmpId}
+                        onChange={e => setAddEmpId(e.target.value)}
+                        className="min-w-[240px] flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                      >
+                        <option value="">— اختر موظفاً —</option>
+                        {employees
+                          .filter(e => {
+                            if (!empSearch.trim()) return true;
+                            const s = empSearch.toLowerCase();
+                            return (
+                              (e.first_name_ar || '').toLowerCase().includes(s) ||
+                              (e.last_name_ar || '').toLowerCase().includes(s) ||
+                              (e.employee_number || '').toLowerCase().includes(s) ||
+                              (e.email || '').toLowerCase().includes(s)
+                            );
+                          })
+                          .map(e => {
+                            const name = [e.first_name_ar, e.last_name_ar].filter(Boolean).join(' ') || e.email?.split('@')[0] || '—';
+                            return (
+                              <option key={e.id} value={e.id}>
+                                {name} ({e.employee_number})
+                              </option>
+                            );
+                          })}
+                      </select>
+                      <select
+                        value={addRole}
+                        onChange={e => setAddRole(e.target.value)}
+                        className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                      >
+                        {TEAM_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <button
+                        onClick={addMember}
+                        className="px-3 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-600/30 transition-colors text-sm font-semibold"
+                      >
+                        إضافة من القائمة
+                      </button>
+                    </div>
                   </div>
                 )}
 

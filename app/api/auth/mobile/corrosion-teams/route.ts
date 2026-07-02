@@ -1,7 +1,10 @@
 /**
  * /api/auth/mobile/corrosion-teams
- * GET → Returns the corrosion field team(s) the logged-in mobile employee belongs to.
- *       Called by the mobile app after login to show team assignment + work areas.
+ * GET → Returns the corrosion field team(s) and assigned work orders
+ *       for the logged-in mobile employee.
+ *       Called by the mobile app after login to show:
+ *       - Team assignment tab (فريقي)
+ *       - Assigned work orders (مهامي)
  *
  * Auth: Bearer {mobile_token} in Authorization header
  */
@@ -11,6 +14,8 @@ import fs from 'fs';
 import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
+const BACKEND = 'http://127.0.0.1:7860';
+const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
 function readTeams(tenantId: string): any[] {
   const file = path.join(DATA_DIR, `${tenantId}.json`);
@@ -21,6 +26,19 @@ function readTeams(tenantId: string): any[] {
   } catch {
     return [];
   }
+}
+
+async function fetchWorkOrders(tenantId: string, teamName: string): Promise<any[]> {
+  try {
+    const url = `${BACKEND}/api/v1/workflow/work-orders?tab=outbound_internal&dept=corrosion&assigned_team=${encodeURIComponent(teamName)}&limit=50`;
+    const res = await fetch(url, {
+      headers: { 'X-Tenant-ID': tenantId, 'X-Staff-Api-Key': STAFF_API_KEY },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data?.work_orders ?? data?.data ?? []);
+  } catch { return []; }
 }
 
 export async function GET(req: NextRequest) {
@@ -39,7 +57,7 @@ export async function GET(req: NextRequest) {
   const employeeNo = String(payload.employee_no || '');
 
   if (!tenantId || !employeeNo) {
-    return NextResponse.json({ teams: [] });
+    return NextResponse.json({ teams: [], work_orders: [], has_team: false });
   }
 
   const allTeams = readTeams(tenantId);
@@ -58,8 +76,28 @@ export async function GET(req: NextRequest) {
     name: team.name,
     specialization: team.specialization,
     updatedAt: team.updatedAt,
-    members: team.members,
+    members: team.members.map((m: any) => ({
+      name: m.name,
+      role: m.role,
+      employeeNumber: m.employeeNumber,
+      phone: m.phone,
+    })),
   }));
 
-  return NextResponse.json({ teams: myTeams });
+  // Fetch work orders assigned to this employee's teams
+  const workOrders: any[] = [];
+  for (const team of myTeams) {
+    const orders = await fetchWorkOrders(tenantId, team.name);
+    for (const wo of orders) {
+      workOrders.push({ ...wo, _team_name: team.name, _team_id: team.id });
+    }
+  }
+
+  return NextResponse.json({
+    has_team: myTeams.length > 0,
+    teams: myTeams,
+    work_orders: workOrders,
+    // Tab hint for mobile app: show "فريقي" tab if the employee has a team
+    mobile_tabs: myTeams.length > 0 ? ['home', 'my_team', 'tasks', 'profile'] : ['home', 'tasks', 'profile'],
+  });
 }
