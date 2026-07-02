@@ -3,10 +3,11 @@
 // InSAR Ground Deformation Detection — Sentinel-1 SAR interferometry.
 // Shows coherence map, displacement map (mm), and deformation hotspots.
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   Radio, Loader2, AlertTriangle, TrendingDown, TrendingUp,
-  Minus, MapPin, Layers, CheckCircle2, Info,
+  Minus, MapPin, Layers, CheckCircle2, Info, Send, RefreshCw,
+  Clock, XCircle, ChevronDown, Download, Calendar,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -163,7 +164,21 @@ function InSARMap({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+// Predefined Libya areas for historical analysis
+const PRESET_AREAS = [
+  { id: 'tripoli_center', label: 'طرابلس — وسط',       bbox: [12.95,32.75,13.45,33.05] as [number,number,number,number] },
+  { id: 'tripoli_tajura', label: 'طرابلس — تاجوراء',   bbox: [13.25,32.78,13.55,32.98] as [number,number,number,number] },
+  { id: 'benghazi',       label: 'بنغازي — وسط',       bbox: [19.85,31.95,20.30,32.25] as [number,number,number,number] },
+  { id: 'jebel_akhdar',   label: 'الجبل الأخضر',       bbox: [20.5, 32.0, 22.5, 33.0]  as [number,number,number,number] },
+  { id: 'gmmr_gharyan',   label: 'GMMR — غريان',       bbox: [12.85,32.05,13.20,32.32] as [number,number,number,number] },
+  { id: 'gmmr_shweref',   label: 'GMMR — الشويرف',     bbox: [13.8, 30.0, 14.8, 30.9]  as [number,number,number,number] },
+  { id: 'misrata',        label: 'مصراتة',              bbox: [15.00,32.25,15.25,32.55] as [number,number,number,number] },
+  { id: 'sabha',          label: 'سبها',                bbox: [14.25,26.88,14.65,27.22] as [number,number,number,number] },
+  { id: 'custom',         label: '📐 منطقة مخصصة',     bbox: null as any },
+];
+
 export default function InSARPanel({ polygon }: Props) {
+  const [panelMode, setPanelMode] = useState<'instant' | 'historical'>('instant');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<InSARResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -173,6 +188,87 @@ export default function InSARPanel({ polygon }: Props) {
   const [dateRef, setDateRef] = useState('');
   const [dateSecondary, setDateSecondary] = useState('');
   const [autoMode, setAutoMode] = useState(true); // STAC تلقائي افتراضياً
+
+  // ── Historical mode state ─────────────────────────────────────────────────
+  const [hAreaId,    setHAreaId]    = useState('tripoli_center');
+  const [hYearFrom,  setHYearFrom]  = useState(2024);
+  const [hYearTo,    setHYearTo]    = useState(2026);
+  const [hMonthFrom, setHMonthFrom] = useState('01');
+  const [hMonthTo,   setHMonthTo]   = useState('07');
+  const [hMaxPairs,  setHMaxPairs]  = useState(3);
+  const [hLoading,   setHLoading]   = useState(false);
+  const [hResult,    setHResult]    = useState<any>(null);
+  const [hError,     setHError]     = useState<string | null>(null);
+  const [hJobs,      setHJobs]      = useState<any[]>([]);
+  const [hJobsLoading, setHJobsLoading] = useState(false);
+  const [hExpandJob, setHExpandJob] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadHyP3Jobs = useCallback(async () => {
+    setHJobsLoading(true);
+    try {
+      const res = await fetch('/api/v1/satellite/insar-subsidence');
+      if (res.ok) {
+        const d = await res.json();
+        const all = [...(d.pending_jobs || []), ...(d.completed_results || [])];
+        setHJobs(all);
+      }
+    } catch { /* ignore */ } finally {
+      setHJobsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHyP3Jobs();
+  }, [loadHyP3Jobs]);
+
+  useEffect(() => {
+    const active = hJobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING');
+    if (active && !pollRef.current) {
+      pollRef.current = setInterval(loadHyP3Jobs, 30_000);
+    } else if (!active && pollRef.current) {
+      clearInterval(pollRef.current); pollRef.current = null;
+    }
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [hJobs, loadHyP3Jobs]);
+
+  const submitHistorical = async () => {
+    const area = PRESET_AREAS.find(a => a.id === hAreaId);
+    const bbox = hAreaId === 'custom' && polygon && polygon.length >= 2
+      ? [
+          Math.min(...polygon.map(p => p[0])), Math.min(...polygon.map(p => p[1])),
+          Math.max(...polygon.map(p => p[0])), Math.max(...polygon.map(p => p[1])),
+        ]
+      : area?.bbox ?? [12.95,32.75,13.45,33.05];
+
+    setHLoading(true); setHError(null); setHResult(null);
+    try {
+      const res = await fetch('/api/v1/satellite/insar-subsidence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode:      'historical',
+          bbox,
+          date_from: `${hYearFrom}-${hMonthFrom}-01`,
+          date_to:   `${hYearTo}-${hMonthTo}-28`,
+          area_name: area?.label ?? 'منطقة مخصصة',
+          max_pairs: hMaxPairs,
+        }),
+      });
+      const d = await res.json();
+      setHResult(d);
+      if (d.ok) await loadHyP3Jobs();
+      else setHError(d.error || 'خطأ غير معروف');
+    } catch (e: any) {
+      setHError(e.message || 'خطأ في الاتصال');
+    } finally {
+      setHLoading(false);
+    }
+  };
+
+  const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const MONTHS    = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+  const YEARS     = Array.from({ length: 8 }, (_,i) => 2018+i);
 
   const runAnalysis = useCallback(async () => {
     if (!polygon || polygon.length < 3) { setError('ارسم منطقة على الخريطة أولاً'); return; }
@@ -214,19 +310,186 @@ export default function InSARPanel({ polygon }: Props) {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-900" dir="rtl">
 
-      {/* ── Header ─────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="shrink-0 px-4 py-3 border-b border-slate-800">
-        <div className="flex items-center gap-2 mb-0.5">
+        <div className="flex items-center gap-2 mb-1.5">
           <Radio size={15} className="text-violet-400 shrink-0" />
           <span className="text-sm font-bold text-white">InSAR — كشف تشوه الأرض</span>
         </div>
-        <p className="text-[10px] text-slate-500">
-          Sentinel-1 SAR interferometry · دقة المليمترات · يعمل ليلاً وبالغيوم
-        </p>
+        {/* Mode tabs */}
+        <div className="flex gap-1 bg-slate-800/60 rounded-lg p-0.5">
+          <button onClick={() => setPanelMode('instant')}
+            className={`flex-1 py-1 px-2 rounded text-xs font-medium transition-colors ${panelMode==='instant' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+            ⚡ فوري (STAC)
+          </button>
+          <button onClick={() => setPanelMode('historical')}
+            className={`flex-1 py-1 px-2 rounded text-xs font-medium transition-colors ${panelMode==='historical' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+            📅 تاريخي (HyP3)
+          </button>
+        </div>
       </div>
 
-      {/* ── Controls ───────────────────────────────────────────── */}
-      <div className="shrink-0 px-4 py-3 border-b border-slate-800 space-y-2.5">
+      {/* ── Historical Mode ─────────────────────────────────────── */}
+      {panelMode === 'historical' && (
+        <div className="flex-1 overflow-y-auto">
+          {/* Form */}
+          <div className="px-4 py-3 space-y-3 border-b border-slate-800">
+            {/* Area */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5 font-medium">📍 المنطقة</label>
+              <select value={hAreaId} onChange={e => setHAreaId(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-violet-500">
+                {PRESET_AREAS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+              </select>
+              {hAreaId === 'custom' && (!polygon || polygon.length < 3) && (
+                <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={11} /> ارسم منطقة على الخريطة أولاً (تبويب رسم)
+                </p>
+              )}
+            </div>
+
+            {/* Date range */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5 font-medium">📅 الفترة الزمنية</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-1">من</p>
+                  <div className="flex gap-1">
+                    <select value={hYearFrom} onChange={e => setHYearFrom(+e.target.value)}
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded px-1.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-violet-500">
+                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <select value={hMonthFrom} onChange={e => setHMonthFrom(e.target.value)}
+                      className="bg-slate-800 border border-slate-700 rounded px-1.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-violet-500">
+                      {MONTHS.map((m,i) => <option key={m} value={m}>{MONTHS_AR[i]}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-1">إلى</p>
+                  <div className="flex gap-1">
+                    <select value={hYearTo} onChange={e => setHYearTo(+e.target.value)}
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded px-1.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-violet-500">
+                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <select value={hMonthTo} onChange={e => setHMonthTo(e.target.value)}
+                      className="bg-slate-800 border border-slate-700 rounded px-1.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-violet-500">
+                      {MONTHS.map((m,i) => <option key={m} value={m}>{MONTHS_AR[i]}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Max pairs */}
+            <div className="flex items-center gap-3">
+              <label className="text-[10px] text-slate-400 shrink-0">أزواج InSAR:</label>
+              <input type="range" min={1} max={8} value={hMaxPairs}
+                onChange={e => setHMaxPairs(+e.target.value)}
+                className="flex-1 accent-violet-500 h-1" />
+              <span className="text-xs text-violet-300 w-4 text-center">{hMaxPairs}</span>
+            </div>
+
+            <button onClick={submitHistorical}
+              disabled={hLoading || (hAreaId === 'custom' && (!polygon || polygon.length < 3))}
+              className="w-full py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-xs flex items-center justify-center gap-2 font-medium">
+              {hLoading ? <><RefreshCw size={13} className="animate-spin" /> جاري الإرسال...</>
+                        : <><Send size={13} /> إرسال للمعالجة (ASF HyP3)</>}
+            </button>
+          </div>
+
+          {/* Submit result */}
+          {hResult && (
+            <div className={`mx-4 mt-3 px-3 py-2 rounded-lg text-xs shrink-0 ${hResult.ok ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border border-red-500/30 text-red-300'}`}>
+              {hResult.ok
+                ? <><p className="font-semibold">✅ {hResult.message}</p><p className="mt-0.5 opacity-80">مشاهد: {hResult.scenes_found} | أزواج: {hResult.pairs_built} | وظائف: {hResult.jobs_submitted}</p></>
+                : <><p className="font-semibold">❌ {hResult.error}</p>{hResult.scene_dates && <p className="mt-0.5 font-mono opacity-70 text-[10px]">مشاهد: {hResult.scene_dates?.join(', ')}</p>}</>
+              }
+            </div>
+          )}
+          {hError && <div className="mx-4 mt-3 px-3 py-2 rounded-lg text-xs bg-red-500/10 border border-red-500/30 text-red-300">❌ {hError}</div>}
+
+          {/* Jobs */}
+          <div className="px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-400">وظائف HyP3 ({hJobs.length})</span>
+              <button onClick={loadHyP3Jobs} disabled={hJobsLoading}
+                className="p-1 text-slate-500 hover:text-slate-300 disabled:opacity-40">
+                <RefreshCw size={12} className={hJobsLoading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+
+            {hJobs.length === 0 && !hJobsLoading && (
+              <div className="text-center py-4">
+                <Calendar size={24} className="text-slate-700 mx-auto mb-2" />
+                <p className="text-xs text-slate-600">لا توجد وظائف InSAR بعد</p>
+              </div>
+            )}
+
+            {hJobs.map((job: any) => (
+              <div key={job.job_id} className={`rounded-lg border text-xs ${
+                job.status==='SUCCEEDED' ? 'bg-emerald-500/5 border-emerald-500/20' :
+                job.status==='RUNNING'   ? 'bg-blue-500/5 border-blue-500/20' :
+                job.status==='FAILED'    ? 'bg-red-500/5 border-red-500/20' :
+                                           'bg-slate-800/50 border-slate-700'}`}>
+                <button onClick={() => setHExpandJob(hExpandJob===job.job_id ? null : job.job_id)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-right">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {job.status==='SUCCEEDED' && <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />}
+                    {job.status==='RUNNING'   && <RefreshCw size={12} className="text-blue-400 animate-spin shrink-0" />}
+                    {job.status==='PENDING'   && <Clock size={12} className="text-amber-400 shrink-0" />}
+                    {job.status==='FAILED'    && <XCircle size={12} className="text-red-400 shrink-0" />}
+                    <span className="truncate text-slate-200">{job.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={{SUCCEEDED:'text-emerald-400',RUNNING:'text-blue-400',PENDING:'text-amber-400',FAILED:'text-red-400'}[job.status as string] || 'text-slate-400'}>
+                      {job.status==='SUCCEEDED'?'منجز✓':job.status==='RUNNING'?'جاري...':job.status==='PENDING'?'معلق':'فشل'}
+                    </span>
+                    <ChevronDown size={11} className={`text-slate-500 ${hExpandJob===job.job_id?'rotate-180':''}`} />
+                  </div>
+                </button>
+                {hExpandJob===job.job_id && (
+                  <div className="px-3 pb-3 pt-2 border-t border-slate-700/50 space-y-2">
+                    <p className="font-mono text-slate-500 text-[10px]">{job.job_id?.slice(0,16)}...</p>
+                    {job.granules?.length > 0 && <p className="text-slate-600 text-[10px] truncate">{job.granules[0]?.slice(0,50)}...</p>}
+                    {job.status==='SUCCEEDED' && job.files?.length > 0 && (
+                      <div className="space-y-1">
+                        {job.files.filter((f:any)=>f.filename?.endsWith('.tif')).slice(0,3).map((f:any)=>(
+                          <a key={f.filename} href={f.url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 rounded border border-emerald-500/20 hover:bg-emerald-500/20">
+                            <Download size={11} className="text-emerald-400 shrink-0" />
+                            <span className="truncate text-emerald-300 text-[10px]">{f.filename}</span>
+                          </a>
+                        ))}
+                        {job.browse_images?.[0] && (
+                          <img src={job.browse_images[0]} alt="InSAR preview"
+                            className="w-full rounded border border-slate-700 max-h-36 object-contain bg-black mt-1"
+                            onError={e=>(e.currentTarget.style.display='none')} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Legend */}
+          <div className="px-4 pb-4">
+            <div className="bg-slate-800/30 rounded-lg p-3 text-xs space-y-1.5 text-slate-500">
+              <p className="text-slate-400 font-semibold text-[10px]">تفسير خريطة الإزاحة:</p>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 shrink-0"/><span>هبوط &gt;5مم ← انهيار/تسرب/ترسب</span></div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-blue-500 shrink-0"/><span>ارتفاع ← ضغط مياه/تمدد</span></div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-slate-500 shrink-0"/><span>مستقر (±2مم)</span></div>
+              <p className="text-slate-700 text-[10px]">دقة: 5-20مم | فترة: 12 يوم | الملف: *_los_disp.tif</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Instant Mode (original) ─────────────────────────────── */}
+      {panelMode === 'instant' && (<>
+        <div className="shrink-0 px-4 py-3 border-b border-slate-800 space-y-2.5">
         {/* Date pickers */}
         <div className="flex items-center gap-2 mb-1.5">
           <button
@@ -299,7 +562,7 @@ export default function InSARPanel({ polygon }: Props) {
             ارسم منطقة أولاً من تبويب "رسم"
           </p>
         ) : null}
-      </div>
+        </div>{/* end controls */}
 
       {/* ── Results ────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
@@ -497,6 +760,8 @@ export default function InSARPanel({ polygon }: Props) {
           </div>
         )}
       </div>
+      {/* end instant mode */}
+      </>)}
     </div>
   );
 }

@@ -107,17 +107,40 @@ export default function Sidebar({ className }: { className?: string }) {
     ['supervisor', 'section_manager', 'dept_manager', 'site_manager',
      'project_manager', 'hr_manager', 'finance_manager', 'tenant_admin']
       .some(r => currentUser?.role === r || !!currentUser?.roles?.includes(r));
-  // GM Office entry — shown for admin/manager roles
-  const gmNavItem = isAdmin
+  // ── Scope-aware nav items ─────────────────────────────────────────────────
+  // The app-scope isolation principle:
+  //   appScope = 'all'  → user has full platform access (super_admin / tenant_admin)
+  //                        → show all static nav items gated by role
+  //   appScope = anything else → user is in a departmental app
+  //                        → show ONLY: Home + AI Assistant
+  //                          (dept items come from the dynamic activated-depts list)
+  //                          GIS and system tools are platform-level, not dept-level
+  //
+  // This respects the "each department feels like its own application" principle.
+  const isDeptScope = appScope !== 'all';
+
+  // GM Office: only super_admin / tenant_admin AND full-platform scope
+  const gmNavItem = (isAdmin && !isDeptScope)
     ? { href: '/dashboard/admin-gateway/gm-office', icon: <Award className="w-5 h-5 shrink-0" />, label: 'مكتب المدير العام', highlight: true }
     : null;
 
+  // Static nav per scope:
+  // - Full platform (scope=all): Home + AI + GIS
+  // - Departmental scope: Home + AI only (no cross-dept GIS/system tools)
+  const scopedStaticNav = isDeptScope
+    ? [
+        { href: '/dashboard',              icon: <Home className="w-5 h-5 shrink-0" />, label: 'الرئيسية' },
+        { href: '/dashboard/ai-assistant', icon: <Bot  className="w-5 h-5 shrink-0" />, label: 'المساعد الذكي' },
+      ]
+    : STATIC_NAV;
+
   const topNavItems = [
     ...(gmNavItem ? [gmNavItem] : []),
-    ...STATIC_NAV,
+    ...scopedStaticNav,
   ].filter((item) => canAccessPathForScope(item.href.split('?')[0], appScope));
 
-  const bottomNavItems = (isAdmin ? ADMIN_STATIC_NAV : [])
+  // Admin system tools: only for full-platform admins (not dept scope)
+  const bottomNavItems = (isAdmin && !isDeptScope ? ADMIN_STATIC_NAV : [])
     .filter((item) => canAccessPathForScope(item.href.split('?')[0], appScope));
 
   // Keep navItems alias for backward-compat with render below
