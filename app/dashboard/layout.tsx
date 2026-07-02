@@ -69,13 +69,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Disable pointer-events on content only when admin-gateway AND map is visible behind it
   const disablePointerEvents = (passThroughToMap || isAdminGateway) && !deptMapHidden;
 
-  // Phase 2 fix: Show Sidebar on most dashboard pages.
-  // Hide ONLY on pages that are truly full-screen (home, GIS workspace, map-shell).
-  const hideSidebar =
-    pathname === '/dashboard' ||                                                         // home page — has its own full-screen grid
-    pathname.startsWith('/dashboard/gis-sovereignty/engineering-workspace') ||            // full-screen GIS canvas
-    pathname.startsWith('/dashboard/gis-sovereignty/satellite-intelligence-center') ||   // full-screen satellite view
-    pathname.startsWith('/dashboard/map-shell');                                          // full-screen map shell
+  // Sidebar is intentionally hidden on ALL dashboard/department pages.
+  // Each department has its own internal navigation — no shared sidebar needed.
+  // The dashboard home page (/dashboard) has its own full-screen department grid.
+  const hideSidebar = pathname.startsWith('/dashboard');
 
   // Hide topbar on the main /dashboard page (it has its own full-screen UI)
   // and on GIS workspace pages (full-screen map)
