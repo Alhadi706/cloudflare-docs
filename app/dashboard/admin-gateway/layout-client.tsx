@@ -1,22 +1,23 @@
 'use client';
 /**
- * AdminGatewayLayout — floating panel over live map
- * يعرض جميع صفحات admin-gateway كلوحة عائمة على يسار الخريطة الحية.
- * الخريطة تبقى تفاعلية خلف اللوحة في جميع الأوقات.
+ * AdminGatewayLayout — floating panel over live map (Phase 3: map-toggleable)
  * ─────────────────────────────────────────────────────────────
- * وحدة الهندسة انتقلت بالكامل إلى:
- *   /dashboard/gis-sovereignty/engineering-workspace
- * الزر في هيدر البوابة يفتح الفضاء الهندسي مباشرة.
+ * كل إدارة تملك زر تبديل بين وضعين:
+ *   ① mapHidden = true  → صفحة كاملة (غطاء للخريطة) — الافتراضي لإدارات HR/مالية/مشتريات
+ *   ② mapHidden = false → لوحة عائمة فوق خريطة حية — الافتراضي لإدارات تآكل/صيانة/مشاريع
+ * التفضيل يحفظ في localStorage: map_pref_[deptCode]
  */
 import React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Compass } from 'lucide-react';
 import FloatingSidePanel from '@/components/FloatingSidePanel';
+import MapToggleButton from '@/components/MapToggleButton';
 import EmbeddedAssistant from '@/components/EmbeddedAssistant';
 import SharedAssetsPanel from './components/SharedAssetsPanel';
 import { useGisEngine } from '@/store/gisEngine';
 import { useProjectStore } from '@/store/projectStore';
+import { useDeptMapStore } from '@/store/deptMapStore';
 
 function resolveTenantId(): string {
   if (typeof window === 'undefined') return '';
@@ -37,6 +38,21 @@ export default function AdminGatewayLayout({ children }: { children: React.React
   const setEntityRenderMode = useGisEngine((s) => s.setEntityRenderMode);
   const setLayerVisible = useGisEngine((s) => s.setLayerVisible);
   const drawingMode = useGisEngine((s) => s.drawingMode);
+
+  // ── Phase 3: dept map toggle ────────────────────────────────────────────
+  const { mapHidden, initDept } = useDeptMapStore();
+
+  // Extract dept code from pathname: /dashboard/admin-gateway/[deptCode]/...
+  const deptCode = useMemo(() => {
+    const m = pathname.match(/\/dashboard\/admin-gateway\/([^\/]+)/);
+    return m ? m[1] : 'admin-gateway';
+  }, [pathname]);
+
+  // Sync dept preference whenever the route's dept changes
+  useEffect(() => {
+    initDept(deptCode);
+  }, [deptCode, initDept]);
+  // ───────────────────────────────────────────────────────────────
 
   const openEngineeringWorkspace = () => {
     const params = new URLSearchParams();
@@ -158,6 +174,29 @@ export default function AdminGatewayLayout({ children }: { children: React.React
   // صفحات الصيانة تُعرض كاملة لضمان مساحة عمل كافية، مع استمرار التزامن مع محرك GIS الموحد.
   const isMaintenancePage = pathname.startsWith('/dashboard/admin-gateway/maintenance');
 
+  // Phase 3: map toggle header button — shown in FloatingSidePanel header
+  const mapToggleExtra = (
+    <MapToggleButton showLabel={false} />
+  );
+
+  // Phase 3: full-page mode (map hidden) — opaque overlay over the background map
+  if (mapHidden && !isMaintenancePage) {
+    return (
+      <div
+        className="fixed inset-x-0 bottom-0 bg-[#080d1a] z-[38] overflow-y-auto pointer-events-auto"
+        style={{ top: '44px' }} // DashboardLayout header = h-11 = 44px
+      >
+        {/* Floating map toggle button — always accessible */}
+        <div className="sticky top-0 z-10 flex justify-end px-4 py-2 bg-[#080d1a]/90 backdrop-blur-sm border-b border-slate-800/50">
+          <MapToggleButton />
+        </div>
+        <div className="pointer-events-auto">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {isMaintenancePage ? (
@@ -172,15 +211,18 @@ export default function AdminGatewayLayout({ children }: { children: React.React
           expandable
           onClose={() => router.push('/dashboard')}
           headerExtra={(
-            <button
-              type="button"
-              onClick={openEngineeringWorkspace}
-              className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-3 py-1.5 text-[13px] font-semibold text-emerald-100 shadow-sm hover:bg-emerald-500/25 transition-colors"
-              title="فتح الفضاء الهندسي — مركز الرسم والتعديل والاستخراج"
-            >
-              <Compass className="h-4 w-4" />
-              <span>الفضاء الهندسي</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <MapToggleButton showLabel={false} />
+              <button
+                type="button"
+                onClick={openEngineeringWorkspace}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-3 py-1.5 text-[13px] font-semibold text-emerald-100 shadow-sm hover:bg-emerald-500/25 transition-colors"
+                title="فتح الفضاء الهندسي — مركز الرسم والتعديل والاستخراج"
+              >
+                <Compass className="h-4 w-4" />
+                <span>الفضاء الهندسي</span>
+              </button>
+            </div>
           )}
         >
           <SharedAssetsPanel />
