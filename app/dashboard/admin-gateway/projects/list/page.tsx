@@ -545,7 +545,7 @@ export default function ProjectsListPage() {
                               خريطة
                             </Link>
                             <Link
-                              href={`/dashboard/project-360/${project.id}`}
+                              href={`/dashboard/admin-gateway/projects/${project.id}`}
                               className="flex items-center gap-1 px-3 py-1 bg-cyan-600/20 text-cyan-400 rounded-lg text-xs hover:bg-cyan-600/30 transition-colors font-semibold"
                               title="عرض المشروع 360°"
                             >

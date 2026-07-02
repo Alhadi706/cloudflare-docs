@@ -105,8 +105,7 @@ const nextConfig = {
       },
 
       // ── Project 360: standalone → admin-gateway/projects (canonical) ──────
-      // Detail pages: Phase 5 will create /admin-gateway/projects/[id].
-      // Until then, both index and detail redirect to the project list.
+      // Phase 5: project detail page now exists at /admin-gateway/projects/[id]
       {
         source: '/dashboard/project-360',
         destination: '/dashboard/admin-gateway/projects/list',
@@ -114,7 +113,7 @@ const nextConfig = {
       },
       {
         source: '/dashboard/project-360/:id',
-        destination: '/dashboard/admin-gateway/projects/list',
+        destination: '/dashboard/admin-gateway/projects/:id',
         permanent: true,
       },
 
