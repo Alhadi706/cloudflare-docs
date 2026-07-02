@@ -8,7 +8,7 @@ import {
   Activity, Layers, Briefcase, Scale, Users, Cpu,
   ShoppingCart, Heart, Leaf, Wrench, Megaphone, Banknote,
   Target, Settings, Award, Shield, GraduationCap, Eye,
-  HardHat, Fuel, MapPin, LayoutDashboard, Download,
+  HardHat, Fuel, MapPin, LayoutDashboard,
 } from 'lucide-react';
 import { useActivatedDepartments, sidebarDepts, type ActivatedDept } from '@/store/activatedDepartments';
 import { useUserStore } from '@/store/useUserStore';
@@ -64,16 +64,19 @@ function departmentToPack(dept: ActivatedDept): 'engineering' | 'administration'
   return null;
 }
 
-// ── Static nav items ──────────────────────────────────────────────────────────
+// ── Static nav items (Phase 2: unified — no map-shell pack links) ─────────────
 
 const STATIC_NAV = [
-  { href: '/',                                                                       icon: <Home className="w-5 h-5 shrink-0" />,      label: 'الرئيسية' },
-  { href: '/entry/install',                                                          icon: <Download className="w-5 h-5 shrink-0" />,  label: 'تحميل التطبيقات' },
-  { href: '/dashboard/ai-assistant',                                                 icon: <Bot className="w-5 h-5 shrink-0" />,       label: 'المساعد الذكي' },
-  { href: '/dashboard/map-shell?pack=engineering',                                   icon: <Globe2 className="w-5 h-5 shrink-0" />,    label: 'السيادة الجغرافية' },
-  { href: '/dashboard/map-shell?pack=executive',                                     icon: <Activity className="w-5 h-5 shrink-0" />,  label: 'مركز القيادة' },
-  { href: '/dashboard/map-shell?pack=administration',                                icon: <Building2 className="w-5 h-5 shrink-0" />, label: 'بوابة الإدارة' },
-  { href: '/dashboard/asset-intelligence',                                           icon: <Cpu className="w-5 h-5 shrink-0" />,       label: 'ذكاء الأصول' },
+  { href: '/dashboard',                          icon: <Home   className="w-5 h-5 shrink-0" />, label: 'الرئيسية' },
+  { href: '/dashboard/ai-assistant',             icon: <Bot    className="w-5 h-5 shrink-0" />, label: 'المساعد الذكي' },
+  { href: '/dashboard/gis-sovereignty',          icon: <Globe2 className="w-5 h-5 shrink-0" />, label: 'الجغرافيا والخرائط' },
+];
+
+// Admin-only static items (shown below dept list)
+const ADMIN_STATIC_NAV = [
+  { href: '/dashboard/spatial-analytics',        icon: <Layers    className="w-5 h-5 shrink-0" />, label: 'التحليلات المكانية' },
+  { href: '/dashboard/system-explorer',          icon: <Activity  className="w-5 h-5 shrink-0" />, label: 'مراقبة النظام' },
+  { href: '/dashboard/admin-gateway',            icon: <Building2 className="w-5 h-5 shrink-0" />, label: 'إعدادات النظام' },
 ];
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -86,14 +89,14 @@ export default function Sidebar({ className }: { className?: string }) {
   const [appScope, setAppScope] = useState<string>('all');
 
   useEffect(() => {
-    setAppScope(normalizeAppScope(localStorage.getItem('launch_app') || ''));
+    setAppScope(normalizeAppScope(localStorage.getItem('launch_app') || process.env.NEXT_PUBLIC_APP_SCOPE || ''));
   }, []);
 
   const { departments, loading } = useActivatedDepartments();
+  // Phase 2: dept routing uses deptRoute directly — no map-shell pack mapping
   const visible = sidebarDepts(departments).filter((dept) => {
-    const pack = departmentToPack(dept);
-    const route = pack ? `/dashboard/map-shell?pack=${pack}` : deptRoute(dept);
-    return canAccessPathForScope(route.split('?')[0], appScope);
+    const route = deptRoute(dept);
+    return canAccessPathForScope(route, appScope);
   });
   const isAdmin =
     currentUser?.role === 'super_admin' ||
@@ -104,18 +107,21 @@ export default function Sidebar({ className }: { className?: string }) {
     ['supervisor', 'section_manager', 'dept_manager', 'site_manager',
      'project_manager', 'hr_manager', 'finance_manager', 'tenant_admin']
       .some(r => currentUser?.role === r || !!currentUser?.roles?.includes(r));
-  const navItems = (isSupervisorOrAbove
-    ? [
-        ...STATIC_NAV,
-        { href: '/dashboard/spatial-analytics', icon: <Layers className="w-5 h-5 shrink-0" />,   label: 'التحليلات المكانية' },
-        { href: '/dashboard/system-explorer',   icon: <Activity className="w-5 h-5 shrink-0" />, label: 'مراقبة النظام' },
-      ]
-    : STATIC_NAV)
-    .filter((item) => {
-      const path = item.href.split('?')[0];
-      if (path.startsWith('/entry/')) return true;
-      return canAccessPathForScope(path, appScope);
-    });
+  // GM Office entry — shown for admin/manager roles
+  const gmNavItem = isAdmin
+    ? { href: '/dashboard/admin-gateway/gm-office', icon: <Award className="w-5 h-5 shrink-0" />, label: 'مكتب المدير العام', highlight: true }
+    : null;
+
+  const topNavItems = [
+    ...(gmNavItem ? [gmNavItem] : []),
+    ...STATIC_NAV,
+  ].filter((item) => canAccessPathForScope(item.href.split('?')[0], appScope));
+
+  const bottomNavItems = (isAdmin ? ADMIN_STATIC_NAV : [])
+    .filter((item) => canAccessPathForScope(item.href.split('?')[0], appScope));
+
+  // Keep navItems alias for backward-compat with render below
+  const navItems = topNavItems;
 
   return (
     <aside
@@ -215,6 +221,30 @@ export default function Sidebar({ className }: { className?: string }) {
             ))}
           </div>
         )}
+
+        {/* ── Admin / system tools (bottom of nav, admin-only) ── */}
+        {bottomNavItems.length > 0 && (
+          <div className="pt-3 border-t border-slate-800/50 mt-2 space-y-0.5">
+            {!isCollapsed && (
+              <p className="px-3 py-1 text-[10px] uppercase tracking-widest text-slate-600 font-semibold">إدارة النظام</p>
+            )}
+            {bottomNavItems.map((item) => {
+              const hrefPath = item.href.split('?')[0];
+              const isActive = pathname?.startsWith(hrefPath) ?? false;
+              return (
+                <NavItem
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                  isCollapsed={isCollapsed}
+                  active={isActive}
+                  highlight={false}
+                />
+              );
+            })}
+          </div>
+        )}
       </nav>
 
       {/* User footer */}
@@ -270,9 +300,9 @@ function DeptNavItem({
 }: {
   dept: ActivatedDept; pathname: string; isCollapsed: boolean;
 }) {
-  const pack = departmentToPack(dept);
-  const route = pack ? `/dashboard/map-shell?pack=${pack}` : deptRoute(dept);
-  const active = pack ? pathname.startsWith('/dashboard/map-shell') : pathname.startsWith(route);
+  // Phase 2: use deptRoute directly — no map-shell pack mapping
+  const route = deptRoute(dept);
+  const active = pathname.startsWith(route);
   const displayName = dept.custom_name_ar ?? dept.name_ar;
 
   return (
