@@ -135,18 +135,31 @@ export async function GET(req: NextRequest) {
 
   // Fallback: in-memory store
   const { getMonitoringTeams } = await import('@/lib/mobile-field-store');
+  const myCorrosionFallback = getMyCorrosionTeams(auth.tenantId, empNo);
   if (mode === 'my_team') {
     const teams = getMonitoringTeams(auth.tenantId).filter(t => t.supervisor_employee_nos?.includes(empNo));
-    return NextResponse.json({ ok: true, teams, source: 'memory' });
+    return NextResponse.json({
+      ok: true,
+      teams: [...teams, ...myCorrosionFallback],
+      has_corrosion_team: myCorrosionFallback.length > 0,
+      source: 'memory',
+    });
   }
   if (mode === 'team_detail') {
     const teamId = req.nextUrl.searchParams.get('team_id') || '';
+    const corrTeam = myCorrosionFallback.find(t => t.id === teamId);
+    if (corrTeam) return NextResponse.json({ ok: true, team: corrTeam, source: 'corrosion_field' });
     const team   = getMonitoringTeam(auth.tenantId, teamId);
     if (!team) return NextResponse.json({ detail: 'الفريق غير موجود' }, { status: 404 });
     return NextResponse.json({ ok: true, team, source: 'memory' });
   }
   const teams = getMonitoringTeams(auth.tenantId);
-  return NextResponse.json({ ok: true, teams, source: 'memory' });
+  return NextResponse.json({
+    ok: true,
+    teams: [...teams, ...myCorrosionFallback],
+    has_corrosion_team: myCorrosionFallback.length > 0,
+    source: 'memory',
+  });
 }
 
 export async function POST(req: NextRequest) {

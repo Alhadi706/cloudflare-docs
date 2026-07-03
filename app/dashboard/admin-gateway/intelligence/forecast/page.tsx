@@ -11,6 +11,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { TrendingUp, RefreshCw, ChevronLeft, AlertTriangle, Info, Zap, DollarSign, Layers, Truck, ShoppingBag } from 'lucide-react';
+import GmOfficeTabBar from '@/components/GmOfficeTabBar';
 
 const getTenantId = (): string | null => {
   if (typeof window === 'undefined') return null;
@@ -170,8 +171,10 @@ export default function ForecastPage() {
   }, [exec, fin]);
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 md:p-8" dir="rtl">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-[#080d1a] flex flex-col" dir="rtl">
+      <GmOfficeTabBar />
+      <div className="flex-1 p-6 md:p-8">
+        <div className="max-w-6xl mx-auto space-y-6">
 
         {/* ── Verification Marker ─────────────────────────────────────────── */}
         <div className="bg-blue-900/30 border border-blue-500/40 rounded-lg px-4 py-2 text-blue-300 text-xs font-mono text-center">
@@ -451,6 +454,7 @@ export default function ForecastPage() {
             )}
           </>
         )}
+      </div>
       </div>
     </div>
   );

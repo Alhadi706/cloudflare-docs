@@ -32,7 +32,6 @@ import ServiceLayerCreateDialog, { LAYER_TEMPLATES, type LayerTemplate } from '.
 import ServiceLayerFeaturesPanel, { type AddPointModePayload } from './ServiceLayerFeaturesPanel';
 import SICLayerEditorPanel from './SICLayerEditorPanel';
 import SmartAlertsPanel from './SmartAlertsPanel';
-import TaskLaunchPanel, { TaskGuideBar, TASKS, type TaskMode } from './TaskLaunchPanel';
 import AssetLeftPanel, { type PrincipalAsset } from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetLeftPanel';
 import AssetCenterPanel from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetCenterPanel';
 import CreatePrincipalAssetModal from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/CreatePrincipalAssetModal';
@@ -118,10 +117,6 @@ export default function SatelliteIntelLegacyShell() {
   // ── Ribbon state ──────────────────────────────────────────────────────────
   const [ribbonState, setRibbonState] = useState<RibbonState>(DEFAULT_RIBBON_STATE);
   const patchRibbon = useCallback((patch: Partial<RibbonState>) => setRibbonState(s => ({ ...s, ...patch })), []);
-
-  // ── Task Mode: guides user through a specific workflow ──────────────────
-  const [taskMode,    setTaskMode]    = useState<TaskMode | null>(null);
-  const [taskStep,    setTaskStep]    = useState(0);
 
   // ── Layer editor inline state (no separate map — uses SceneMapPanel) ──────
   const [layerSelectedAssetId, setLayerSelectedAssetId] = useState<string | null>(null);
@@ -920,19 +915,6 @@ export default function SatelliteIntelLegacyShell() {
     <div className="h-screen w-full bg-slate-950 text-slate-200 flex flex-col overflow-hidden" dir="rtl">
       <SICHeader systemOnline={systemOnline} activeSceneUid={activeSceneUid} />
 
-      {/* Task Guide Bar — shown when a task mode is active */}
-      {taskMode && taskMode !== 'custom' && (
-        <TaskGuideBar
-          taskId={taskMode}
-          currentStep={taskStep}
-          onStepClick={(idx, group) => {
-            setTaskStep(idx);
-            patchRibbon({ activeGroup: group as any });
-          }}
-          onClearTask={() => { setTaskMode(null); setTaskStep(0); }}
-        />
-      )}
-
       {/* Create layer dialog */}
       {showCreateDialog && (
         <ServiceLayerCreateDialog
@@ -963,17 +945,7 @@ export default function SatelliteIntelLegacyShell() {
         onRunAnalysis={handleRunAnalysis}
         onRefresh={triggerRefresh}
         ribbonState={ribbonState}
-        onRibbonChange={(patch) => {
-            patchRibbon(patch);
-            // Advance task step when user switches to the next group
-            if (taskMode && taskMode !== 'custom' && patch.activeGroup) {
-              const task = TASKS.find(t => t.id === taskMode);
-              if (task) {
-                const nextIdx = task.steps.findIndex(s => s.ribbonGroup === patch.activeGroup);
-                if (nextIdx >= 0 && nextIdx >= taskStep) setTaskStep(nextIdx);
-              }
-            }
-          }}
+        onRibbonChange={patchRibbon}
         onRscToolChange={(tool) => {
           setRscActiveTool(tool);
           patchRibbon({ rscActiveTool: tool });
@@ -1075,24 +1047,6 @@ export default function SatelliteIntelLegacyShell() {
         )}
 
         <div className={`min-w-0 relative transition-all duration-300 ${rightPanelSize === 'full' ? 'w-0 overflow-hidden flex-none' : 'flex-1'}`}>
-
-          {/* Task Launch Panel — shown when no task selected yet */}
-          {taskMode === null && (
-            <TaskLaunchPanel
-              onSelectTask={(mode) => {
-                setTaskMode(mode);
-                setTaskStep(0);
-                // Activate the first step's ribbon group
-                if (mode !== 'custom') {
-                  const task = TASKS.find(t => t.id === mode);
-                  if (task && task.steps.length > 0) {
-                    patchRibbon({ activeGroup: task.steps[0].ribbonGroup as any });
-                  }
-                }
-              }}
-            />
-          )}
-
           <SceneMapPanel
             scenes={scenes}
             projects={projects}

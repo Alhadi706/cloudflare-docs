@@ -6,4 +6,10 @@ nohup: ignoring input
    ▲ Next.js 14.1.0
    - Local:        http://localhost:3000
 
- ✓ Ready in 475ms
+ ✓ Ready in 468ms
+null
+TypeError: Cannot read properties of null (reading 'message')
+    at /home/alhadi/digital-dashboard/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:15:917
+    at ek (/home/alhadi/digital-dashboard/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:133290)
+    at /home/alhadi/digital-dashboard/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:143966
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
