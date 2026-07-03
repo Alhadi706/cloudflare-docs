@@ -13,7 +13,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { getHomeRoute } from '@/lib/rbac';
-import { applyServerSession } from '@/lib/client-auth-session';
+import { applyServerSession, syncClientAuthState } from '@/lib/client-auth-session';
 import type { DepartmentCode, UserRole } from '@/lib/user-store';
 
 interface Props {
@@ -32,13 +32,6 @@ const PANEL_STYLE = {
 
 function persistTenantContext(tenantId?: string | null, tenantCode?: string | null) {
   const previousTenantId = localStorage.getItem('tenant_id') || localStorage.getItem('active_tenant_id');
-
-  // Only clear and replace tenant context when a NEW tenant_id is explicitly provided
-  // If tenant_id is null/undefined (e.g. OTP flow before fix), preserve existing value
-  if (!tenantId) {
-    // No new tenant_id provided — preserve whatever is already stored
-    return;
-  }
 
   localStorage.removeItem('tenant_id');
   localStorage.removeItem('active_tenant_id');
@@ -197,7 +190,13 @@ export default function LoginPanel({ onDemoEnter }: Props) {
         headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
-      if (res.ok && data.token) { await finalizeLogin(data, data.email); return; }
+      if (res.ok && data.token) {
+        // Use syncClientAuthState to set ALL cookies (role, dept, tenant, etc.)
+        // so middleware RBAC works correctly on the next navigation.
+        await syncClientAuthState(data);
+        window.location.href = data.home_route || '/dashboard';
+        return;
+      }
     } catch { /* fallback */ }
     onDemoEnter();
   };
