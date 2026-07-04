@@ -2,9 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
-import MapToggleButton from '@/components/MapToggleButton';
 import { useGisEngine } from '@/store/gisEngine';
 import { useDeptMapStore } from '@/store/deptMapStore';
 import { clearServerSession } from '@/lib/client-auth-session';
@@ -58,9 +56,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     // Redirect to installer only during explicit bootstrap flow.
-    // Normal users should be able to enter dashboard routes directly.
-    if (localStorage.getItem('needs_bootstrap') === '1') {
+    // Guard: if tenant_id already exists the account is set up — skip install redirect.
+    const needsBootstrap = localStorage.getItem('needs_bootstrap') === '1';
+    const hasTenant = !!localStorage.getItem('tenant_id');
+    if (needsBootstrap && !hasTenant) {
       router.replace('/entry/install');
+    } else if (hasTenant) {
+      // Clear stale bootstrap flag — tenant already provisioned
+      localStorage.removeItem('needs_bootstrap');
     }
   }, [router]);
 
@@ -115,26 +118,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
 
-          {/* Right: home + map toggle + user name + logout */}
-          <div className="flex items-center gap-2">
-            {/* Home button — always visible, takes user back to dashboard */}
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-300 transition-colors px-2.5 py-1.5 rounded-lg hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/20"
-            >
-              <span>🏠</span>
-              <span className="hidden sm:inline">الرئيسية</span>
-            </Link>
-
-            {/* Map toggle — shown only on admin-gateway pages where map exists */}
-            {isAdminGateway && (
-              <div className="pointer-events-auto">
-                <MapToggleButton showLabel={false} />
-              </div>
-            )}
-
+          {/* Right: user name + logout */}
+          <div className="flex items-center gap-3">
             {userName && (
-              <div className="hidden sm:flex items-center gap-1.5 text-slate-400 border-r border-slate-700/50 pr-2">
+              <div className="hidden sm:flex items-center gap-1.5 text-slate-400">
                 <User className="w-3.5 h-3.5" />
                 <span className="text-xs truncate max-w-[140px]">{userName}</span>
               </div>

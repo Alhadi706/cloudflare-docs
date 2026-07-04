@@ -36,6 +36,6 @@ export async function POST(_req: NextRequest) {
     is_founder:        true,
     must_change_password: false,
     needs_bootstrap:   false,
-    home_route:        '/dashboard',
+    home_route:        '/dashboard/gm-office',
   });
 }

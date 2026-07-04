@@ -99,8 +99,14 @@ export default function LoginPanel({ onDemoEnter }: Props) {
       return;
     }
 
-    if (data.needs_bootstrap || data.is_founder) {
+    // Only set needs_bootstrap if the API explicitly says so.
+    // is_founder alone does NOT trigger bootstrap — a founder can already have
+    // completed onboarding (tenant_id present means setup is done).
+    if (data.needs_bootstrap && !data.tenant_id) {
       localStorage.setItem('needs_bootstrap', '1');
+    } else {
+      // Clear any stale bootstrap flag so the founder goes to dashboard directly
+      localStorage.removeItem('needs_bootstrap');
     }
 
     const homeRoute = getHomeRoute(
@@ -194,7 +200,9 @@ export default function LoginPanel({ onDemoEnter }: Props) {
         // Use syncClientAuthState to set ALL cookies (role, dept, tenant, etc.)
         // so middleware RBAC works correctly on the next navigation.
         await syncClientAuthState(data);
-        window.location.href = data.home_route || '/dashboard';
+        // Clear any stale bootstrap flag — dev account always has a tenant
+        localStorage.removeItem('needs_bootstrap');
+        window.location.href = data.home_route || '/dashboard/gm-office';
         return;
       }
     } catch { /* fallback */ }
