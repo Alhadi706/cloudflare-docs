@@ -6,9 +6,8 @@ import { buildMobileAttemptKey, getMobileLockState, registerFailedMobileLogin, c
 import fs from 'fs';
 import path from 'path';
 
-const TEAMS_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
-const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
-const DEFAULT_TENANT_UUID = 'aaaaaaaa-0000-4000-a000-000000000001';
+const TEAMS_DIR      = path.join(process.cwd(), '.data', 'corrosion-field-teams');
+const CTRL_TEAMS_DIR = path.join(process.cwd(), '.data', 'mobile-field');
 
 function getCorrosionTeamForEmployee(tenantId: string, employeeNo: string): { teamName: string; teamId: string } | null {
   try {
@@ -18,7 +17,7 @@ function getCorrosionTeamForEmployee(tenantId: string, employeeNo: string): { te
     if (!Array.isArray(teams)) return null;
     for (const team of teams) {
       if (Array.isArray(team.members)) {
-        const found = team.members.some((m: { employeeNumber?: string; empId?: number | string }) =>
+        const found = team.members.some((m: any) =>
           m.employeeNumber === employeeNo ||
           m.employeeNumber === employeeNo.toUpperCase() ||
           String(m.empId) === employeeNo
@@ -30,26 +29,22 @@ function getCorrosionTeamForEmployee(tenantId: string, employeeNo: string): { te
   } catch { return null; }
 }
 
-async function getMonitoringTeamsForEmployee(
-  tenantId: string, employeeNo: string
-): Promise<{ is_monitor: boolean; teams: Array<{ id: string; station_id: string; station_name: string; zone: string; shift: string; member_role: string }> }> {
+/** Check if employee is a member/supervisor in a local monitoring (control center) team */
+function getCtrlTeamForEmployee(tenantId: string, employeeNo: string): { teamName: string; teamId: string } | null {
   try {
-    // Use UUID tenant - fall back to default if tenantId is not a valid UUID
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const tenantUUID = UUID_RE.test(tenantId) ? tenantId : DEFAULT_TENANT_UUID;
-    const res = await fetch(
-      `${B}/api/v1/ctrl/monitoring-teams/by-employee?employee_no=${encodeURIComponent(employeeNo)}`,
-      {
-        headers: { 'X-Tenant-ID': tenantUUID },
-        signal: AbortSignal.timeout(4000),
+    const file = path.join(CTRL_TEAMS_DIR, `monitoring_teams_${tenantId}.json`);
+    if (!fs.existsSync(file)) return null;
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const teams = Array.isArray(data) ? data : (data.teams ?? []);
+    for (const team of teams) {
+      const inMembers    = (team.member_employee_nos     ?? []).includes(employeeNo);
+      const inSupervisors = (team.supervisor_employee_nos ?? []).includes(employeeNo);
+      if (inMembers || inSupervisors) {
+        return { teamName: team.team_name || team.name || 'فريق', teamId: team.id };
       }
-    );
-    if (res.ok) {
-      const d = await res.json();
-      return { is_monitor: d.is_monitor ?? false, teams: d.teams ?? [] };
     }
-  } catch { /* ignore */ }
-  return { is_monitor: false, teams: [] };
+    return null;
+  } catch { return null; }
 }
 
 export async function POST(req: NextRequest) {
@@ -94,10 +89,34 @@ export async function POST(req: NextRequest) {
 
   clearMobileLoginFailures(attemptKey);
 
-  const corrosionTeam = getCorrosionTeamForEmployee(tenant.id, employeeNo);
-  const monitoring    = await getMonitoringTeamsForEmployee(tenant.id, employeeNo);
+  const corrosionTeam  = getCorrosionTeamForEmployee(tenant.id, employeeNo);
+  const role           = user.role || 'employee';
 
-  const token = makeAuthToken(user.email, user.role, {
+  // Check control center membership (from local monitoring teams file)
+  const ctrlTeam = getCtrlTeamForEmployee(tenant.id, employeeNo);
+
+  // Build per-department tabs — each has its own isolated API endpoint
+  const deptTabs: Array<{ dept: string; label: string; api: string; tab_key: string }> = [];
+
+  if (ctrlTeam) {
+    deptTabs.push({
+      dept:    'control_center',
+      label:   `راصد — ${ctrlTeam.teamName}`,
+      api:     '/api/auth/mobile/monitoring',
+      tab_key: 'ctrl_monitoring',
+    });
+  }
+
+  if (corrosionTeam) {
+    deptTabs.push({
+      dept:    'corrosion',
+      label:   `فريقي — ${corrosionTeam.teamName}`,
+      api:     '/api/auth/mobile/corrosion-teams',
+      tab_key: 'corrosion_team',
+    });
+  }
+
+  const token = makeAuthToken(user.email, role, {
     tenant_id:   tenant.id,
     tenant_code: tenant.code,
     employee_no: employeeNo,
@@ -105,35 +124,29 @@ export async function POST(req: NextRequest) {
     full_name:   user.full_name || '',
   });
 
-  // Build mobile tabs based on team assignments
-  const tabs: string[] = ['home'];
-  if (monitoring.is_monitor) tabs.push('monitoring');
-  if (corrosionTeam)         tabs.push('my_team');
-  tabs.push('tasks', 'profile');
-
   return NextResponse.json({
-    ok: true,
+    ok:   true,
     token,
-    role:              user.role,
+    role,
     full_name:         user.full_name || '',
     organization_name: tenant.name,
     department_code:   user.department_code || '',
     tenant_code:       tenant.code,
-    // Corrosion field team info
+    tenant_id:         tenant.id,
+    employee_no:       employeeNo,
+
+    // ── Per-department tab info ─────────────────────────────────────────────
+    // Each entry is a separate tab with its own API — NO overlap between depts
+    dept_tabs: deptTabs,
+
+    // Corrosion field shortcut (backward compat)
     has_corrosion_team:  corrosionTeam !== null,
     corrosion_team_name: corrosionTeam?.teamName ?? null,
-    corrosion_team_id:   corrosionTeam?.teamId ?? null,
-    // Monitoring team info (فرق الرصد الميداني)
-    has_monitoring_team:    monitoring.is_monitor,
-    monitoring_teams:       monitoring.teams,
-    monitoring_team_count:  monitoring.teams.length,
-    // Primary monitoring team (first active team)
-    monitoring_team_id:     monitoring.teams[0]?.id ?? null,
-    monitoring_station_id:  monitoring.teams[0]?.station_id ?? null,
-    monitoring_station:     monitoring.teams[0]?.station_name ?? null,
-    monitoring_shift:       monitoring.teams[0]?.shift ?? null,
-    monitoring_role:        monitoring.teams[0]?.member_role ?? null,
-    // Mobile tab configuration
-    mobile_tabs: tabs,
+    corrosion_team_id:   corrosionTeam?.teamId  ?? null,
+
+    // Generic mobile tab list (dept_tabs has the detailed per-dept info)
+    mobile_tabs: deptTabs.length > 0
+      ? ['home', ...deptTabs.map(d => d.tab_key), 'tasks', 'profile']
+      : ['home', 'tasks', 'profile'],
   });
 }

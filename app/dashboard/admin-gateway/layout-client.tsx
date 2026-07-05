@@ -8,7 +8,7 @@
  * التفضيل يحفظ في localStorage: map_pref_[deptCode]
  */
 import React from 'react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Compass } from 'lucide-react';
 import FloatingSidePanel from '@/components/FloatingSidePanel';
@@ -48,8 +48,10 @@ export default function AdminGatewayLayout({ children }: { children: React.React
     return m ? m[1] : 'admin-gateway';
   }, [pathname]);
 
-  // Sync dept preference whenever the route's dept changes
-  useEffect(() => {
+  // Sync dept preference whenever the route's dept changes.
+  // useLayoutEffect runs synchronously before the browser paints,
+  // preventing the mapHidden=true flash on first render for map-visible depts.
+  useLayoutEffect(() => {
     initDept(deptCode);
   }, [deptCode, initDept]);
   // ───────────────────────────────────────────────────────────────
@@ -200,7 +202,7 @@ export default function AdminGatewayLayout({ children }: { children: React.React
     <>
       {isMaintenancePage ? (
         // عرض صفحة الصيانة مباشرة — CorridorMap مستقلة وتحتاج استقبال أحداث الماوس
-        <div className="fixed inset-0 top-16 z-[40] overflow-y-auto pointer-events-auto">
+        <div className="fixed inset-0 top-11 z-[40] overflow-y-auto pointer-events-auto">
           {children}
         </div>
       ) : (

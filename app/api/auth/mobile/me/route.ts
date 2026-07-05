@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authorize } from '@/lib/authorize';
 import { findByUsername, buildEmployeeUsername } from '@/lib/user-store';
 import { getTenantByCode } from '@/lib/tenant-store';
+import fs from 'fs';
+import path from 'path';
+
+const TEAMS_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
+
+function getCorrosionTeam(tenantId: string, employeeNo: string) {
+  try {
+    const file = path.join(TEAMS_DIR, `${tenantId}.json`);
+    if (!fs.existsSync(file)) return null;
+    const { teams } = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!Array.isArray(teams)) return null;
+    for (const team of teams) {
+      if (Array.isArray(team.members) && team.members.some((m: any) =>
+        (m.employeeNumber || '').toUpperCase() === employeeNo.toUpperCase() ||
+        String(m.empId) === employeeNo
+      )) {
+        return { team_id: team.id, team_name: team.name, specialization: team.specialization };
+      }
+    }
+    return null;
+  } catch { return null; }
+}
 
 export async function GET(req: NextRequest) {
   const auth = authorize(req, 'workorder.view');
@@ -18,6 +40,8 @@ export async function GET(req: NextRequest) {
 
   const tenant = getTenantByCode(tenantCode);
 
+  const corrosionTeam = getCorrosionTeam(auth.tenantId, employeeNo);
+
   return NextResponse.json({
     ok: true,
     employee_no:       employeeNo || user?.username?.split('.').pop() || '',
@@ -27,5 +51,12 @@ export async function GET(req: NextRequest) {
     department_code:   auth.departmentCode || user?.department_code || '',
     tenant_code:       auth.tenantCode || tenantCode,
     organization_name: tenant?.name || '',
+    // Corrosion field team info — mobile app shows team tab if present
+    has_corrosion_team: corrosionTeam !== null,
+    corrosion_team_name: corrosionTeam?.team_name ?? null,
+    corrosion_team_id:   corrosionTeam?.team_id ?? null,
+    mobile_tabs: corrosionTeam
+      ? ['home', 'my_team', 'tasks', 'profile']
+      : ['home', 'tasks', 'profile'],
   });
 }

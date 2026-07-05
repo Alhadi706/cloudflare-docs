@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     section_id:        user.section_id,
     is_founder:        user.is_founder,
     status:            user.status,
-    needs_bootstrap:   user.is_founder && !user.onboarding_complete,
+    needs_bootstrap:   user.is_founder && !user.onboarding_complete && !!user.tenant_id,
     onboarding_complete: user.onboarding_complete ?? false,
     verified_at:       user.verified_at,
     created_at:        user.created_at,

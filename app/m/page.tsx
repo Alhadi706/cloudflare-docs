@@ -17,6 +17,32 @@ const MOBILE_TOKEN_KEY = 'mobile_auth_token';
 const MOBILE_PROFILE_KEY = 'mobile_auth_profile';
 const MOBILE_CACHE_KEY = 'mobile_work_orders_cache';
 const MOBILE_SYNC_QUEUE_KEY = 'mobile_sync_queue';
+const MOBILE_DEPT_TABS_KEY = 'mobile_dept_tabs';
+
+// ── Department tab (one per department the employee belongs to) ────────────
+type DeptTab = {
+  dept: string;      // 'control_center' | 'corrosion' | 'maintenance' | ...
+  label: string;     // Display label from server
+  api: string;       // API endpoint
+  tab_key: string;   // Unique key used as mainTab value
+};
+
+// Icon map per dept tab type
+const DEPT_TAB_ICONS: Record<string, React.ElementType> = {
+  ctrl_monitoring: Activity,
+  corrosion_team:  Wrench,
+  maintenance_team: Wrench,
+};
+const DEPT_TAB_COLORS: Record<string, string> = {
+  ctrl_monitoring: 'text-cyan-400',
+  corrosion_team:  'text-amber-400',
+  maintenance_team: 'text-emerald-400',
+};
+
+// ── Corrosion team types ───────────────────────────────────────────────────
+type CorrosionTeamMember = { name: string; role: string; employeeNumber: string; phone?: string };
+type CorrosionTeam       = { id: string; name: string; specialization?: string; members: CorrosionTeamMember[]; updatedAt?: string };
+
 
 type PendingStatusUpdate = {
   id: number;
@@ -1613,7 +1639,12 @@ export default function MobileFieldPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WorkOrder | null>(null);
   const [filter, setFilter] = useState<'active' | 'done' | 'all'>('all');
-  const [mainTab, setMainTab] = useState<'orders' | 'info' | 'alerts' | 'attendance' | 'faults' | 'approval' | 'monitoring' | 'inbox' | 'gis-alerts' | 'access-requests'>('orders');
+  const [mainTab, setMainTab] = useState<string>('orders');
+  const [deptTabs, setDeptTabs] = useState<DeptTab[]>([]);
+  // Corrosion team state
+  const [corrosionTeams, setCorrosionTeams] = useState<CorrosionTeam[]>([]);
+  const [corrosionWorkOrders, setCorrosionWorkOrders] = useState<WorkOrder[]>([]);
+  const [corrosionLoading, setCorrosionLoading] = useState(false);
   const [tenantCode, setTenantCode] = useState('');
   const [empId, setEmpId] = useState('');
   const [secret, setSecret] = useState('');
@@ -1790,6 +1821,20 @@ export default function MobileFieldPage() {
         setEmployeeLabel(profile.employeeNo);
       }
       setLoggedIn(true);
+      // Load stored dept_tabs
+      try {
+        const storedDeptTabs = localStorage.getItem(MOBILE_DEPT_TABS_KEY);
+        if (storedDeptTabs) {
+          const parsed: DeptTab[] = JSON.parse(storedDeptTabs);
+          if (Array.isArray(parsed)) {
+            setDeptTabs(parsed);
+            // Fetch data for each stored dept tab
+            for (const dt of parsed) {
+              if (dt.tab_key === 'corrosion_team') void fetchCorrosionTeam();
+            }
+          }
+        }
+      } catch { /* ignore */ }
       // Handle deep-link tab from URL param (e.g. push notification click)
       const urlTab = new URLSearchParams(window.location.search).get('tab');
       if (urlTab === 'gis-alerts') setMainTab('gis-alerts');
@@ -1804,6 +1849,8 @@ export default function MobileFieldPage() {
         void fetchCirculars();
         void fetchMyMonitoringTeam();
         void fetchGisNotifs();
+        // Auto-refresh dept_tabs if localStorage is empty (session from before dept_tabs feature)
+        void refreshDeptTabsIfNeeded();
         if (['dept_manager', 'section_manager', 'admin', 'founder'].includes(profile?.role || '')) {
           void fetchAccessRequests();
         }
@@ -2292,11 +2339,92 @@ export default function MobileFieldPage() {
         setIsMonitoringObserver(!!team);
         setMyRecentReadings(Array.isArray(data.recent_readings) ? data.recent_readings : []);
         if (team) {
-          // Pre-expand all groups for quick entry
           setExpandedGroups(new Set(team.field_groups.map((g: MonitoringFieldGroup) => g.group_key)));
+        }
+        // Also update deptTabs from stored tabs if monitoring confirmed
+        if (team) {
+          const stored = localStorage.getItem(MOBILE_DEPT_TABS_KEY);
+          if (stored) {
+            try { setDeptTabs(JSON.parse(stored)); } catch { /* ignore */ }
+          }
         }
       }
     } catch { /* ignore */ } finally { setMonitoringLoading(false); }
+  };
+
+  // ── Corrosion team fetch ─────────────────────────────────────────────────
+  const fetchCorrosionTeam = async () => {
+    setCorrosionLoading(true);
+    try {
+      const res = await fetch('/api/auth/mobile/corrosion-teams', { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCorrosionTeams(Array.isArray(data.teams) ? data.teams : []);
+        const wos = Array.isArray(data.work_orders) ? data.work_orders : [];
+        setCorrosionWorkOrders(wos.map((w: any) => ({
+          id:               w.id,
+          title:            w.title || w.title_ar || 'أمر عمل',
+          status:           w.status || 'open',
+          priority:         w.priority || 'medium',
+          work_order_number: w.work_order_number || w.wo_number,
+          scheduled_date:   w.scheduled_date,
+          asset_name:       w.asset_name,
+          _team_name:       w._team_name,
+        } as WorkOrder & { _team_name?: string })));
+      }
+    } catch { /* ignore */ } finally { setCorrosionLoading(false); }
+  };
+
+  // Auto-detect dept tabs on mount (for sessions created before dept_tabs feature)
+  const refreshDeptTabsIfNeeded = async () => {
+    const stored = localStorage.getItem(MOBILE_DEPT_TABS_KEY);
+    const hasTabs = stored && JSON.parse(stored).length > 0;
+    if (hasTabs) return; // Already have tabs, nothing to do
+
+    const tabs: DeptTab[] = [];
+    try {
+      // Check monitoring membership
+      const mRes = await fetch('/api/auth/mobile/monitoring?mode=my_team', { headers: getHeaders() });
+      if (mRes.ok) {
+        const mData = await mRes.json().catch(() => ({}));
+        if (mData.team) {
+          tabs.push({
+            dept: 'control_center',
+            label: `راصد — ${mData.team.team_name || mData.team.station_name || 'الرصد'}`,
+            api: '/api/auth/mobile/monitoring',
+            tab_key: 'ctrl_monitoring',
+          });
+          setMyMonitoringTeam(mData.team);
+          setIsMonitoringObserver(true);
+          if (mData.team.field_groups) {
+            setExpandedGroups(new Set(mData.team.field_groups.map((g: MonitoringFieldGroup) => g.group_key)));
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
+    try {
+      // Check corrosion team membership
+      const cRes = await fetch('/api/auth/mobile/corrosion-teams', { headers: getHeaders() });
+      if (cRes.ok) {
+        const cData = await cRes.json().catch(() => ({}));
+        if (cData.has_team && cData.teams?.length) {
+          tabs.push({
+            dept: 'corrosion',
+            label: `فريقي — ${cData.teams[0].name}`,
+            api: '/api/auth/mobile/corrosion-teams',
+            tab_key: 'corrosion_team',
+          });
+          setCorrosionTeams(cData.teams);
+          setCorrosionWorkOrders(cData.work_orders || []);
+        }
+      }
+    } catch { /* ignore */ }
+
+    if (tabs.length) {
+      setDeptTabs(tabs);
+      localStorage.setItem(MOBILE_DEPT_TABS_KEY, JSON.stringify(tabs));
+    }
   };
 
   const fetchMonitoringApprovalQueue = async () => {
@@ -2407,9 +2535,14 @@ export default function MobileFieldPage() {
       departmentCode: payload?.department_code || '',
       role: payload?.role || 'employee',
     };
-    localStorage.setItem(MOBILE_PROFILE_KEY, JSON.stringify({
-      ...nextProfile,
-    }));
+    localStorage.setItem(MOBILE_PROFILE_KEY, JSON.stringify({ ...nextProfile }));
+
+    // Store dept_tabs from login response
+    const loginDeptTabs: DeptTab[] = Array.isArray(payload?.dept_tabs) ? payload.dept_tabs : [];
+    setDeptTabs(loginDeptTabs);
+    if (loginDeptTabs.length) {
+      localStorage.setItem(MOBILE_DEPT_TABS_KEY, JSON.stringify(loginDeptTabs));
+    }
 
     setProfile(nextProfile);
     setEmployeeLabel(payload?.full_name ? `${payload.full_name} (${empId.trim()})` : empId.trim());
@@ -2420,7 +2553,11 @@ export default function MobileFieldPage() {
     void fetchAttendance();
     void fetchMyFaults();
     void fetchCirculars();
-    void fetchMyMonitoringTeam(); // silently check if user is a monitoring observer
+    void fetchMyMonitoringTeam();
+    // Load each dept-specific API on login
+    for (const dt of loginDeptTabs) {
+      if (dt.tab_key === 'corrosion_team') void fetchCorrosionTeam();
+    }
     startAlertPolling();
     await fetchOrders();
     await flushSyncQueue();
@@ -2705,33 +2842,25 @@ export default function MobileFieldPage() {
         </div>
 
         {/* Main app tabs */}
-        <div className="mt-3 grid gap-1 rounded-xl bg-slate-900/60 p-1" style={{ gridTemplateColumns: `repeat(${5 + (showMonitoringTab ? 1 : 0) + (isSupervisor ? 1 : 0) + 1 + (isSupervisor ? 1 : 0)},1fr)` }}>
+        <div className="mt-3 grid gap-1 rounded-xl bg-slate-900/60 p-1" style={{ gridTemplateColumns: `repeat(${5 + deptTabs.length + (isSupervisor ? 2 : 0)},1fr)` }}>
           {([
-            ['orders', 'أوامر', ClipboardList],
-            ['attendance', 'حضور', CalendarCheck],
-            ['faults', 'بلاغات', TriangleAlert],
-            ['inbox', 'بريد', Mail],
-            ...(showMonitoringTab ? [['monitoring', 'رصد', Activity] as const] : []),
-            ['info', 'معلوماتي', UserRound],
-            ['alerts', 'تنبيهات', Bell],
-            ['gis-alerts', 'كوارث', MapPin],
+            ['orders',     'أوامر',    ClipboardList],
+            ['attendance', 'حضور',     CalendarCheck],
+            ['faults',     'بلاغات',   TriangleAlert],
+            ['inbox',      'بريد',     Mail],
+            ['info',       'معلوماتي', UserRound],
+            ['alerts',     'تنبيهات',  Bell],
+            ['gis-alerts', 'كوارث',    MapPin],
             ...(isSupervisor ? [['approval', 'اعتماد', ShieldCheck] as const] : []),
             ...(isSupervisor ? [['access-requests', 'تسجيلات', Users] as const] : []),
           ] as const).map(([val, label, Icon]) => (
             <button
               key={val}
               onClick={() => {
-                setMainTab(val as any);
+                setMainTab(val);
                 if (val === 'approval') {
                   void fetchApprovalQueue();
                   void fetchTeamStatus();
-                }
-                if (val === 'monitoring') {
-                  if (isSupervisor) {
-                    void fetchMonitoringApprovalQueue();
-                  } else {
-                    void fetchMyMonitoringTeam();
-                  }
                 }
                 if (val === 'inbox') void fetchCirculars();
                 if (val === 'gis-alerts') void fetchGisNotifs();
@@ -2749,23 +2878,38 @@ export default function MobileFieldPage() {
               {val === 'faults' && myFaultReports.filter(f => f.status === 'open').length > 0 && (
                 <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] text-white">{myFaultReports.filter(f => f.status === 'open').length}</span>
               )}
-              {val === 'inbox' && unreadCirculars > 0 && (
-                <span className="rounded-full bg-indigo-500 px-1.5 py-0.5 text-[9px] text-white">{unreadCirculars}</span>
-              )}
               {val === 'approval' && approvalBadge > 0 && (
-                <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[9px] text-white">{approvalBadge}</span>
-              )}
-              {val === 'monitoring' && pendingMonitoringReadings.length > 0 && isSupervisor && (
-                <span className="rounded-full bg-cyan-500 px-1.5 py-0.5 text-[9px] text-white">{pendingMonitoringReadings.length}</span>
-              )}
-              {val === 'gis-alerts' && gisUnreadCount > 0 && (
-                <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] text-white">{gisUnreadCount}</span>
-              )}
-              {val === 'access-requests' && accessRequests.length > 0 && (
-                <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] text-white">{accessRequests.length}</span>
+                <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] text-white">{approvalBadge}</span>
               )}
             </button>
           ))}
+
+          {/* Dynamic dept tabs — one per department the employee belongs to */}
+          {deptTabs.map((dt) => {
+            const Icon = DEPT_TAB_ICONS[dt.tab_key] ?? Activity;
+            const color = DEPT_TAB_COLORS[dt.tab_key] ?? 'text-cyan-400';
+            // Short label: first word before —
+            const shortLabel = dt.label.split('—')[0].trim().slice(0, 5);
+            return (
+              <button
+                key={dt.tab_key}
+                onClick={() => {
+                  setMainTab(dt.tab_key);
+                  if (dt.tab_key === 'ctrl_monitoring') {
+                    isSupervisor ? void fetchMonitoringApprovalQueue() : void fetchMyMonitoringTeam();
+                  }
+                  if (dt.tab_key === 'corrosion_team') void fetchCorrosionTeam();
+                }}
+                className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-[10px] font-bold transition-all ${
+                  mainTab === dt.tab_key ? 'bg-slate-700 text-white' : `${color} hover:text-white`
+                }`}
+                title={dt.label}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {shortLabel}
+              </button>
+            );
+          })}
         </div>
 
         {/* Filter tabs */}
@@ -3462,6 +3606,111 @@ export default function MobileFieldPage() {
         );
         })()}
 
+        {/* ══ Corrosion Team Tab ══ */}
+        {mainTab === 'corrosion_team' && (
+          <div className="space-y-4 pb-32">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-black text-amber-300">فريق التآكل الميداني</p>
+              <button
+                onClick={() => void fetchCorrosionTeam()}
+                className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300"
+              >
+                <RefreshCw className={`h-3 w-3 ${corrosionLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {corrosionLoading && !corrosionTeams.length ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <RefreshCw className="h-8 w-8 animate-spin text-amber-400" />
+                <p className="text-sm text-slate-400">جارٍ تحميل بيانات الفريق...</p>
+              </div>
+            ) : corrosionTeams.length === 0 ? (
+              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 text-center space-y-2">
+                <Wrench className="mx-auto h-12 w-12 text-slate-600" />
+                <p className="text-slate-300 font-bold">لم يتم تعيينك في فريق تآكل</p>
+                <p className="text-xs text-slate-500">تواصل مع مشرفك في إدارة التآكل</p>
+              </div>
+            ) : (
+              <>
+                {/* Teams */}
+                {corrosionTeams.map((team) => (
+                  <div key={team.id} className="rounded-2xl border border-amber-500/20 bg-amber-950/10 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="h-5 w-5 text-amber-400 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-black text-white">{team.name}</p>
+                        {team.specialization && (
+                          <p className="text-[11px] text-amber-300/70">{team.specialization}</p>
+                        )}
+                      </div>
+                      <span className="text-[10px] bg-amber-800/40 text-amber-200 rounded-full px-2 py-0.5">
+                        {team.members.length} أعضاء
+                      </span>
+                    </div>
+                    {/* Members */}
+                    <div className="divide-y divide-slate-800/60">
+                      {team.members.map((m, i) => (
+                        <div key={i} className="flex items-center justify-between py-1.5 text-xs">
+                          <div>
+                            <p className="font-bold text-white">{m.name}</p>
+                            <p className="text-slate-400">{m.role}</p>
+                          </div>
+                          {m.phone && (
+                            <a href={`tel:${m.phone}`} className="flex items-center gap-1 text-emerald-400 font-bold">
+                              <Phone className="h-3 w-3" /> {m.phone}
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Work Orders */}
+                <div>
+                  <p className="text-xs font-bold text-slate-400 mb-2">
+                    أوامر العمل المُسندة ({corrosionWorkOrders.length})
+                  </p>
+                  {corrosionWorkOrders.length === 0 ? (
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-4 text-center">
+                      <p className="text-xs text-slate-500">لا توجد أوامر عمل مُسندة حالياً</p>
+                    </div>
+                  ) : (
+                    corrosionWorkOrders.map((wo) => (
+                      <div
+                        key={wo.id}
+                        className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-3 mb-2 cursor-pointer hover:border-amber-500/30"
+                        onClick={() => setSelected(wo)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{wo.title}</p>
+                            {wo.work_order_number && (
+                              <p className="text-[11px] text-slate-400">{wo.work_order_number}</p>
+                            )}
+                          </div>
+                          <span className={`shrink-0 text-[10px] rounded-full px-2 py-0.5 font-bold ${
+                            wo.status === 'open' ? 'bg-amber-800/60 text-amber-200' :
+                            wo.status === 'in_progress' ? 'bg-blue-800/60 text-blue-200' :
+                            'bg-emerald-800/60 text-emerald-200'
+                          }`}>
+                            {wo.status === 'open' ? 'مفتوح' : wo.status === 'in_progress' ? 'جارٍ' : 'مكتمل'}
+                          </span>
+                        </div>
+                        {wo.scheduled_date && (
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {new Date(wo.scheduled_date).toLocaleDateString('ar')}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ══ Access Requests Tab (managers only) ══ */}
         {mainTab === 'access-requests' && isSupervisor && (
           <div className="space-y-3" dir="rtl">
@@ -3674,7 +3923,8 @@ export default function MobileFieldPage() {
         )}
 
         {/* ══ Monitoring Tab (Phase 10 — رصد) ══ */}
-        {mainTab === 'monitoring' && (
+        {/* ctrl_monitoring = monitoring from control center dept */}
+        {(mainTab === 'monitoring' || mainTab === 'ctrl_monitoring') && (
           <div className="space-y-4 pb-32">
             {isSupervisor ? (
               /* ── Supervisor Monitoring View ── */

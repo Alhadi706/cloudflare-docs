@@ -3,56 +3,20 @@ import { authorize } from '@/lib/authorize';
 import {
   getMonitoringTeam, saveMonitoringTeam,
   saveMonitoringReading, getPendingMonitoringReadings,
-  STATION_PRESETS,
 } from '@/lib/mobile-field-store';
-import fs from 'fs';
-import path from 'path';
 
 const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
-const CORROSION_TEAMS_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
 
+/**
+ * Resolve the employee number from middleware-verified headers.
+ * This endpoint is ONLY for مركز التحكم (Control Center) teams.
+ * Corrosion field teams use /api/auth/mobile/corrosion-teams.
+ */
 function resolveEmpNo(req: NextRequest): string {
-  // Prefer injected verified header
   const fromHeader = (req.headers.get('x-verified-employee-no') ?? '').trim().toUpperCase();
   if (fromHeader) return fromHeader;
   return (req.headers.get('x-verified-email') ?? '')
     .replace('@mobile.local', '').split('_').slice(1).join('_').toUpperCase();
-}
-
-/** Load corrosion field teams from local JSON and filter to those matching empNo */
-function getMyCorrosionTeams(tenantId: string, empNo: string) {
-  try {
-    const file = path.join(CORROSION_TEAMS_DIR, `${tenantId}.json`);
-    if (!fs.existsSync(file)) return [];
-    const { teams } = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!Array.isArray(teams)) return [];
-    const preset = STATION_PRESETS['corrosion_field'];
-    return teams
-      .filter((t: any) =>
-        Array.isArray(t.members) &&
-        t.members.some((m: any) =>
-          (m.employeeNumber || '').toUpperCase() === empNo ||
-          String(m.empId) === empNo
-        )
-      )
-      .map((t: any) => ({
-        id:           t.id,
-        team_name:    t.name,
-        station_type: 'corrosion_field',
-        location_label: t.specialization || 'مكافحة التآكل',
-        station_id:   t.id,
-        shift:        'يومي',
-        member_role:  t.members.find((m: any) => (m.employeeNumber || '').toUpperCase() === empNo)?.role || 'فني',
-        member_employee_nos: t.members.map((m: any) => m.employeeNumber || '').filter(Boolean),
-        supervisor_employee_nos: t.members
-          .filter((m: any) => m.role === 'قائد الفريق')
-          .map((m: any) => m.employeeNumber || ''),
-        field_groups: preset?.field_groups ?? [],
-        is_active:    true,
-        source:       'corrosion_field',
-        updated_at:   t.updatedAt,
-      }));
-  } catch { return []; }
 }
 
 const SUPERVISOR_ROLES = ['supervisor','manager','admin','dept_manager','section_manager','founder'];
@@ -96,69 +60,84 @@ export async function GET(req: NextRequest) {
       }>;
 
       if (mode === 'my_team') {
-        // filter teams where empNo matches any member
-        const myCtrlTeams = dbTeams.filter(t =>
-          t.members?.some(m => String(m.employee_id) === empNo || m.name_ar?.includes(empNo))
+        // DB teams use employee_id (numeric HR ID), so we can't match by empNo string directly.
+        // Load local monitoring teams (which use employee_number strings) for reliable member lookup.
+        const { getMonitoringTeams } = await import('@/lib/mobile-field-store');
+        const localTeams = getMonitoringTeams(auth.tenantId);
+
+        // Match by local member_employee_nos (employee number strings like '2055')
+        const myLocalTeams = localTeams.filter(t =>
+          t.member_employee_nos?.includes(empNo) ||
+          t.supervisor_employee_nos?.includes(empNo)
         );
-        // Also include corrosion field teams
-        const myCorrosionTeams = getMyCorrosionTeams(auth.tenantId, empNo);
-        const allMyTeams = [...myCtrlTeams, ...myCorrosionTeams];
+
+        // Also try matching DB teams by name_ar (Arabic name includes empNo) as fallback
+        const myDbTeams = dbTeams.filter(t =>
+          t.members?.some(m =>
+            m.name_ar?.includes(empNo) ||
+            String(m.employee_id) === empNo
+          )
+        );
+
+        // Prefer local teams (have full field_groups), supplement with DB-only teams
+        const localIds = new Set(myLocalTeams.map(t => t.id));
+        const extraDbTeams = myDbTeams.filter(t => !localIds.has(t.id));
+        const allMyTeams = [...myLocalTeams, ...extraDbTeams];
+
         return NextResponse.json({
           ok: true,
+          team: allMyTeams[0] ?? null,
           teams: allMyTeams,
-          has_corrosion_team: myCorrosionTeams.length > 0,
-          source: 'db',
+          recent_readings: [],
+          source: 'db+local',
+          dept: 'control_center',
         });
       }
 
       if (mode === 'team_detail') {
         const teamId = req.nextUrl.searchParams.get('team_id') || '';
-        // Check corrosion teams first
-        const corrTeams = getMyCorrosionTeams(auth.tenantId, empNo);
-        const corrTeam = corrTeams.find(t => t.id === teamId);
-        if (corrTeam) return NextResponse.json({ ok: true, team: corrTeam, source: 'corrosion_field' });
         const team   = dbTeams.find(t => t.id === teamId);
         if (!team) return NextResponse.json({ detail: 'الفريق غير موجود' }, { status: 404 });
-        return NextResponse.json({ ok: true, team, source: 'db' });
+        return NextResponse.json({ ok: true, team, source: 'db', dept: 'control_center' });
       }
 
-      // all_teams_summary: include corrosion teams for the employee
-      const myCorrosionTeams = getMyCorrosionTeams(auth.tenantId, empNo);
+      // all_teams_summary: control center teams only
       return NextResponse.json({
         ok: true,
-        teams: [...dbTeams, ...myCorrosionTeams],
-        has_corrosion_team: myCorrosionTeams.length > 0,
+        teams: dbTeams,
         source: 'db',
+        dept: 'control_center',
       });
     }
   } catch { /* fall through to in-memory */ }
 
-  // Fallback: in-memory store
+  // Fallback: in-memory store (control center only)
   const { getMonitoringTeams } = await import('@/lib/mobile-field-store');
-  const myCorrosionFallback = getMyCorrosionTeams(auth.tenantId, empNo);
   if (mode === 'my_team') {
-    const teams = getMonitoringTeams(auth.tenantId).filter(t => t.supervisor_employee_nos?.includes(empNo));
+    const teams = getMonitoringTeams(auth.tenantId).filter(t =>
+      t.supervisor_employee_nos?.includes(empNo) || t.member_employee_nos?.includes(empNo)
+    );
     return NextResponse.json({
       ok: true,
-      teams: [...teams, ...myCorrosionFallback],
-      has_corrosion_team: myCorrosionFallback.length > 0,
+      team: teams[0] ?? null,
+      teams,
+      recent_readings: [],
       source: 'memory',
+      dept: 'control_center',
     });
   }
   if (mode === 'team_detail') {
     const teamId = req.nextUrl.searchParams.get('team_id') || '';
-    const corrTeam = myCorrosionFallback.find(t => t.id === teamId);
-    if (corrTeam) return NextResponse.json({ ok: true, team: corrTeam, source: 'corrosion_field' });
     const team   = getMonitoringTeam(auth.tenantId, teamId);
     if (!team) return NextResponse.json({ detail: 'الفريق غير موجود' }, { status: 404 });
-    return NextResponse.json({ ok: true, team, source: 'memory' });
+    return NextResponse.json({ ok: true, team, source: 'memory', dept: 'control_center' });
   }
   const teams = getMonitoringTeams(auth.tenantId);
   return NextResponse.json({
     ok: true,
-    teams: [...teams, ...myCorrosionFallback],
-    has_corrosion_team: myCorrosionFallback.length > 0,
+    teams,
     source: 'memory',
+    dept: 'control_center',
   });
 }
 

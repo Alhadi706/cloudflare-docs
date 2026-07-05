@@ -18,7 +18,7 @@ export const BASEMAPS = {
   dark:      { ...GIS_BASEMAPS.dark,      label: 'داكن' },
 } as const;
 export type BaseStyle = keyof typeof BASEMAPS;
-export type DrawMode  = 'off' | 'polygon' | 'box';
+export type DrawMode  = 'off' | 'polygon' | 'box' | 'line';
 
 interface SceneMapPanelProps {
   scenes:        SceneListItem[];
@@ -550,17 +550,24 @@ export function SceneMapPanel({
 
     const drawOpts: any = {
       source: drawSource,
-      type: drawMode === 'box' ? 'Circle' : 'Polygon',
+      type: drawMode === 'box' ? 'Circle' : drawMode === 'line' ? 'LineString' : 'Polygon',
     };
     if (drawMode === 'box') drawOpts.geometryFunction = createBox();
 
     const draw = new Draw(drawOpts);
     draw.on('drawend', (evt: any) => {
       const geom      = evt.feature.getGeometry();
-      const rawCoords = drawMode === 'box'
-        ? geom.getLinearRing(0).getCoordinates()
-        : geom.getCoordinates()[0];
-      const coords = rawCoords.map((c: number[]) => toLonLat(c) as [number, number]);
+      let coords: [number, number][];
+
+      if (drawMode === 'line') {
+        // LineString: coords is a flat array of [x,y] projected coordinates
+        coords = (geom.getCoordinates() as number[][]).map((c: number[]) => toLonLat(c) as [number, number]);
+      } else {
+        const rawCoords = drawMode === 'box'
+          ? geom.getLinearRing(0).getCoordinates()
+          : geom.getCoordinates()[0];
+        coords = rawCoords.map((c: number[]) => toLonLat(c) as [number, number]);
+      }
 
       // ── Persist AOI on map — clear previous, add new feature ──
       if (aoiSourceRef.current) {
@@ -1216,7 +1223,7 @@ export function SceneMapPanel({
       {olLoaded && drawMode !== 'off' && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <span className="text-sm text-emerald-400 font-semibold bg-slate-900/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow border border-emerald-700/40 animate-pulse">
-            {drawMode === 'box' ? 'ارسم مستطيلاً على الخريطة…' : 'انقر لتحديد نقاط المضلع، انقر مرتين للإنهاء…'}
+            {drawMode === 'box' ? 'ارسم مستطيلاً على الخريطة…' : drawMode === 'line' ? 'انقر لإضافة نقاط المسار، انقر مرتين للإنهاء…' : 'انقر لتحديد نقاط المضلع، انقر مرتين للإنهاء…'}
           </span>
         </div>
       )}

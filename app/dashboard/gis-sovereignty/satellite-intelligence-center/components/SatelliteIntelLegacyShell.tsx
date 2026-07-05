@@ -32,6 +32,7 @@ import ServiceLayerCreateDialog, { LAYER_TEMPLATES, type LayerTemplate } from '.
 import ServiceLayerFeaturesPanel, { type AddPointModePayload } from './ServiceLayerFeaturesPanel';
 import SICLayerEditorPanel from './SICLayerEditorPanel';
 import SmartAlertsPanel from './SmartAlertsPanel';
+import TaskLaunchPanel, { TaskGuideBar, TASKS, type TaskMode } from './TaskLaunchPanel';
 import AssetLeftPanel, { type PrincipalAsset } from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetLeftPanel';
 import AssetCenterPanel from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetCenterPanel';
 import CreatePrincipalAssetModal from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/CreatePrincipalAssetModal';
@@ -117,6 +118,10 @@ export default function SatelliteIntelLegacyShell() {
   // ── Ribbon state ──────────────────────────────────────────────────────────
   const [ribbonState, setRibbonState] = useState<RibbonState>(DEFAULT_RIBBON_STATE);
   const patchRibbon = useCallback((patch: Partial<RibbonState>) => setRibbonState(s => ({ ...s, ...patch })), []);
+
+  // ── Task Mode: guides user through a specific workflow ──────────────────
+  const [taskMode,    setTaskMode]    = useState<TaskMode | null>(null);
+  const [taskStep,    setTaskStep]    = useState(0);
 
   // ── Layer editor inline state (no separate map — uses SceneMapPanel) ──────
   const [layerSelectedAssetId, setLayerSelectedAssetId] = useState<string | null>(null);
@@ -230,8 +235,8 @@ export default function SatelliteIntelLegacyShell() {
     if (g === 'compliance') return 'compliance' as const;
     if (g === 'change_detection') return 'change_detection' as const;
     if (g === 'risk') return 'risk' as const;
-    if (g === 'monitoring') return 'satellite_trend' as const;
-    // ── New: ribbon buttons now open their dedicated right-panel tool ──────
+    // monitoring mode: don't force satellite_trend — let the panel show freely
+    // (fire/leak/gas monitoring tabs handle their own display via the ribbon sub-bar)
     if (g === 'detection') return 'object_detection' as const;
     if (g === 'insar')     return 'insar' as const;
     if (g === 'cva')       return 'change_detection' as const;
@@ -241,6 +246,25 @@ export default function SatelliteIntelLegacyShell() {
     if (g === 'report') return (ribbonState.reportSubTab ?? 'report') as 'report' | 'chat' | 'temporal' | 'simulation' | 'areas';
     return null;
   }, [ribbonState.activeGroup, ribbonState.reportSubTab]);
+
+  // ── Auto-manage right panel size based on ribbon group ────────────────────
+  // Groups where the right panel (SatIntelRightPanel) is the MAIN interface
+  //   → keep it open at normal/wide width
+  // Monitoring groups → right panel has no dedicated tool, collapse to free map space
+  useEffect(() => {
+    const g = ribbonState.activeGroup;
+    const analyticalGroups = new Set(['insar','cva','detection','spatial_analyst','image_analyst','3d_analyst','suitability','routing','terrain','compliance','report','pipeline']);
+    const monitoringGroups = new Set(['monitoring']);
+    if (monitoringGroups.has(g)) {
+      // Monitoring: map should dominate, right panel minimized to normal (user can expand)
+      setRightPanelSize(prev => prev === 'full' || prev === 'half' ? 'normal' : prev);
+    } else if (analyticalGroups.has(g)) {
+      // Analytical: keep panel at least normal
+      setRightPanelSize(prev => prev === 'full' ? 'wide' : prev);
+    }
+    // For 'scenes', 'layers', 'draw': keep current preference
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ribbonState.activeGroup]);
 
   // ── Sync workspace when layers group active ───────────────────────────────
   useEffect(() => {
@@ -915,6 +939,19 @@ export default function SatelliteIntelLegacyShell() {
     <div className="h-screen w-full bg-slate-950 text-slate-200 flex flex-col overflow-hidden" dir="rtl">
       <SICHeader systemOnline={systemOnline} activeSceneUid={activeSceneUid} />
 
+      {/* Task Guide Bar — shown when a task mode is active */}
+      {taskMode && taskMode !== 'custom' && (
+        <TaskGuideBar
+          taskId={taskMode}
+          currentStep={taskStep}
+          onStepClick={(idx, group) => {
+            setTaskStep(idx);
+            patchRibbon({ activeGroup: group as any });
+          }}
+          onClearTask={() => { setTaskMode(null); setTaskStep(0); }}
+        />
+      )}
+
       {/* Create layer dialog */}
       {showCreateDialog && (
         <ServiceLayerCreateDialog
@@ -945,7 +982,17 @@ export default function SatelliteIntelLegacyShell() {
         onRunAnalysis={handleRunAnalysis}
         onRefresh={triggerRefresh}
         ribbonState={ribbonState}
-        onRibbonChange={patchRibbon}
+        onRibbonChange={(patch) => {
+            patchRibbon(patch);
+            // Advance task step when user switches to the next group
+            if (taskMode && taskMode !== 'custom' && patch.activeGroup) {
+              const task = TASKS.find(t => t.id === taskMode);
+              if (task) {
+                const nextIdx = task.steps.findIndex(s => s.ribbonGroup === patch.activeGroup);
+                if (nextIdx >= 0 && nextIdx >= taskStep) setTaskStep(nextIdx);
+              }
+            }
+          }}
         onRscToolChange={(tool) => {
           setRscActiveTool(tool);
           patchRibbon({ rscActiveTool: tool });
@@ -1020,13 +1067,17 @@ export default function SatelliteIntelLegacyShell() {
             mode="engineering"
           />
         ) : isMonitoringMode ? (
-          <div className="w-72 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col overflow-hidden">
+          /* monitoring mode: SmartAlertsPanel only if there are active alerts or a polygon is drawn */
+          /* Otherwise collapse this panel to free up space for the map */
+          effectivePolygon || fireMarkers.length > 0 || leakMarkers.length > 0 || urbanLeakMarkers.length > 0 || encroachMarkers.length > 0 ? (
+          <div className="w-72 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col overflow-hidden transition-all duration-300">
             <SmartAlertsPanel
               scenes={scenes}
               drawnPolygon={effectivePolygon}
               onResultReady={() => {}}
             />
           </div>
+          ) : null
         ) : (
           <SatIntelLeftPanel
             scenes={scenes}
@@ -1047,6 +1098,24 @@ export default function SatelliteIntelLegacyShell() {
         )}
 
         <div className={`min-w-0 relative transition-all duration-300 ${rightPanelSize === 'full' ? 'w-0 overflow-hidden flex-none' : 'flex-1'}`}>
+
+          {/* Task Launch Panel — shown when no task selected yet */}
+          {taskMode === null && (
+            <TaskLaunchPanel
+              onSelectTask={(mode) => {
+                setTaskMode(mode);
+                setTaskStep(0);
+                // Activate the first step's ribbon group
+                if (mode !== 'custom') {
+                  const task = TASKS.find(t => t.id === mode);
+                  if (task && task.steps.length > 0) {
+                    patchRibbon({ activeGroup: task.steps[0].ribbonGroup as any });
+                  }
+                }
+              }}
+            />
+          )}
+
           <SceneMapPanel
             scenes={scenes}
             projects={projects}

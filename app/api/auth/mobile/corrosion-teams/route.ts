@@ -1,21 +1,28 @@
 /**
  * /api/auth/mobile/corrosion-teams
- * GET → Returns the corrosion field team(s) and assigned work orders
- *       for the logged-in mobile employee.
- *       Called by the mobile app after login to show:
- *       - Team assignment tab (فريقي)
- *       - Assigned work orders (مهامي)
+ * GET → Dedicated endpoint for مكافحة التآكل (Corrosion Management) field teams.
  *
- * Auth: Bearer {mobile_token} in Authorization header
+ * ISOLATION: This endpoint ONLY returns corrosion field teams.
+ * Control center teams use /api/auth/mobile/monitoring — no overlap.
+ *
+ * Auth: Bearer token via middleware (x-verified-* headers)
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuthToken } from '@/lib/auth-tokens';
-import fs from 'fs';
+import { authorize }                  from '@/lib/authorize';
+import { STATION_PRESETS }            from '@/lib/mobile-field-store';
+import fs   from 'fs';
 import path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
-const BACKEND = 'http://127.0.0.1:7860';
+const DATA_DIR      = path.join(process.cwd(), '.data', 'corrosion-field-teams');
+const BACKEND       = process.env.BACKEND_URL ?? 'http://127.0.0.1:7860';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
+
+function resolveEmpNo(req: NextRequest): string {
+  const h = (req.headers.get('x-verified-employee-no') ?? '').trim().toUpperCase();
+  if (h) return h;
+  return (req.headers.get('x-verified-email') ?? '')
+    .replace('@mobile.local', '').split('_').slice(1).join('_').toUpperCase();
+}
 
 function readTeams(tenantId: string): any[] {
   const file = path.join(DATA_DIR, `${tenantId}.json`);
@@ -42,62 +49,57 @@ async function fetchWorkOrders(tenantId: string, teamName: string): Promise<any[
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('Authorization') || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!token) {
-    return NextResponse.json({ detail: 'Authorization مطلوب' }, { status: 401 });
-  }
+  const auth = authorize(req, 'workorder.view');
+  if (auth instanceof NextResponse) return auth;
 
-  const payload = verifyAuthToken(token);
-  if (!payload) {
-    return NextResponse.json({ detail: 'Token غير صالح أو منتهي' }, { status: 401 });
-  }
+  const empNo    = resolveEmpNo(req);
+  const allTeams = readTeams(auth.tenantId);
+  const preset   = STATION_PRESETS['corrosion_field'];
 
-  const tenantId = String(payload.tenant_id || '');
-  const employeeNo = String(payload.employee_no || '');
-
-  if (!tenantId || !employeeNo) {
-    return NextResponse.json({ teams: [], work_orders: [], has_team: false });
-  }
-
-  const allTeams = readTeams(tenantId);
-
-  // Filter teams where this employee is a member
-  const myTeams = allTeams.filter((team: any) =>
-    Array.isArray(team.members) &&
-    team.members.some(
-      (m: any) =>
-        m.employeeNumber === employeeNo ||
-        m.employeeNumber === employeeNo.toUpperCase() ||
-        String(m.empId) === employeeNo
+  const myTeams = allTeams
+    .filter((team: any) =>
+      Array.isArray(team.members) &&
+      team.members.some((m: any) =>
+        (m.employeeNumber || '').toUpperCase() === empNo ||
+        String(m.empId) === empNo
+      )
     )
-  ).map((team: any) => ({
-    id: team.id,
-    name: team.name,
-    specialization: team.specialization,
-    updatedAt: team.updatedAt,
-    members: team.members.map((m: any) => ({
-      name: m.name,
-      role: m.role,
-      employeeNumber: m.employeeNumber,
-      phone: m.phone,
-    })),
-  }));
+    .map((team: any) => {
+      const myMember = team.members.find((m: any) =>
+        (m.employeeNumber || '').toUpperCase() === empNo || String(m.empId) === empNo
+      );
+      return {
+        id:             team.id,
+        team_name:      team.name,
+        name:           team.name,
+        specialization: team.specialization,
+        station_type:   'corrosion_field',
+        dept:           'corrosion',
+        member_role:    myMember?.role || 'فني',
+        members: team.members.map((m: any) => ({
+          name: m.name, role: m.role,
+          employeeNumber: m.employeeNumber, phone: m.phone,
+        })),
+        field_groups: preset?.field_groups ?? [],
+        updatedAt: team.updatedAt,
+        source: 'corrosion_field',
+      };
+    });
 
-  // Fetch work orders assigned to this employee's teams
   const workOrders: any[] = [];
   for (const team of myTeams) {
-    const orders = await fetchWorkOrders(tenantId, team.name);
+    const orders = await fetchWorkOrders(auth.tenantId, team.team_name);
     for (const wo of orders) {
-      workOrders.push({ ...wo, _team_name: team.name, _team_id: team.id });
+      workOrders.push({ ...wo, _team_name: team.team_name, _team_id: team.id });
     }
   }
 
   return NextResponse.json({
-    has_team: myTeams.length > 0,
-    teams: myTeams,
+    ok:          true,
+    has_team:    myTeams.length > 0,
+    dept:        'corrosion',
+    teams:       myTeams,
+    team:        myTeams[0] ?? null,
     work_orders: workOrders,
-    // Tab hint for mobile app: show "فريقي" tab if the employee has a team
-    mobile_tabs: myTeams.length > 0 ? ['home', 'my_team', 'tasks', 'profile'] : ['home', 'tasks', 'profile'],
   });
 }

@@ -81,147 +81,7 @@ export const ROUTE_RULES: RouteRule[] = [
     deptCodes: ['CORR'],
   },
 
-  // ── Maintenance admin routes ──────────────────────────────────────────────
-  {
-    prefix: '/dashboard/admin-gateway/maintenance',
-    minRole: 'supervisor',
-    deptCodes: ['MAINT', 'OPS'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/projects',
-    minRole: 'dept_manager',
-    deptCodes: ['PROJ', 'MAINT', 'ENG'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/project-control',
-    minRole: 'dept_manager',
-    deptCodes: ['PROJ', 'MAINT', 'ENG'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/fault-reports',
-    minRole: 'employee',
-    deptCodes: ['MAINT', 'OPS', 'CORR'],
-  },
-
-  // ── HR / Admin-affairs routes ─────────────────────────────────────────────
-  {
-    prefix: '/dashboard/admin-gateway/hr',
-    minRole: 'section_manager',
-    deptCodes: ['HR', 'ADMIN'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/security',
-    minRole: 'section_manager',
-    deptCodes: ['HR', 'ADMIN', 'IT'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/correspondence',
-    minRole: 'employee',
-    deptCodes: ['HR', 'ADMIN', 'LEGAL'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/contracts',
-    minRole: 'section_manager',
-    deptCodes: ['LEGAL', 'ADMIN', 'FIN'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/workflow',
-    minRole: 'section_manager',
-    deptCodes: ['HR', 'ADMIN', 'LEGAL', 'MAINT', 'PROJ'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/circulars',
-    minRole: 'section_manager',
-    deptCodes: ['HR', 'ADMIN'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/org-structure',
-    minRole: 'section_manager',
-    deptCodes: ['HR', 'ADMIN'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/admin-dept',
-    minRole: 'section_manager',
-    deptCodes: ['HR', 'ADMIN'],
-  },
-
-  // ── Finance routes ────────────────────────────────────────────────────────
-  {
-    prefix: '/dashboard/admin-gateway/finance',
-    minRole: 'section_manager',
-    deptCodes: ['FIN'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/accounting',
-    minRole: 'section_manager',
-    deptCodes: ['FIN'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/revenue',
-    minRole: 'section_manager',
-    deptCodes: ['FIN'],
-  },
-
-  // ── Materials / Assets / Procurement routes ───────────────────────────────
-  {
-    prefix: '/dashboard/admin-gateway/assets',
-    minRole: 'section_manager',
-    deptCodes: ['ASSET', 'PROC', 'MAINT'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/inventory',
-    minRole: 'section_manager',
-    deptCodes: ['PROC', 'ASSET', 'MAINT'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/procurement',
-    minRole: 'section_manager',
-    deptCodes: ['PROC', 'ASSET'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/materials',
-    minRole: 'section_manager',
-    deptCodes: ['PROC', 'ASSET', 'MAINT'],
-  },
-
-  // ── Fleet / Vehicles ──────────────────────────────────────────────────────
-  {
-    prefix: '/dashboard/admin-gateway/fleet',
-    minRole: 'supervisor',
-    deptCodes: ['FLEET', 'MAINT'],
-  },
-  {
-    prefix: '/dashboard/admin-gateway/vehicles',
-    minRole: 'supervisor',
-    deptCodes: ['FLEET', 'MAINT'],
-  },
-
-  // ── Intelligence / Reports (cross-dept) ──────────────────────────────────
-  {
-    prefix: '/dashboard/admin-gateway/intelligence',
-    minRole: 'supervisor',
-  },
-  {
-    prefix: '/dashboard/admin-gateway/reports',
-    minRole: 'dept_manager',
-  },
-  {
-    prefix: '/dashboard/admin-gateway/platform-intelligence',
-    minRole: 'supervisor',
-  },
-
-  // ── Personal / per-user pages — all authenticated employees ──────────────
-  { prefix: '/dashboard/admin-gateway/my-dashboard',  minRole: 'employee' },
-  { prefix: '/dashboard/admin-gateway/notifications',  minRole: 'employee' },
-  { prefix: '/dashboard/admin-gateway/unified-map',    minRole: 'employee' },
-
-  // ── Permissions management — dept_manager+ ───────────────────────────────
-  {
-    prefix: '/dashboard/admin-gateway/permissions',
-    minRole: 'dept_manager',
-  },
-
-  // ── Admin gateway (all remaining pages) — admin level only ───────────────
+  // ── Admin gateway (all pages) — admin level minimum ──────────────────────
   { prefix: '/dashboard/admin-gateway',            minRole: 'admin' },
 
   // ── GIS Sovereignty — GIS department + admin level ───────────────────────
@@ -327,7 +187,7 @@ export const DEPT_DASHBOARD: Record<string, string> = {
   ADMIN:    '/dashboard/admin-control',
   HR:       '/dashboard/hr-center',
   FIN:      '/dashboard/finance-hub',
-  MAINT:    '/dashboard/admin-gateway/maintenance',
+  MAINT:    '/dashboard/maintenance',
   GIS:      '/dashboard/gis-sovereignty',
   PROJ:     '/dashboard/projects-control',
   OPS:      '/dashboard/operations-maintenance',
@@ -345,65 +205,11 @@ export const DEPT_DASHBOARD: Record<string, string> = {
   IT:       '/dashboard/system-explorer',
 };
 
-/**
- * Maps section_code → dedicated section landing page.
- * Section managers are routed directly here after login.
- */
-export const SECTION_DASHBOARD: Record<string, string> = {
-  // ── Corrosion (CORR) ──────────────────────────────────────────────────────
-  'CORR-SEC-01': '/dashboard/admin-gateway/corrosion/monitoring',   // المراقبة الدورية والصيانة
-  'CORR-SEC-02': '/dashboard/admin-gateway/corrosion/support',      // الدعم الفني
-  'CORR-SEC-03': '/dashboard/admin-gateway/corrosion/coating',      // المكونات الهندسية والطلاء
-
-  // ── Maintenance (MAINT) ───────────────────────────────────────────────────
-  'MAINT-SEC-01': '/dashboard/admin-gateway/maintenance/planning',      // تخطيط الصيانة
-  'MAINT-SEC-02': '/dashboard/admin-gateway/maintenance/wells',         // مراقبة الآبار
-  'MAINT-SEC-03': '/dashboard/admin-gateway/maintenance/technical',     // الدعم الفني
-  'MAINT-SEC-04': '/dashboard/admin-gateway/maintenance/control-center',// مراقبة التشغيل
-
-  // ── Admin Affairs / HR (HR) ───────────────────────────────────────────────
-  'HR-SEC-01': '/dashboard/admin-gateway/hr/employees',       // شؤون المستخدمين
-  'HR-SEC-02': '/dashboard/admin-gateway/hr/attendance',      // التدريب (أقرب صفحة متاحة)
-  'HR-SEC-03': '/dashboard/admin-gateway/hr',                 // البيانات والإحصاء
-  'HR-SEC-04': '/dashboard/admin-gateway/hr/positions',       // النظم والملاكات
-
-  // ── Finance (FIN) ─────────────────────────────────────────────────────────
-  'FIN-SEC-01': '/dashboard/admin-gateway/finance/budgets',      // الميزانيات
-  'FIN-SEC-02': '/dashboard/admin-gateway/finance/expenses',     // النفقات والتخصيصات
-  'FIN-SEC-03': '/dashboard/admin-gateway/accounting',           // المحاسبة
-  'FIN-SEC-04': '/dashboard/admin-gateway/finance/reports',      // التقارير المالية
-
-  // ── Materials / Assets (ASSET) ────────────────────────────────────────────
-  'ASSET-SEC-01': '/dashboard/admin-gateway/assets/registry',    // سجل الأصول
-  'ASSET-SEC-02': '/dashboard/admin-gateway/inventory',          // المخزون
-  'ASSET-SEC-03': '/dashboard/admin-gateway/vehicles',           // الأسطول والمركبات
-  'ASSET-SEC-04': '/dashboard/admin-gateway/procurement',        // المشتريات
-
-  // ── Intelligence & Services (IT) ──────────────────────────────────────────
-  'IT-SEC-01': '/dashboard/admin-gateway/intelligence',              // مركز الاستخبارات
-  'IT-SEC-02': '/dashboard/admin-gateway/projects',                  // متابعة المشاريع
-  'IT-SEC-03': '/dashboard/admin-gateway/platform-intelligence',     // التحليلات والتقارير
-  'IT-SEC-04': '/dashboard/admin-gateway/system',                    // دعم الأنظمة
-
-  // ── Remote Sensing / GIS (GIS) ────────────────────────────────────────────
-  'GIS-SEC-01': '/dashboard/spatial-analytics',                  // التحليل المكاني
-  'GIS-SEC-02': '/dashboard/admin-gateway/intelligence',         // الاستخبارات الفضائية
-  'GIS-SEC-03': '/dashboard/gis-sovereignty',                    // مساحة العمل الهندسية
-  'GIS-SEC-04': '/dashboard/gis-sovereignty',                    // التحقق الحقلي
-};
-
 export function getHomeRoute(
   role: UserRole,
   deptCode?: DepartmentCode | null,
   appScope?: string | null,
-  sectionId?: string | null,
 ): string {
-  // Section managers go directly to their section page (most specific route)
-  if (role === 'section_manager' && sectionId) {
-    const sectionRoute = SECTION_DASHBOARD[sectionId.toUpperCase()];
-    if (sectionRoute) return sectionRoute;
-  }
-
   // If a specific app scope is set, always route there first (for admin/founder too)
   const scope = normalizeAppScope(appScope);
   if (scope !== 'all') {
@@ -411,15 +217,17 @@ export function getHomeRoute(
   }
 
   if (role === 'founder' || role === 'admin') {
-    return '/dashboard/admin-gateway/system';
+    return '/dashboard/gm-office';
   }
 
   // Corrosion users have a dedicated gateway regardless of role level.
   if (deptCode === 'CORR') {
+    if (role === 'dept_manager') return '/dashboard/admin-gateway/corrosion/manager';
     return '/dashboard/admin-gateway/corrosion';
   }
 
-  if (deptCode) {
+  // Department managers and section managers go to their specific dashboard
+  if ((role === 'dept_manager' || role === 'section_manager' || role === 'supervisor') && deptCode) {
     const route = DEPT_DASHBOARD[deptCode as string];
     if (route) return route;
   }

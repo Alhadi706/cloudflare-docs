@@ -80,7 +80,7 @@ export interface PermissionProvider {
 // domain map restricts 'corrosion.write' to ['CORR','MAINT'], so a Finance
 // dept_manager is blocked at hasPermission() time.
 
-type UserRole = 'founder' | 'admin' | 'dept_manager' | 'section_manager' | 'supervisor' | 'employee' | 'member';
+type UserRole = 'founder' | 'admin' | 'dept_manager' | 'section_manager' | 'supervisor' | 'employee' | 'member' | 'corrosion_field';
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[] | '*'> = {
   // ── Platform-level roles ─────────────────────────────────────────────────
@@ -125,6 +125,14 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[] | '*'> = {
   ],
 
   member: ['reports.view'],
+
+  // ── Mobile field roles ──────────────────────────────────────────────
+  // Employees assigned to corrosion field teams from the dashboard.
+  corrosion_field: [
+    'workorder.view',
+    'corrosion.view',
+    'reports.view',
+  ],
 };
 
 // ── Default in-memory provider ──────────────────────────────────────────────

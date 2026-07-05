@@ -11,7 +11,9 @@ import {
   ChevronRight, Activity, FlaskConical,
   Wifi, WifiOff, Timer,
   TrendingUp, TrendingDown, Minus,
+  Mail,
 } from 'lucide-react';
+import InternalMailTab from '@/components/InternalMailTab';
 
 interface NetworkKPI {
   total_production_m3: number; avg_pressure_bar: number;
@@ -280,6 +282,7 @@ export default function ControlCenterManagerPage() {
   const [approverInput, setApproverInput] = useState('');
   const [toast, setToast] = useState<{type:'ok'|'err';msg:string}|null>(null);
   const [refreshSec, setRefreshSec] = useState(60);
+  const [activeView, setActiveView] = useState<'dashboard'|'mail'>('dashboard');
 
   function showToast(type:'ok'|'err', msg:string) { setToast({type,msg}); setTimeout(()=>setToast(null),5000); }
 
@@ -348,6 +351,31 @@ export default function ControlCenterManagerPage() {
             </div>
           </div>
           <div className="mr-auto flex items-center gap-2 flex-wrap">
+            {/* View switcher */}
+            <div className="flex rounded-xl bg-slate-800/60 border border-slate-700 p-1 gap-1">
+              <button
+                onClick={() => setActiveView('dashboard')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  activeView === 'dashboard'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5"/>
+                لوحة التحكم
+              </button>
+              <button
+                onClick={() => setActiveView('mail')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  activeView === 'mail'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5"/>
+                المراسلات الداخلية
+              </button>
+            </div>
             <div className="flex items-center gap-1.5 text-[10px]">{connected?<><Wifi className="w-3.5 h-3.5 text-emerald-400"/><span className="text-emerald-400">\u0645\u062a\u0635\u0644</span></>:<><WifiOff className="w-3.5 h-3.5 text-rose-400"/><span className="text-rose-400">\u063a\u064a\u0631 \u0645\u062a\u0635\u0644</span></>}</div>
             <div className="text-[10px] text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3"/>{now.toLocaleTimeString('ar-LY',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>
             <span className="text-[10px] text-slate-600">\u062a\u062d\u062f\u064a\u062b \u062e\u0644\u0627\u0644 {refreshSec}\u062b</span>
@@ -357,6 +385,10 @@ export default function ControlCenterManagerPage() {
 
         {/* Toast */}
         {toast&&<div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium ${toast.type==='ok'?'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30':'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>{toast.type==='ok'?<CheckCircle2 className="w-4 h-4 shrink-0"/>:<XCircle className="w-4 h-4 shrink-0"/>}{toast.msg}</div>}
+
+        {/* Alert Banner */}
+        {/* Dashboard view */}
+        {activeView === 'dashboard' && (<>
 
         {/* Alert Banner */}
         {(pendingAll.length>0||criticalCount>0||oldestDelay>120)&&(
@@ -510,9 +542,12 @@ export default function ControlCenterManagerPage() {
           )}
         </div>
 
+        </>)}  {/* end activeView==='dashboard' */}
+
         {/* Quick Links */}
+        {activeView === 'dashboard' && (
         <div>
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">\u0627\u0644\u0648\u0635\u0648\u0644 \u0627\u0644\u0633\u0631\u064a\u0639</h2>
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">الوصول السريع</h2>
           <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
             {quickLinks.map(({href,icon:Icon,label,color})=>(
               <Link key={href} href={href} className={`border rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center hover:opacity-80 transition-opacity ${color}`}>
@@ -521,6 +556,23 @@ export default function ControlCenterManagerPage() {
             ))}
           </div>
         </div>
+        )}
+
+        {/* Internal Mail Tab */}
+        {activeView === 'mail' && (
+          <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <Mail className="w-4 h-4 text-amber-400"/>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">المراسلات الإدارية الداخلية — إدارة التحكم</h2>
+                <p className="text-xs text-slate-500">الوارد والصادر والتعميمات لجميع الإدارات</p>
+              </div>
+            </div>
+            <InternalMailTab department="control_manager" />
+          </div>
+        )}
 
       </div>
     </div>

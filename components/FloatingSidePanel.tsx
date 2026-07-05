@@ -102,8 +102,10 @@ export default function FloatingSidePanel({
   return (
     <div
       ref={panelRef}
-      className="fixed left-0 top-0 h-full flex flex-col pointer-events-auto"
+      className="fixed left-0 flex flex-col pointer-events-auto"
       style={{
+        top: '2.75rem',           /* 44px — below the dashboard top bar (h-11) */
+        height: 'calc(100vh - 2.75rem)',
         width: resolvedWidth,
         transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1)',
         zIndex,

@@ -58,6 +58,7 @@ export type RibbonGroup =
   | 'routing'      // optimal path
   | 'report'       // scene report + temporal + chat
   | 'compliance'   // ArcGIS compliance
+  | 'pipeline'     // pipeline route editor
   | 'layers'       // engineering layer editor (AssetTopBar tools)
   // RSC modules merged into SIC
   | 'spatial_analyst'  // Spatial Analyst tools
@@ -186,6 +187,7 @@ const RIBBON_CATEGORIES: RibbonCategory[] = [
     color: 'text-emerald-500',
     groups: [
       { id: 'draw',       label: 'رسم',      Icon: Pencil,     color: 'text-emerald-400' },
+      { id: 'pipeline',   label: 'المسارات', Icon: Route,     color: 'text-cyan-400'   },
       { id: 'report',     label: 'التقرير',  Icon: FileText,   color: 'text-slate-300'  },
       { id: 'compliance', label: 'المطابقة', Icon: ShieldCheck, color: 'text-rose-400'   },
     ],
@@ -823,6 +825,12 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
             drawMode={props.drawMode}
             onDrawModeChange={props.onDrawModeChange}
           />
+        )}
+        {activeGroup === 'pipeline' && (
+          <span className="flex items-center gap-2 text-xs text-cyan-300 font-semibold">
+            <Route size={13} className="text-cyan-400 shrink-0" />
+            <span>🗺️ <strong>مسارات الأنابيب:</strong> رسم وتحرير مسارات النهر الصناعي وخطوط النفط — استخدم اللوحة اليمنى</span>
+          </span>
         )}
         {/* terrain/suitability/routing/layers moved to /spatial-analytics and /engineering-workspace */}
         {activeGroup === 'report' && (

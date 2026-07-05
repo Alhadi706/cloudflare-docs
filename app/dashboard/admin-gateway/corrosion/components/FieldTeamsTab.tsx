@@ -86,10 +86,6 @@ export default function FieldTeamsTab() {
   const [selectedMembers, setSelectedMembers] = useState<TeamMember[]>([]);
   const [addEmpId, setAddEmpId] = useState('');
   const [addRole, setAddRole] = useState(TEAM_ROLES[0]);
-  const [manualName, setManualName] = useState('');
-  const [manualEmployeeNumber, setManualEmployeeNumber] = useState('');
-  const [manualPhone, setManualPhone] = useState('');
-  const [manualRole, setManualRole] = useState(TEAM_ROLES[0]);
   const [formError, setFormError] = useState('');
   const [incomingLoading, setIncomingLoading] = useState(true);
   const [incomingOrders, setIncomingOrders] = useState<IncomingWorkOrder[]>([]);
@@ -324,32 +320,6 @@ export default function FieldTeamsTab() {
     setFormError('');
   };
 
-  const addManualMember = () => {
-    if (!manualName.trim()) { setFormError('أدخل اسم العضو'); return; }
-    if (!manualEmployeeNumber.trim()) { setFormError('أدخل الرقم الوظيفي'); return; }
-    if (!manualPhone.trim()) { setFormError('أدخل رقم الهاتف'); return; }
-    if (selectedMembers.find(m => m.source === 'manual' && m.employeeNumber === manualEmployeeNumber.trim())) {
-      setFormError('هذا الرقم الوظيفي مضاف مسبقاً');
-      return;
-    }
-    setSelectedMembers(prev => [
-      ...prev,
-      {
-        memberId: `man-${uid()}`,
-        empId: null,
-        name: manualName.trim(),
-        employeeNumber: manualEmployeeNumber.trim(),
-        phone: manualPhone.trim(),
-        role: manualRole,
-        source: 'manual',
-      },
-    ]);
-    setManualName('');
-    setManualEmployeeNumber('');
-    setManualPhone('');
-    setManualRole(TEAM_ROLES[0]);
-    setFormError('');
-  };
 
   const removeMember = (memberId: string) => setSelectedMembers(prev => prev.filter(m => m.memberId !== memberId));
 
@@ -707,7 +677,7 @@ export default function FieldTeamsTab() {
                   </div>
                 ) : empError || employees.length === 0 ? (
                   <div className="text-[11px] text-amber-300 bg-amber-900/20 border border-amber-500/20 rounded-lg px-3 py-2">
-                    قائمة الشؤون الإدارية غير متاحة حالياً، استخدم الإدخال المباشر أدناه لبناء الفريق يدوياً.
+                    قائمة الشؤون الإدارية غير متاحة حالياً — أدخل الرقم الوظيفي مباشرة في حقل الاسم أدناه.
                   </div>
                 ) : (
                   <div className="space-y-2">

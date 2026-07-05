@@ -1118,23 +1118,27 @@ export default function SatIntelRightPanel({
   return (
     <div
       className={`shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col overflow-hidden transition-all duration-300
-        ${ panelSize === 'full' ? 'flex-1' : panelSize === 'half' ? 'flex-1' : panelSize === 'wide' ? 'w-[560px]' : 'w-[380px]' }`}
+        ${ panelSize === 'full' ? 'flex-1' : panelSize === 'half' ? 'w-[55%]' : panelSize === 'wide' ? 'w-[520px]' : 'w-[340px]' }`}
     >
 
       {/* ── Size control bar (always visible at top) ───────────── */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-700/60 bg-slate-900/80 shrink-0">
-        <span className="text-xs text-slate-500 mr-1">حجم اللوحة:</span>
+        <span className="text-xs text-slate-500 mr-1">حجم:</span>
         {(['normal', 'wide', 'half', 'full'] as const).map(sz => (
           <button
             key={sz}
-            onClick={() => onPanelSizeChange?.(sz)}
+            onClick={() => {
+              onPanelSizeChange?.(sz);
+              if (typeof window !== 'undefined') localStorage.setItem('sic_panel_size', sz);
+            }}
             className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border ${
               panelSize === sz
                 ? 'bg-blue-700 border-blue-500 text-white'
                 : 'bg-slate-800/60 border-slate-700/40 text-slate-400 hover:text-white hover:border-slate-500'
             }`}
+            title={sz==='normal'?'لوحة ضيقة 340px':sz==='wide'?'لوحة واسعة 520px':sz==='half'?'55% من الشاشة':'لوحة كاملة (الخريطة مخفية)'}
           >
-            {sz === 'normal' ? '⬡ عادي' : sz === 'wide' ? '⬣ واسع' : sz === 'half' ? '⬦ نصف' : '▣ كامل'}
+            {sz === 'normal' ? '▧ ضيق' : sz === 'wide' ? '▨ واسع' : sz === 'half' ? '▩ نصف+' : '▪ كامل'}
           </button>
         ))}
         <div className="flex-1" />
