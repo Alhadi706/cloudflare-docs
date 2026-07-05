@@ -119,7 +119,7 @@ export default function DepartmentAssetInbox({ department, title, compact = fals
           <h3 className="text-sm font-bold text-slate-200">{panelTitle}</h3>
           <p className="text-xs text-slate-500">{loading ? '...' : `${scoped.length} أصل`} مشترك بين الإدارات</p>
         </div>
-        <Link href="/dashboard/admin-gateway/assets/list" className="mr-auto text-xs text-cyan-300 hover:text-cyan-200 inline-flex items-center gap-1">
+        <Link href="/dashboard/admin-gateway/assets/registry" className="mr-auto text-xs text-cyan-300 hover:text-cyan-200 inline-flex items-center gap-1">
           عرض الكل <ChevronLeft className="w-3 h-3" />
         </Link>
       </div>

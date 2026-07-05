@@ -60,37 +60,50 @@ export async function GET(req: NextRequest) {
       }>;
 
       if (mode === 'my_team') {
-        // DB teams use employee_id (numeric HR ID), so we can't match by empNo string directly.
-        // Load local monitoring teams (which use employee_number strings) for reliable member lookup.
+        // Use /by-employee which correctly resolves employee_no → employee_id
+        try {
+          const byEmpRes = await fetch(
+            `${B}/api/v1/ctrl/monitoring-teams/by-employee?employee_no=${encodeURIComponent(empNo)}`,
+            { cache: 'no-store', signal: AbortSignal.timeout(8000) }
+          );
+          if (byEmpRes.ok) {
+            const byEmpData = await byEmpRes.json();
+            const byEmpTeams = (byEmpData.teams || []) as Array<{
+              id: string; station_id: string; station_name: string;
+              zone: string; shift: string; status: string; member_role: string;
+            }>;
+            const ZONE_MAP: Record<string, string> = {
+              'المسار الأوسط': 'central_branch', 'حقول الآبار': 'well_fields',
+              'المسار الشرقي': 'eastern_branch', 'منطقة طاز': 'taz',
+            };
+            const { STATION_PRESETS } = await import('@/lib/mobile-field-store');
+            const builtTeams = byEmpTeams.map(t => {
+              const presetKey = ZONE_MAP[t.zone] || 'central_branch';
+              return {
+                id: t.id, team_name: t.station_name || t.station_id,
+                station_type: presetKey, location_label: t.zone || '',
+                station_id: t.station_id, shift: t.shift || 'صباحي',
+                member_role: t.member_role || 'راصد',
+                member_employee_nos: [] as string[], supervisor_employee_nos: [] as string[],
+                field_groups: STATION_PRESETS[presetKey]?.field_groups ?? [],
+                is_active: t.status === 'نشط' || t.status === 'active',
+              };
+            });
+            const primary = builtTeams.find(t => t.member_role === 'رئيس فريق') ?? builtTeams[0] ?? null;
+            return NextResponse.json({
+              ok: true, team: primary, teams: builtTeams,
+              recent_readings: [], source: 'db', dept: 'control_center',
+            });
+          }
+        } catch { /* fall through */ }
+        // Memory fallback
         const { getMonitoringTeams } = await import('@/lib/mobile-field-store');
-        const localTeams = getMonitoringTeams(auth.tenantId);
-
-        // Match by local member_employee_nos (employee number strings like '2055')
-        const myLocalTeams = localTeams.filter(t =>
-          t.member_employee_nos?.includes(empNo) ||
-          t.supervisor_employee_nos?.includes(empNo)
+        const localTeams = getMonitoringTeams(auth.tenantId).filter(t =>
+          t.member_employee_nos?.includes(empNo) || t.supervisor_employee_nos?.includes(empNo)
         );
-
-        // Also try matching DB teams by name_ar (Arabic name includes empNo) as fallback
-        const myDbTeams = dbTeams.filter(t =>
-          t.members?.some(m =>
-            m.name_ar?.includes(empNo) ||
-            String(m.employee_id) === empNo
-          )
-        );
-
-        // Prefer local teams (have full field_groups), supplement with DB-only teams
-        const localIds = new Set(myLocalTeams.map(t => t.id));
-        const extraDbTeams = myDbTeams.filter(t => !localIds.has(t.id));
-        const allMyTeams = [...myLocalTeams, ...extraDbTeams];
-
         return NextResponse.json({
-          ok: true,
-          team: allMyTeams[0] ?? null,
-          teams: allMyTeams,
-          recent_readings: [],
-          source: 'db+local',
-          dept: 'control_center',
+          ok: true, team: localTeams[0] ?? null, teams: localTeams,
+          recent_readings: [], source: 'memory', dept: 'control_center',
         });
       }
 

@@ -56,7 +56,7 @@ const mgmtLinks = [
   { href: '/dashboard/admin-gateway/finance/reports',    icon: FileText,    label: 'التقارير المالية' },
   { href: '/dashboard/admin-gateway/workflow/approvals?role=finance_controller', icon: ShieldCheck, label: 'الموافقات المالية' },
   { href: '/dashboard/admin-gateway/finance/allocations', icon: PieChart,   label: 'تخصيص الميزانية' },
-  { href: '/dashboard/admin-gateway/finance/asset-tracking', icon: Settings, label: 'تتبع الأصول المالية' },
+  { href: '/dashboard/admin-gateway/assets/valuations', icon: Settings, label: 'تتبع الأصول المالية' },
 ];
 
 const monitoringLinks = [

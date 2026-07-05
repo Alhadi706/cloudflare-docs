@@ -15,7 +15,7 @@ const workspaceLinks = [
 // ── الأصول والموارد
 const assetLinks = [
   { href: '/dashboard/admin-gateway/assets/registry', icon: Shield,    label: 'سجل الأصول الرئيسية', desc: 'الأصول الهندسية المدرجة بالمنظومة',              color: 'text-teal-400',    bg: 'bg-teal-500/10',    border: 'border-teal-500/20' },
-  { href: '/dashboard/admin-gateway/assets/list',     icon: HardHat,   label: 'قائمة الأصول',        desc: 'استعراض الأصول وتفاصيلها',                      color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  { href: '/dashboard/admin-gateway/assets/registry', icon: HardHat,   label: 'سجل الأصول',        desc: 'استعراض الأصول وتفاصيلها',                      color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
 ];
 
 // ── الدعم الفني والتحليل

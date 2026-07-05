@@ -54,7 +54,7 @@ export default function FinancePage() {
       icon: <TrendingUp className="w-8 h-8 text-amber-400" />,
       color: 'bg-amber-600/20 border-amber-500/50',
       description: 'تقييمات الأصول وتسجيل الاستبعادات المالية وتتبع القيمة',
-      href: '/dashboard/admin-gateway/finance/asset-tracking',
+      href: '/dashboard/admin-gateway/assets/valuations',
       features: ['تقييم الأصول', 'سجل الاستبعاد', 'تاريخ القيمة']
     },
     {

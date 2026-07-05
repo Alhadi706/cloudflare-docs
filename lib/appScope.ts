@@ -36,7 +36,6 @@ const APP_SCOPE_VALUES: InstalledAppScope[] = [
 const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, string[]> = {
   corrosion: [
     '/dashboard/admin-gateway/corrosion',
-    '/dashboard/corrosion',
     '/dashboard/operations-maintenance',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
@@ -45,7 +44,6 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
   ],
   maintenance: [
     '/dashboard/admin-gateway/maintenance',
-    '/dashboard/maintenance',
     '/dashboard/admin-gateway/projects',
     '/dashboard/operations-maintenance',
     '/dashboard/map-shell',
@@ -57,12 +55,10 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
     '/dashboard/admin-control',
     '/dashboard/hr-center',
     '/dashboard/admin-gateway/hr',
-    '/dashboard/admin-gateway/admin-dept',
     '/dashboard/admin-gateway/security',
     '/dashboard/admin-gateway/correspondence',
     '/dashboard/admin-gateway/contracts',
     '/dashboard/admin-gateway/workflow',
-    '/dashboard/admin-gateway/org-structure',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
     '/dashboard/my-workspace',
@@ -71,18 +67,14 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
   finance: [
     '/dashboard/finance-hub',
     '/dashboard/admin-gateway/finance',
-    '/dashboard/admin-gateway/accounting',
-    '/dashboard/admin-gateway/revenue',
-    '/dashboard/admin-gateway/reports/financial',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
     '/dashboard/my-workspace',
     '/dashboard/my-portal',
   ],
   materials: [
-    '/dashboard/digital-assets',
-    '/dashboard/asset-intelligence',
     '/dashboard/admin-gateway/assets',
+    '/dashboard/admin-gateway/assets/registry',
     '/dashboard/admin-gateway/inventory',
     '/dashboard/admin-gateway/procurement',
     '/dashboard/admin-gateway/materials',
@@ -104,7 +96,7 @@ const APP_SCOPE_ALLOWED_PREFIXES: Record<Exclude<InstalledAppScope, 'all'>, stri
   'remote-sensing': [
     '/dashboard/gis-sovereignty',
     '/dashboard/spatial-analytics',
-    '/dashboard/asset-intelligence',
+    '/dashboard/admin-gateway/platform-intelligence/asset-intelligence',
     '/dashboard/map-shell',
     '/dashboard/ai-assistant',
     '/dashboard/my-workspace',

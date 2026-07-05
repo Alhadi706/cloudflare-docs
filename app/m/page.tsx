@@ -1699,6 +1699,8 @@ export default function MobileFieldPage() {
   // Phase 10: Monitoring (رصد)
   const [isMonitoringObserver, setIsMonitoringObserver] = useState(false);
   const [myMonitoringTeam, setMyMonitoringTeam] = useState<MonitoringTeam | null>(null);
+  const [myMonitoringTeams, setMyMonitoringTeams] = useState<MonitoringTeam[]>([]);
+  const [selectedMonitoringTeamId, setSelectedMonitoringTeamId] = useState<string | null>(null);
   const [myRecentReadings, setMyRecentReadings] = useState<MonitoringReading[]>([]);
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [monitoringFormValues, setMonitoringFormValues] = useState<Record<string, string>>({});

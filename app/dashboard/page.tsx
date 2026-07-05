@@ -124,7 +124,7 @@ const coreActions: QuickAction[] = [
   },
   {
     title: 'ذكاء الأصول',
-    href: '/dashboard/asset-intelligence',
+    href: '/dashboard/admin-gateway/platform-intelligence/asset-intelligence',
     icon: Shield,
     desc: 'تحليل ذكي للأصول: الصحة والتقييم والتنبؤ بالأعطال.',
   },
@@ -347,7 +347,7 @@ export default function DashboardHome() {
   }, [groupedActions, quickActions.length]);
 
   return (
-    <div className="pointer-events-auto relative min-h-screen bg-slate-950/70 px-4 py-6 md:px-6" dir="rtl">
+    <div className="pointer-events-auto relative min-h-screen overflow-hidden bg-slate-950/70 px-4 py-6 md:px-6" dir="rtl">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_24%),radial-gradient(circle_at_left,rgba(14,165,233,0.12),transparent_20%),linear-gradient(180deg,rgba(2,6,23,0.2),rgba(2,6,23,0.82))]" />
 
       <button
@@ -575,7 +575,7 @@ export default function DashboardHome() {
                 { label: 'المصروفات',        href: '/dashboard/admin-gateway/finance/expenses' },
                 { label: 'التحويلات',        href: '/dashboard/admin-gateway/finance/transfers' },
                 { label: 'التقارير المالية', href: '/dashboard/admin-gateway/finance/reports' },
-                { label: 'تتبع الأصول',      href: '/dashboard/admin-gateway/finance/asset-tracking' },
+                { label: 'تتبع الأصول',      href: '/dashboard/admin-gateway/assets/valuations' },
                 { label: 'التخصيصات',        href: '/dashboard/admin-gateway/finance/allocations' },
               ].map((item) => (
                 <Link key={item.href} href={item.href}
@@ -617,7 +617,7 @@ export default function DashboardHome() {
                 { label: 'صيانة الأصول',      href: '/dashboard/admin-gateway/assets/maintenance' },
                 { label: 'التقييمات',          href: '/dashboard/admin-gateway/assets/valuations' },
                 { label: 'المراجعات الدورية',  href: '/dashboard/admin-gateway/assets/reviews' },
-                { label: 'الأنواع',            href: '/dashboard/admin-gateway/assets/types' },
+                { label: 'التصنيفات',          href: '/dashboard/admin-gateway/assets/categories' },
               ].map((item) => (
                 <Link key={item.href} href={item.href}
                   className="rounded-xl border border-rose-500/20 bg-rose-900/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-800/30 hover:border-rose-400/40 transition-all flex items-center justify-between gap-1">
@@ -714,7 +714,7 @@ export default function DashboardHome() {
             </Link>
           </div>
 
-          {/* إدارة الخدمات */}
+          {/* إدارة الأسطول */}
           <div className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-950/60 to-slate-950/80 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/15 border border-sky-500/30">
@@ -722,7 +722,7 @@ export default function DashboardHome() {
               </div>
               <div>
                 <p className="text-xs text-sky-300 font-semibold">الإدارة التاسعة</p>
-                <h2 className="text-base font-black text-white">إدارة الخدمات</h2>
+                <h2 className="text-base font-black text-white">إدارة الأسطول</h2>
               </div>
             </div>
             <Link href="/dashboard/admin-gateway/fleet/manager"
@@ -749,7 +749,7 @@ export default function DashboardHome() {
             </div>
             <Link href="/dashboard/admin-gateway/fleet"
               className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 py-2 text-sm font-bold text-sky-200 hover:bg-sky-500/20 transition-all">
-              دخول إدارة الخدمات <ArrowUpRight className="h-4 w-4" />
+              دخول إدارة الأسطول <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
 
@@ -833,16 +833,16 @@ export default function DashboardHome() {
           </div>
 
           {/* مكتب المدير العام */}
-          <div className="xl:col-span-3 rounded-2xl border border-indigo-500/40 bg-gradient-to-br from-indigo-950/70 via-slate-950/80 to-indigo-950/40 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
+          <div className="xl:col-span-3 rounded-2xl border border-amber-500/40 bg-gradient-to-br from-amber-950/50 via-slate-950/80 to-amber-950/30 p-5 backdrop-blur-xl shadow-xl flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/20 border border-indigo-500/40">
-                <Building2 className="h-5 w-5 text-indigo-300" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/20 border border-amber-500/40">
+                <Crown className="h-5 w-5 text-amber-300" />
               </div>
               <div>
-                <p className="text-xs text-indigo-300 font-semibold">الإدارة العليا</p>
+                <p className="text-xs text-amber-300 font-semibold">الإدارة العليا</p>
                 <h2 className="text-base font-black text-white">مكتب المدير العام</h2>
               </div>
-              <span className="mr-auto text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">لوحة تنفيذية</span>
+              <span className="mr-auto text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">لوحة تنفيذية</span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
               {[
@@ -854,15 +854,15 @@ export default function DashboardHome() {
                 { label: 'مركز القيادة',      href: '/dashboard/command-center' },
               ].map((item) => (
                 <Link key={item.href} href={item.href}
-                  className="rounded-xl border border-indigo-500/20 bg-indigo-900/20 px-3 py-2 text-xs font-semibold text-indigo-100 hover:bg-indigo-800/30 hover:border-indigo-400/40 transition-all flex items-center justify-between gap-1">
+                  className="rounded-xl border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-800/30 hover:border-amber-400/40 transition-all flex items-center justify-between gap-1">
                   {item.label}
-                  <ChevronLeft className="h-3 w-3 text-indigo-400 shrink-0" />
+                  <ChevronLeft className="h-3 w-3 text-amber-400 shrink-0" />
                 </Link>
               ))}
             </div>
-            <Link href="/dashboard/admin-gateway/reports/executive"
-              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-500/10 py-2 text-sm font-bold text-indigo-200 hover:bg-indigo-500/20 transition-all">
-              فتح التقارير التنفيذية <ArrowUpRight className="h-4 w-4" />
+            <Link href="/dashboard/admin-gateway/gm-office"
+              className="mt-auto flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/20 transition-all">
+              دخول مكتب المدير العام <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
 
@@ -877,7 +877,7 @@ export default function DashboardHome() {
             { title: 'المساعد الذكي',           href: '/dashboard/ai-assistant',                           icon: Cpu,       desc: 'استعلام وتحليل البيانات بالذكاء الاصطناعي' },
             { title: 'التقرير اليومي',          href: '/dashboard/daily-operations',                       icon: Activity,  desc: 'قراءات المحطات والتقارير التشغيلية اليومية' },
             { title: 'مراقبة النظام',           href: '/dashboard/system-explorer',                        icon: Building2, desc: 'حالة الوحدات والربط التقني للمنظومة' },
-            { title: 'ذكاء الأصول',            href: '/dashboard/asset-intelligence',                     icon: Shield,    desc: 'تحليل الأصول والتنبؤ بالأعطال' },
+            { title: 'ذكاء الأصول',            href: '/dashboard/admin-gateway/platform-intelligence/asset-intelligence',     icon: Shield,    desc: 'تحليل الأصول والتنبؤ بالأعطال' },
             { title: 'العقود والمقاولون',       href: '/dashboard/admin-gateway/contracts',                icon: FileText,  desc: 'إدارة العقود والمقاولين' },
             { title: 'الإشعارات والتنبيهات',    href: '/dashboard/admin-gateway/notifications',            icon: Bell,      desc: 'التنبيهات العاجلة والمهام المعلقة' },
           ].map((item) => {

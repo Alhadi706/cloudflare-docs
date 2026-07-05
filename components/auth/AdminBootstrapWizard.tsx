@@ -87,7 +87,7 @@ const DEPT_CATALOGUE: Omit<DeptDef, 'enabled' | 'manager'>[] = [
     id: 'inventory', deptCode: 'ASSET',
     icon: <Package className="w-4 h-4" />,
     name: 'المواد والمخازن',
-    dashRoute: '/dashboard/digital-assets',
+    dashRoute: '/dashboard/admin-gateway/assets/registry',
     dashLabel: 'لوحة الأصول',
   },
   {

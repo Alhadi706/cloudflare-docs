@@ -142,8 +142,8 @@ export const ROUTE_RULES: RouteRule[] = [
   // ── Spatial analytics ── supervisors+ ───────────────────────────────────
   { prefix: '/dashboard/spatial-analytics',        minRole: 'supervisor' },
 
-  // ── Asset intelligence — all authenticated ───────────────────────────────
-  { prefix: '/dashboard/asset-intelligence',       minRole: 'employee' },
+  // ── Asset registry — all authenticated ─────────────────────────────────
+  { prefix: '/dashboard/admin-gateway/assets',     minRole: 'employee' },
 
   // ── New department hubs ──────────────────────────────────────────────────
   { prefix: '/dashboard/engineering',  minRole: 'employee',  deptCodes: ['ENG'] },
@@ -191,7 +191,7 @@ export const DEPT_DASHBOARD: Record<string, string> = {
   GIS:      '/dashboard/gis-sovereignty',
   PROJ:     '/dashboard/projects-control',
   OPS:      '/dashboard/operations-maintenance',
-  ASSET:    '/dashboard/digital-assets',
+  ASSET:    '/dashboard/admin-gateway/assets/registry',
   CORR:     '/dashboard/corrosion',
   CTRL:     '/dashboard/control-center',
   FLEET:    '/dashboard/fleet',
@@ -365,8 +365,8 @@ export const NAV_ITEMS: NavItemDef[] = [
   // Spatial analytics — supervisors+
   { id: 'spatial',    href: '/dashboard/spatial-analytics',               icon: 'layers',      label: 'التحليل المكاني',   minRole: 'supervisor' },
 
-  // Asset intelligence — employees+
-  { id: 'assets',     href: '/dashboard/asset-intelligence',              icon: 'briefcase',   label: 'الأصول',            minRole: 'employee' },
+  // Asset registry — employees+
+  { id: 'assets',     href: '/dashboard/admin-gateway/assets',              icon: 'briefcase',   label: 'الأصول',            minRole: 'employee' },
 
   // Admin gateway — admin only
   { id: 'admin',      href: '/dashboard/admin-gateway',                   icon: 'building2',   label: 'بوابة الإدارة',    minRole: 'admin' },

@@ -9,7 +9,7 @@ import InternalMailTab from '@/components/InternalMailTab';
 
 const sections = [
   {
-    href: '/dashboard/admin-gateway/assets/list',
+    href: '/dashboard/admin-gateway/assets/registry',
     label: 'سجل الأصول',
     en: 'Asset Registry',
     color: 'text-cyan-400', border: 'border-cyan-500/30', bg: 'bg-cyan-500/20',
@@ -59,7 +59,7 @@ const sections = [
 ];
 
 const mgmtLinks = [
-  { href: '/dashboard/admin-gateway/assets/list',        icon: List,      label: 'سجل الأصول' },
+  { href: '/dashboard/admin-gateway/assets/registry',   icon: List,      label: 'سجل الأصول' },
   { href: '/dashboard/admin-gateway/assets/health',      icon: Activity,  label: 'صحة الأصول' },
   { href: '/dashboard/admin-gateway/assets/valuations',  icon: TrendingUp, label: 'التقييمات' },
   { href: '/dashboard/admin-gateway/assets/reviews',     icon: Shield,    label: 'المراجعات' },
