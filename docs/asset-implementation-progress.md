@@ -1,0 +1,256 @@
+# تقرير تقدم إعادة هيكلة نظام الأصول
+**Canonical Asset Architecture — Implementation Progress Report**
+**تاريخ:** 2026-07-05 | **الفرع:** feat/flutter-windows-ci
+
+---
+
+## ملاحظة هامة من المراجعة الميدانية
+
+> بعد اختبار النظام على `dev.d-me.ly`، اكتشفنا أن نموذج إضافة الأصل في Registry
+> يطلب اختيار مشروع من `LocationPickerModal` — وهذا غير مثالي.
+>
+> **التوجه الأفضل:** دمج قدرة الرسم على الخريطة مباشرة في نموذج إضافة الأصل،
+> مع دعم الأصول المتداخلة (أصل داخل أصل) — مثال: "منظومة الحساونة" تحتوي
+> مسجداً وورشة وشؤوناً إدارية ومخازن، كل منها أصل فرعي يُرسم داخل مضلع الأصل الرئيسي.
+>
+> هذا التحسين مُدرج في Phase 4 (Enhanced Asset Creation).
+
+---
+
+## ما تم إنجازه
+
+---
+
+### ✅ المرحلة الصفر — UI Restructuring (مكتملة)
+**الفترة:** تاريخ سابق | **الـ Tags:** `before-ui-phase-0` → `before-ui-phase-3`
+
+| المهمة | الحالة |
+|--------|--------|
+| إزالة ملفات .bak من المشروع | ✅ |
+| توحيد Redirects (next.config.js) | ✅ |
+| Sidebar موحد | ✅ |
+| Map toggle اختياري لكل إدارة | ✅ |
+| Asset 360 مدمج كصفحة تفصيل | ✅ |
+| Project 360 مدمج كصفحة تفصيل | ✅ |
+| GM Office + Intelligence tabs | ✅ |
+| إصلاح زر الرجوع من GIS | ✅ |
+
+---
+
+### ✅ Phase 1 — Single Creation Path (مكتملة)
+**Tag:** `before-asset-phase-1` → commit `a177ccf0a2`
+
+#### ما تم حذفه نهائياً:
+| الملف/المجلد | سبب الحذف |
+|-------------|----------|
+| `app/dashboard/digital-assets/` | portal قديم بلا قيمة |
+| `app/dashboard/asset-intelligence/` | portal مكرر |
+| `app/dashboard/admin-gateway/assets/list/` | يخلط مصدرين متضاربين |
+| `app/dashboard/admin-gateway/assets/types/` | مكرر مع categories |
+| `app/dashboard/admin-gateway/finance/asset-tracking/` | مكرر مع valuations |
+| `app/dashboard/asset-360/[id]/page.tsx` | dead code (redirect يتجاوزه) |
+| `app/dashboard/asset-360/page.tsx` | redirect shell لا يُوصَل إليه |
+| `components/AssetGisLinkPanel.tsx` | JSON-based مؤقت |
+| `components/LinearAssetImporter.tsx` | JSON-based مؤقت |
+| `app/api/v1/workspace/asset-gis-links/` | JSON file store |
+| `app/api/v1/workspace/linear-assets/` | JSON file store |
+| `.data/asset-gis-links/` | بيانات JSON مؤقتة |
+| `.data/linear-assets/` | بيانات JSON مؤقتة |
+
+#### نقطة الإنشاء الكانونية:
+```
+/dashboard/admin-gateway/assets/registry
+  → POST /api/v1/workspace/assets (الـ Backend)
+  هذا هو المسار الوحيد لإنشاء أصول ERP التشغيلية
+```
+
+#### مسارات إنشاء أخرى معترف بها (للمعالجة في مراحل لاحقة):
+| المسار | النوع | المرحلة |
+|--------|-------|---------|
+| `CreatePrincipalAssetModal` | GIS infrastructure | Phase 3 ✅ |
+| `vehicles/vehicles + equipment` | Fleet mobile | Phase 4 |
+| LRS batch import | Linear assets | Phase 5 |
+
+---
+
+### ✅ Phase 2 — Sites Management (مكتملة)
+**Tag:** `before-asset-phase-2` → commit `01fe1c6310`
+
+#### ما تم بناؤه:
+
+**API موحّدة جديدة:**
+```
+GET /api/v1/workspace/all-sites
+  ← تجمع كل المواقع من كل المشاريع في قائمة واحدة
+  ← { id, project_id, project_name, name, code, site_type, status }
+  ← Parallel fetching من جميع المشاريع
+```
+
+**صفحة إدارة المواقع التشغيلية:**
+```
+/dashboard/admin-gateway/sites/
+  ✓ قائمة المواقع مجمّعة بالمشروع
+  ✓ إنشاء موقع جديد تحت مشروع محدد
+  ✓ أنواع: محطة ضخ، تشغيلي، إداري، مخزن، ميداني، تقاطع
+  ✓ رابط لسجل الأصول مصفّى بـ site_id
+  ✓ بحث بالاسم/الرمز/المشروع
+```
+
+**ملاحظة معمارية:**
+- Backend: المواقع sub-entities تحت المشاريع
+- لا يوجد `/api/v1/sites` مستقل في Backend حالياً
+- all-sites API تخفي هذا التعقيد عن الواجهة
+
+---
+
+### ✅ Phase 3 — GIS as Location Provider (مكتملة)
+**Tag:** `before-asset-phase-3` → commit `22f95874a7`
+
+#### ما تم تغييره:
+
+**`CreatePrincipalAssetModal.tsx` — Mode Switcher مُضاف:**
+
+```
+عند فتح المودال بعد الرسم على الخريطة، يظهر خياران:
+
+[ربط بأصل موجود في Registry]  [إنشاء أصل هندسي جديد]
+```
+
+**Mode A: ربط بأصل موجود**
+- يُحمّل قائمة الأصول من `/api/v1/workspace/assets/all`
+- بحث في الأصول
+- عند الاختيار: يستخرج centroid من الشكل المرسوم
+- يُحدّث الأصل: `PATCH /api/v1/workspace/assets/[id]` بـ `{latitude, longitude}`
+- النتيجة: الأصل يحصل على إحداثيات دقيقة → يظهر في Asset 360
+
+**Mode B: إنشاء أصل هندسي جديد (السلوك الأصلي)**
+- يُنشئ Principal Asset في GIS
+- للبنى التحتية (خطوط أنابيب، طرق، مسارات)
+
+---
+
+## ما لم يتم بعد — المراحل القادمة
+
+---
+
+### 🔄 Phase 4 — Enhanced Asset Creation (الأولوية القادمة)
+
+**المشكلة المكتشفة:** نموذج إضافة الأصل في Registry يطلب اختيار مشروع فقط دون دعم:
+1. رسم مباشر على الخريطة من داخل نموذج الإضافة
+2. الأصول المتداخلة (أصل رئيسي ← أصول فرعية)
+
+**مثال حقيقي:**
+```
+منظومة الحساونة (مضلع كبير على الخريطة)
+  ├── مسجد        (مضلع صغير داخل الموقع)
+  ├── شؤون إدارية (مضلع صغير داخل الموقع)
+  ├── نادي         (مضلع صغير داخل الموقع)
+  ├── ورشة         (مضلع صغير داخل الموقع)
+  └── مخازن        (مضلع صغير داخل الموقع)
+```
+
+**ما سيُبنى في Phase 4:**
+
+**4A — Integrated Map Drawing في Registry:**
+- نموذج "أصل جديد" يحتوي قسم "الرسم على الخريطة" مباشرة
+- المستخدم يرسم نقطة/مضلع/مسار داخل النموذج
+- لا حاجة للانتقال لـ Engineering Workspace
+- يُستخدم نفس MapCanvas الموجود في GIS
+
+**4B — Parent Asset Support:**
+- حقل "الأصل الرئيسي" في نموذج الإضافة
+- اختيار من قائمة الأصول الموجودة
+- عند تحديد أصل رئيسي → يصبح child asset
+- يُنشئ compound structure تلقائياً
+- الأصل الرئيسي يُعلَّم كـ "مجمّع"
+
+**4C — Compound Asset View في Asset 360:**
+- تبويب "الأصول الفرعية" في Asset 360
+- شجرة هرمية للأصول المتداخلة
+- كل أصل فرعي قابل للنقر
+
+---
+
+### 🔄 Phase 5 — Fleet Migration
+
+**المهمة:**
+- مركبات ومعدات Fleet ترتبط بـ `asset_id` حقيقي في Registry
+- `/admin-gateway/vehicles/*` تُصبح فلتر "أصول متنقلة"
+- تكاليف الوقود تظهر في Asset 360
+
+---
+
+### 🔄 Phase 6 — LRS Integration
+
+**المهمة:**
+- LRS batch import يُنشئ assets حقيقية في Backend (ليس JSON)
+- كل صمام/معدة خطية → asset_id حقيقي
+- أوامر العمل القديمة تُربط بـ asset_id عبر equipment_code
+
+---
+
+### 🔄 Phase 7 — Finance & Procurement Integration
+
+**المهمة:**
+- عند اعتماد PO لشراء أصل → يُنشئ draft asset تلقائياً
+- استلام المستودع → stage=in_warehouse
+- المستخدم لا يُضيف الأصل مرتين
+
+---
+
+### 🔄 Phase 8 — Full Asset 360
+
+**المهمة:**
+- تبويبات Asset 360 تعرض بيانات من كل الأنظمة:
+  - المالية (تاريخ الشراء، الاستهلاك)
+  - الصيانة (25 سنة أوامر عمل)
+  - الموقع (GIS + موقع تشغيلي)
+  - الأصول الفرعية (compound tree)
+  - التشغيل (قراءات Control Center)
+
+---
+
+### 🔄 Phase 9 — Cleanup
+
+**المهمة:**
+- حذف `/api/engineering/workspace/principal-assets/*` (بعد migration)
+- حذف `app/dashboard/operations-maintenance/` (LRS قديم)
+- حذف `lib/linear-referencing/` (إعادة استخدامها في Phase 6)
+
+---
+
+## الوضع الحالي للـ Snapshots
+
+| Tag | المحتوى |
+|-----|---------|
+| `before-ui-phase-0` | قبل أي تغيير UI |
+| `before-ui-phase-1` | قبل Redirects |
+| `before-ui-phase-2` | قبل Sidebar |
+| `before-ui-phase-3` | قبل Map toggle + DeptShell |
+| `before-asset-phase-1` | قبل إعادة هيكلة الأصول |
+| `before-asset-phase-2` | قبل Sites Management |
+| `before-asset-phase-3` | قبل GIS Location Provider |
+
+---
+
+## ملخص المبدأ المعماري الحاكم
+
+```
+من يُنشئ الأصل؟
+  ← إدارة الأصول فقط (Registry)
+  ← أي إدارة أخرى تُغذّي البيانات، لا تُنشئ أصولاً جديدة
+
+من يُحدد موقع الأصل؟
+  ← المشاريع/الصيانة عند التركيب (site_id)
+  ← GIS يُضيف إحداثيات دقيقة لاحقاً (lat/lng)
+  ← LRS يحسب الموقع من المسافة على الخط
+
+كيف تُبنى الأصول المتداخلة؟
+  ← مضلع كبير (الموقع الرئيسي) = parent asset
+  ← مضلعات صغيرة داخله = child assets
+  ← كل طبقة تُنشأ من نفس Registry بـ parent_asset_id
+```
+
+---
+
+*الملف: `/home/alhadi/digital-dashboard/docs/asset-implementation-progress.md`*
