@@ -2336,15 +2336,17 @@ export default function MobileFieldPage() {
       const res = await fetch('/api/auth/mobile/monitoring?mode=my_team', { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
-        const team = data.team ?? null;
-        setMyMonitoringTeam(team);
-        setIsMonitoringObserver(!!team);
+        const allTeams: MonitoringTeam[] = Array.isArray(data.teams) ? data.teams : [];
+        const primaryTeam = data.team ?? allTeams[0] ?? null;
+        setMyMonitoringTeams(allTeams);
+        setMyMonitoringTeam(primaryTeam);
+        setIsMonitoringObserver(allTeams.length > 0);
         setMyRecentReadings(Array.isArray(data.recent_readings) ? data.recent_readings : []);
-        if (team) {
-          setExpandedGroups(new Set(team.field_groups.map((g: MonitoringFieldGroup) => g.group_key)));
+        if (primaryTeam) {
+          setExpandedGroups(new Set(primaryTeam.field_groups.map((g: MonitoringFieldGroup) => g.group_key)));
+          if (!selectedMonitoringTeamId) setSelectedMonitoringTeamId(primaryTeam.id);
         }
-        // Also update deptTabs from stored tabs if monitoring confirmed
-        if (team) {
+        if (allTeams.length > 0) {
           const stored = localStorage.getItem(MOBILE_DEPT_TABS_KEY);
           if (stored) {
             try { setDeptTabs(JSON.parse(stored)); } catch { /* ignore */ }
@@ -2453,7 +2455,8 @@ export default function MobileFieldPage() {
     setMonitoringSubmitError('');
     try {
       const values: Record<string, number | string | null> = {};
-      for (const group of myMonitoringTeam.field_groups) {
+      const currentTeam = myMonitoringTeams.find(t => t.id === selectedMonitoringTeamId) ?? myMonitoringTeam;
+      for (const group of (currentTeam?.field_groups ?? [])) {
         for (const field of group.fields) {
           const raw = monitoringFormValues[field.key] ?? '';
           if (raw === '') {
@@ -2471,7 +2474,8 @@ export default function MobileFieldPage() {
         headers: getHeaders(),
         body: JSON.stringify({
           action: asDraft ? 'save_draft' : 'submit',
-          team_id: myMonitoringTeam.id,
+          team_id:      currentTeam?.id,
+          station_id:   (currentTeam as any)?.station_id,
           reading_date: monitoringDate,
           values,
           notes: monitoringNotes.trim() || undefined,
@@ -2685,6 +2689,9 @@ export default function MobileFieldPage() {
   const isSupervisor = ['supervisor', 'manager', 'admin', 'department_head', 'dept_manager', 'section_manager'].includes(profile?.role || '');
   // رصد tab visible only to supervisors or confirmed monitoring team members
   const showMonitoringTab = isSupervisor || isMonitoringObserver;
+  // Active monitoring team: prefer selectedMonitoringTeamId, fallback to primary
+  const activeMonitoringTeam = myMonitoringTeams.find(t => t.id === selectedMonitoringTeamId)
+    ?? myMonitoringTeam;
   const approvalBadge = approvalQueue.length + pendingPartsReqs.length + openFaultReports.length;
 
   // ── Login screen ──────────────────────────────────────────────────────────
@@ -4054,7 +4061,7 @@ export default function MobileFieldPage() {
                     <RefreshCw className="h-8 w-8 animate-spin text-cyan-400" />
                     <p className="text-sm text-slate-400">جارٍ تحميل بيانات الرصد...</p>
                   </div>
-                ) : !myMonitoringTeam ? (
+                ) : myMonitoringTeams.length === 0 ? (
                   <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 text-center space-y-2">
                     <Activity className="mx-auto h-12 w-12 text-slate-600" />
                     <p className="text-slate-300 font-bold">لم يتم تعيينك في فريق رصد</p>
@@ -4062,13 +4069,45 @@ export default function MobileFieldPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Team Selector (shown when member of multiple teams) */}
+                    {myMonitoringTeams.length > 1 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-bold text-slate-400">اختر الفريق ({myMonitoringTeams.length} فريق)</p>
+                        <div className="flex flex-wrap gap-2">
+                          {myMonitoringTeams.map(t => (
+                            <button
+                              key={t.id}
+                              onClick={() => {
+                                setSelectedMonitoringTeamId(t.id);
+                                setMonitoringFormValues({});
+                                setExpandedGroups(new Set(t.field_groups.map((g: MonitoringFieldGroup) => g.group_key)));
+                                setMonitoringSubmitDone(false);
+                                setMonitoringSubmitError('');
+                              }}
+                              className={`rounded-full px-3 py-1 text-xs font-bold transition-all border ${
+                                (selectedMonitoringTeamId ?? myMonitoringTeam?.id) === t.id
+                                  ? 'bg-cyan-700 border-cyan-500 text-white'
+                                  : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-cyan-500/50'
+                              }`}
+                            >
+                              {t.team_name}
+                              {t.member_role === 'رئيس فريق' && <span className="mr-1 text-amber-400">★</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Team Info Header */}
                     <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-3">
                       <div className="flex items-center gap-2">
                         <Activity className="h-5 w-5 text-cyan-400 shrink-0" />
                         <div>
-                          <p className="text-sm font-black text-white">{myMonitoringTeam.team_name}</p>
-                          <p className="text-[11px] text-slate-400">{myMonitoringTeam.location_label}</p>
+                          <p className="text-sm font-black text-white">{activeMonitoringTeam?.team_name}</p>
+                          <p className="text-[11px] text-slate-400">{activeMonitoringTeam?.location_label}</p>
+                          {activeMonitoringTeam?.member_role && (
+                            <p className="text-[10px] text-cyan-400/70 mt-0.5">{activeMonitoringTeam.member_role}</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -4124,7 +4163,7 @@ export default function MobileFieldPage() {
                         </div>
 
                         {/* Field Groups */}
-                        {myMonitoringTeam.field_groups.map((group) => {
+                        {(activeMonitoringTeam?.field_groups ?? []).map((group) => {
                           const isOpen = expandedGroups.has(group.group_key);
                           return (
                             <div key={group.group_key} className="rounded-2xl border border-slate-700/60 bg-slate-900/60 overflow-hidden">

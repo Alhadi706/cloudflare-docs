@@ -27,7 +27,6 @@ import AssetMaintenancePanel from '@/app/dashboard/asset-360/components/AssetMai
 import AssetDocumentPanel   from '@/app/dashboard/asset-360/components/AssetDocumentPanel';
 import AssetGovernancePanel from '@/app/dashboard/asset-360/components/AssetGovernancePanel';
 import OperationalTimeline  from '@/app/dashboard/asset-360/components/OperationalTimeline';
-import AssetGisLinkPanel    from '@/components/AssetGisLinkPanel';
 import type { Asset360Response } from '@/app/dashboard/asset-360/components/types';
 
 function getTenantId(): string {
@@ -218,15 +217,7 @@ export default function AssetDetailPage() {
             <div className="space-y-4">
               <AssetGISPanel gis={data.asset360.gis} />
 
-              {/* GIS ↔ ERP Link Panel */}
-              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
-                <AssetGisLinkPanel
-                  erpAssetId={assetId}
-                  erpAssetName={assetName}
-                />
-              </div>
-
-              {/* Relationships */}
+              {/* Relationships (GIS ↔ ERP linking will be implemented in Phase 4) */}
               <div className="rounded-2xl border border-slate-700 bg-slate-900/50 p-4">
                 <h3 className="text-sm font-semibold text-slate-300 mb-3">علاقات الأصل (رئيسي / فرعي)</h3>
                 <div className="space-y-2 text-sm">
