@@ -1673,6 +1673,19 @@ export default function MobileFieldPage() {
   const [installReady, setInstallReady] = useState(false);
   const [installMessage, setInstallMessage] = useState('');
 
+  // Leave requests
+  type LeaveReqItem = { id: string; leave_type: string; start_date: string; end_date: string; days: number; reason: string; status: string; submitted_at: string; rejection_reason?: string };
+  const [leaveRequests, setLeaveRequests] = useState<LeaveReqItem[]>([]);
+  const [leaveUsedDays, setLeaveUsedDays] = useState<Record<string, number>>({});
+  const [leaveLoading, setLeaveLoading] = useState(false);
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [leaveType, setLeaveType] = useState('annual');
+  const [leaveStartDate, setLeaveStartDate] = useState('');
+  const [leaveEndDate, setLeaveEndDate] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
+  const [leaveSubmitMsg, setLeaveSubmitMsg] = useState('');
+
   // Phase 4: Attendance
   const [attendance, setAttendance] = useState<{ today: AttendanceRecord | null; checked_in: boolean; checked_out: boolean } | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -1903,28 +1916,35 @@ export default function MobileFieldPage() {
       const res = await fetch('/api/auth/mobile/me', { headers: getHeaders() });
       if (!res.ok) return;
       const data = await res.json().catch(() => ({}));
-      const admin = data?.admin || {};
+      // me endpoint returns flat structure; admin/finance are optional enrichment
+      const admin   = data?.admin   || {};
       const finance = data?.finance || {};
+      const fullName = data?.full_name || admin?.full_name || '';
+      // Update employeeLabel with correct name from server
+      if (fullName) {
+        const empNo = data?.employee_no || profile?.employeeNo || '';
+        setEmployeeLabel(`${fullName}${empNo ? ` (${empNo})` : ''}`);
+      }
       setEmployeeRecord({
-        id: Number(admin?.id || 0),
-        employee_number: admin?.employee_number || profile?.employeeNo || undefined,
-        name: admin?.full_name || undefined,
-        name_ar: admin?.full_name || undefined,
-        role: admin?.role || undefined,
-        department: admin?.department || undefined,
-        email: admin?.email || undefined,
-        employment_status: admin?.employment_status || undefined,
-        hire_date: admin?.hire_date || undefined,
-        base_salary: normalizeMaybeNumber(finance?.base_salary),
+        id: Number(admin?.id || data?.id || 0),
+        employee_number: data?.employee_no || admin?.employee_number || profile?.employeeNo || undefined,
+        name:    fullName || undefined,
+        name_ar: fullName || undefined,
+        role:              admin?.role     || data?.role          || undefined,
+        department:        admin?.department || data?.department_code || undefined,
+        email:             admin?.email    || data?.email         || undefined,
+        employment_status: admin?.employment_status              || undefined,
+        hire_date:         admin?.hire_date                      || undefined,
+        annual_leave_balance: normalizeMaybeNumber(admin?.annual_leave_balance),
+        sick_leave_balance:   normalizeMaybeNumber(admin?.sick_leave_balance),
+        base_salary:        normalizeMaybeNumber(finance?.base_salary),
         overtime_allowance: normalizeMaybeNumber(finance?.overtime_allowance),
-        field_allowance: normalizeMaybeNumber(finance?.field_allowance),
-        allowances: normalizeMaybeNumber(finance?.allowances),
-        deductions: normalizeMaybeNumber(finance?.deductions),
-        net_salary: normalizeMaybeNumber(finance?.net_salary),
+        field_allowance:    normalizeMaybeNumber(finance?.field_allowance),
+        allowances:         normalizeMaybeNumber(finance?.allowances),
+        deductions:         normalizeMaybeNumber(finance?.deductions),
+        net_salary:         normalizeMaybeNumber(finance?.net_salary),
       });
-    } catch {
-      // Keep the basic profile if the employee directory is unavailable.
-    }
+    } catch { /* ignore */ }
   };
 
   const fetchMobileAlerts = async () => {
@@ -2357,6 +2377,46 @@ export default function MobileFieldPage() {
   };
 
   // ── Corrosion team fetch ─────────────────────────────────────────────────
+  const fetchLeaveRequests = async () => {
+    setLeaveLoading(true);
+    try {
+      const res = await fetch('/api/auth/mobile/leave-request', { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setLeaveRequests(Array.isArray(data.leave_requests) ? data.leave_requests : []);
+        setLeaveUsedDays(data.used_days || {});
+      }
+    } catch { /* ignore */ } finally { setLeaveLoading(false); }
+  };
+
+  const submitLeaveRequest = async () => {
+    if (!leaveType || !leaveStartDate || !leaveEndDate) return;
+    setLeaveSubmitting(true);
+    setLeaveSubmitMsg('');
+    try {
+      const res = await fetch('/api/auth/mobile/leave-request', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ leave_type: leaveType, start_date: leaveStartDate, end_date: leaveEndDate, reason: leaveReason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setLeaveSubmitMsg('✓ تم إرسال الطلب بنجاح — في انتظار الموافقة');
+        setShowLeaveForm(false);
+        setLeaveStartDate(''); setLeaveEndDate(''); setLeaveReason(''); setLeaveType('annual');
+        void fetchLeaveRequests();
+      } else {
+        setLeaveSubmitMsg(`⚠ ${data.detail || 'حدث خطأ'}`);
+      }
+    } catch { setLeaveSubmitMsg('⚠ تعذر الاتصال'); } finally { setLeaveSubmitting(false); }
+  };
+
+  const cancelLeaveRequest = async (id: string) => {
+    const res = await fetch('/api/auth/mobile/leave-request', {
+      method: 'PATCH', headers: getHeaders(), body: JSON.stringify({ id }),
+    });
+    if (res.ok) void fetchLeaveRequests();
+  };
+
   const fetchCorrosionTeam = async () => {
     setCorrosionLoading(true);
     try {
@@ -2872,6 +2932,7 @@ export default function MobileFieldPage() {
                   void fetchTeamStatus();
                 }
                 if (val === 'inbox') void fetchCirculars();
+                if (val === 'info') void fetchLeaveRequests();
                 if (val === 'gis-alerts') void fetchGisNotifs();
                 if (val === 'access-requests') void fetchAccessRequests();
               }}

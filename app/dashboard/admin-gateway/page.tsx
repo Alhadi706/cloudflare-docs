@@ -82,6 +82,7 @@ const DEPARTMENTS_BASE = [
     approvalCard: { label: 'موافقات المواد', href: '/dashboard/admin-gateway/workflow/approvals?role=supervisor&dept=materials' },
     subModules: [
       { title: 'إدارة الأصول',         icon: <Shield className="w-5 h-5 text-teal-400" />,         iconBg: 'bg-teal-900/40 border-teal-500/30',       description: 'سجل الأصول — الفئات — التقييمات',                 href: '/dashboard/admin-gateway/assets/registry' },
+      { title: 'المواقع التشغيلية',    icon: <MapPin className="w-5 h-5 text-emerald-400" />,       iconBg: 'bg-emerald-900/40 border-emerald-500/30', description: 'محطات — مرافق — مخازن — المواقع التشغيلية',       href: '/dashboard/admin-gateway/sites', badge: 'جديد' },
       { title: 'المخزون والمستودعات', icon: <Warehouse className="w-5 h-5 text-cyan-400" />,       iconBg: 'bg-cyan-900/40 border-cyan-500/30',       description: 'المستودعات — الأصناف — الاستلام والإصدار',        href: '/dashboard/admin-gateway/inventory' },
       { title: 'المركبات والمعدات',   icon: <Truck className="w-5 h-5 text-orange-400" />,         iconBg: 'bg-orange-900/40 border-orange-500/30',   description: 'سجل المركبات — التعيين للمشاريع — الوقود',        href: '/dashboard/admin-gateway/vehicles' },
     ],
