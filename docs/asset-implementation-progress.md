@@ -4,6 +4,172 @@
 
 ---
 
+## المبادئ المعمارية الحاكمة (المعتمدة)
+
+```
+1. PROJECT ≠ ASSET
+   المشروع أثناء التنفيذ لا يُنشئ أصولاً تشغيلية.
+   الأصل يُنشأ فقط عند Commissioning (الاستلام الرسمي).
+
+2. ASSET = كيان تشغيلي طويل العمر (30+ سنة)
+   محطة ضخ، خزان، بئر، خط أنابيب، مبنى، منظومة.
+   له هوية ثابتة تبقى حتى لو استُبدلت كل مكوناته.
+
+3. COMPONENT = جزء قابل للاستبدال داخل الأصل
+   مضخة، محرك، صمام، حساس، عداد تدفق.
+   عند استبداله: لا يُنشأ asset جديد. يُسجَّل في component_history.
+   الأصل يبقى. التاريخ يبقى. فقط component_slot يتغير.
+
+4. INVENTORY = مادة في المخزن (قبل التركيب)
+   ليست أصلاً تشغيلياً.
+   عند خروجها للتركيب: تصبح Component داخل Asset.
+
+5. LINEAR ASSET
+   خط الأنابيب = Asset رئيسي.
+   الصمامات/العدادات/غرف التفتيش = Components على الخط (بـ station_m).
+   ليست مرتبطة بـ site. مرتبطة بالمسار (pipeline_id + station_m).
+
+6. الهرمية:
+   Asset → Child Assets (هيكلية: مبنى داخل منظومة ← نادراً تتغير)
+   Asset → Component Slots (تشغيلية: مضخة داخل محطة ← تُستبدل دورياً)
+```
+
+---
+
+## ما تم إنجازه
+
+### ✅ المرحلة الصفر — UI Restructuring (مكتملة)
+| المهمة | الحالة |
+|--------|--------|
+| إزالة ملفات .bak | ✅ | توحيد Redirects | ✅ |
+| Sidebar موحد | ✅ | Map toggle اختياري | ✅ |
+| Asset 360 مدمج | ✅ | Project 360 مدمج | ✅ |
+| GM Office + Intelligence | ✅ | زر الرجوع من GIS | ✅ |
+
+### ✅ Phase 1 — Single Creation Path
+**نقطة الإنشاء الكانونية:** `/admin-gateway/assets/registry → POST /api/v1/workspace/assets`
+
+محذوفات: `digital-assets/`, `assets/list/`, `assets/types/`, `finance/asset-tracking/`, `AssetGisLinkPanel`, `LinearAssetImporter`, `asset-gis-links API`, `linear-assets API`, `.data/asset-gis-links/`, `.data/linear-assets/`
+
+### ✅ Phase 2 — Sites Management
+`GET /api/v1/workspace/all-sites` + `/admin-gateway/sites/` صفحة إدارة المواقع
+
+### ✅ Phase 3 — GIS as Location Provider
+`CreatePrincipalAssetModal` يدعم خيارين: ربط بأصل موجود / إنشاء أصل هندسي
+
+---
+
+## المراحل القادمة (مُعدَّلة)
+
+### 🔄 Phase 4A — Component Model
+**الأولوية: الأعلى — يجب قبل أي شيء آخر**
+
+**التمييز الجوهري:**
+```
+Child Asset (هيكلي - دائم):
+  مبنى / ورشة / مخزن داخل منظومة
+  له asset_id مستقل، نادراً يُستبدل، Parent/Child موجود ✅
+
+Component Slot (تشغيلي - قابل للاستبدال):
+  مضخة / محرك / صمام / عداد داخل محطة
+  ليس له asset_id جديد عند الاستبدال
+  التاريخ يُحفظ على "slot" وليس على "الجزء"
+  ← مفقود حالياً، يُبنى هنا
+```
+
+**نماذج البيانات:**
+```
+component_slots: asset_id | slot_name | slot_code | current_inventory_item_id
+component_history: slot_id | item_description | serial | installed_at | installed_via_wo | removed_at
+```
+
+**التنفيذ (بدون backend schema changes - باستخدام JSONB الموجود):**
+- `asset_class`: تُضاف كحقل في properties `{asset_class: 'compound'|'linear'|'site_equipment'|'vehicle'}`
+- Component Slots: تُنشأ كـ child assets بـ `{is_component_slot: true, slot_name: '...'}`
+- Component History: تُحفظ في `assets/[id]/financials` مع `financial_type: 'component_replacement'`
+
+---
+
+### 🔄 Phase 4B — Enhanced Asset Creation
+**ما يُبنى:**
+- نموذج إضافة أصل يحتوي Mini Map مضمّنة للرسم (بدلاً من LocationPickerModal)
+- حقل "الأصل الرئيسي" للأصول الفرعية الهيكلية
+- حقل "نوع الأصل" (مجمّع / خطي / معدات / مركبة)
+- رسم نقطة/مضلع/مسار مباشرة داخل النموذج
+
+---
+
+### 🔄 Phase 4C — Component Management UI
+- تبويب "المكونات" في Asset 360
+- إضافة/استبدال مكوّن (مع ربط بأمر عمل)
+- سجل استبدالات المكوّن (Component Slot History)
+- تمييز بصري: Child Assets vs Component Slots
+
+---
+
+### 🔄 Phase 5 — LRS كـ Component Slots
+**التعديل الجوهري:** 32,000 معدة ليست 32,000 asset_id
+```
+خط النهر = Asset رئيسي (asset_id واحد)
+  └── Component Slot: "صمام هواء عند km 0.6" (slot_id)
+       └── V-001 (item مُركَّب حالياً، مع تاريخ الاستبدالات)
+```
+عند استبدال V-001 → component replacement على نفس الـ slot → نفس الأصل
+
+---
+
+### 🔄 Phase 6 — Fleet Assets
+مركبات ومعدات متنقلة تبقى كـ Assets مستقلة (ليست components).
+تُربط بـ asset_id في Registry. تكاليف الوقود تظهر في Asset 360.
+
+---
+
+### 🔄 Phase 7 — Inventory → Component Flow
+```
+شراء 3 مضخات → Inventory items (ليست أصولاً)
+تركيب مضخة في محطة → تصبح Component في slot محدد
+استبدال مضخة معطلة → component_history يُسجَّل → نفس الأصل
+```
+
+---
+
+### 🔄 Phase 8 — Project → Asset Commissioning
+```
+مشروع "محطة ضخ جديدة" → أثناء التنفيذ: لا assets تشغيلية
+عند Commissioning → حدث رسمي ينشئ: asset_id للمحطة
+```
+
+---
+
+### 🔄 Phase 9 — Full Asset 360
+```
+Asset 360 يعرض:
+  ✓ 30 سنة تاريخ الأصل
+  ✓ Component Slots وتاريخ كل slot (كل الاستبدالات)
+  ✓ Child Assets الهيكلية (مبانٍ، مرافق)
+  ✓ الموقع (GIS + pipeline)
+  ✓ الصيانة (أوامر عمل مرتبطة بالأصل وبالـ slot)
+  ✓ المالية (تراكمية طوال عمر الأصل)
+```
+
+---
+
+### 🔄 Phase 10 — Cleanup
+حذف engineering/workspace/principal-assets, operations-maintenance القديم
+
+---
+
+## Snapshots
+| Tag | المحتوى |
+|-----|---------|
+| `before-ui-phase-0..3` | UI Restructuring |
+| `before-asset-phase-1` | قبل Phase 1 |
+| `before-asset-phase-2` | قبل Phase 2 |
+| `before-asset-phase-3` | قبل Phase 3 |
+| `before-asset-phase-4` | قبل Phase 4 (قادم) |
+
+---
+
 ## ملاحظة هامة من المراجعة الميدانية
 
 > بعد اختبار النظام على `dev.d-me.ly`، اكتشفنا أن نموذج إضافة الأصل في Registry
