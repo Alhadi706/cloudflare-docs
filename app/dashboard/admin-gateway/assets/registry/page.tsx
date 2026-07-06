@@ -57,92 +57,52 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
   it_asset:       'bg-slate-500/15 text-slate-300 border-slate-500/25',
 };
 
-// ── InlineMapPicker — click on map to set coordinates ────────────────────────
-// Uses Leaflet via CDN loaded inside an iframe for reliable rendering in modals
-function InlineMapPicker({ lat, lng, onChange }: {
-  lat: number | null; lng: number | null;
-  onChange: (lat: number, lng: number) => void;
+// ── MapLocationButton — opens Engineering Workspace for drawing ──────────────
+// Phase 4B: Instead of an iframe map, use the existing GIS system.
+// The Engineering Workspace (Phase 3) already has Mode A: "Link to existing asset".
+// This button opens the Engineering Workspace pre-configured to link back to
+// the asset being created. After drawing, CreatePrincipalAssetModal fires Mode A
+// which updates the lat/lng of this asset.
+//
+// For assets that need drawing FIRST then registration:
+//   Engineering Workspace → draw → CreatePrincipalAssetModal Mode B (create new)
+//   → opens Registry with geometry pre-filled via URL params (Phase 4B future)
+function MapLocationButton({ lat, lng, assetName }: {
+  lat: string; lng: string; assetName: string;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
-  const iframeRef = React.useRef<HTMLIFrameElement>(null);
-
-  // Listen for postMessage from the iframe
-  React.useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'map_click' && typeof e.data.lat === 'number') {
-        onChange(parseFloat(e.data.lat.toFixed(6)), parseFloat(e.data.lng.toFixed(6)));
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [onChange]);
-
-  // Build the inline HTML for the iframe
-  const mapHtml = React.useMemo(() => {
-    const initLat = lat ?? 32.0;
-    const initLng = lng ?? 13.5;
-    const zoom    = lat ? 14 : 6;
-    const markerScript = lat
-      ? `L.marker([${lat}, ${lng}], { icon: redIcon }).addTo(map);`
-      : '';
-    return `<!DOCTYPE html><html><head>
-<meta charset="utf-8"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#0f172a;}</style>
-</head><body>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-var map = L.map('map', { zoomControl: true }).setView([${initLat}, ${initLng}], ${zoom});
-L.tileLayer('/tiles/satellite/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
-var redIcon = L.divIcon({ className:'', html:'<div style="width:16px;height:16px;background:#ef4444;border:2px solid #fff;border-radius:50%;box-shadow:0 0 6px rgba(239,68,68,0.8)"></div>', iconSize:[16,16], iconAnchor:[8,8] });
-var marker = null;
-${markerScript}
-map.on('click', function(e){
-  if(marker) map.removeLayer(marker);
-  marker = L.marker([e.latlng.lat, e.latlng.lng], {icon: redIcon}).addTo(map);
-  window.parent.postMessage({type:'map_click', lat:e.latlng.lat, lng:e.latlng.lng}, '*');
-});
-</script></body></html>`;
-  }, [lat, lng]);
-
-  const blob = React.useMemo(() => {
-    if (typeof window === 'undefined') return '';
-    return URL.createObjectURL(new Blob([mapHtml], { type: 'text/html' }));
-  }, [mapHtml]);
-
+  const hasCoords = lat && lng;
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
-          expanded
-            ? 'border-cyan-500/50 bg-cyan-900/15 text-cyan-300'
-            : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600 hover:text-slate-300'
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <MapPin className="w-3.5 h-3.5" />
-          {lat && lng
-            ? <span className="font-mono">{lat.toFixed(4)}°N, {lng.toFixed(4)}°E</span>
-            : <span>تحديد على الخريطة (اختياري)</span>
-          }
-        </div>
-        <span className="text-[10px] opacity-60">{expanded ? '▲ إخفاء' : '▼ فتح'}</span>
-      </button>
-
-      {expanded && blob && (
-        <div className="mt-2 rounded-xl overflow-hidden border border-slate-700" style={{ height: 300 }}>
-          <iframe
-            ref={iframeRef}
-            src={blob}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            title="map-picker"
-            sandbox="allow-scripts allow-same-origin"
-          />
+    <div className="space-y-2">
+      {/* Show current coords if set */}
+      {hasCoords && (
+        <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-900/10 border border-emerald-700/30 rounded-lg px-3 py-2">
+          <MapPin className="w-3 h-3 shrink-0" />
+          <span className="font-mono">{Number(lat).toFixed(5)}°N, {Number(lng).toFixed(5)}°E</span>
+          <span className="text-slate-500 mr-auto">موقع مُحدَّد</span>
         </div>
       )}
+
+      {/* Button to open Engineering Workspace */}
+      <a
+        href={`/dashboard/gis-sovereignty/engineering-workspace${assetName ? `?link_asset=${encodeURIComponent(assetName)}` : ''}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-800/40 text-xs font-medium text-slate-400 hover:border-cyan-500/50 hover:text-cyan-300 hover:bg-cyan-900/10 transition-all group"
+      >
+        <div className="flex items-center gap-2">
+          <MapIcon className="w-3.5 h-3.5 group-hover:text-cyan-400 transition-colors" />
+          <span>
+            {hasCoords ? 'تعديل الموقع على الخريطة' : 'تحديد الموقع على الخريطة'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 text-[10px] opacity-60">
+          <span>Engineering Workspace</span>
+          <span>↗</span>
+        </div>
+      </a>
+      <p className="text-[11px] text-slate-600 leading-relaxed">
+        ارسم الأصل على الخريطة ← اختر "ربط بأصل موجود" ← اختر هذا الأصل
+      </p>
     </div>
   );
 }
@@ -773,11 +733,11 @@ export default function AssetRegistryPage() {
                   onChange={(siteId, siteName) => setFormData({...formData, site_id: siteId, site_name: siteName})}
                 />
 
-                {/* خريطة مضمّنة لتحديد الإحداثيات */}
-                <InlineMapPicker
-                  lat={formData.latitude ? parseFloat(formData.latitude) : null}
-                  lng={formData.longitude ? parseFloat(formData.longitude) : null}
-                  onChange={(lat, lng) => setFormData({...formData, latitude: String(lat), longitude: String(lng)})}
+                {/* زر فتح Engineering Workspace للرسم */}
+                <MapLocationButton
+                  lat={formData.latitude}
+                  lng={formData.longitude}
+                  assetName={formData.asset_name}
                 />
 
                 {/* ملخص الموقع المُختار */}
