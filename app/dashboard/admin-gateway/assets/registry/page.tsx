@@ -57,6 +57,96 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
   it_asset:       'bg-slate-500/15 text-slate-300 border-slate-500/25',
 };
 
+// ── InlineMapPicker — click on map to set coordinates ────────────────────────
+// Uses Leaflet via CDN loaded inside an iframe for reliable rendering in modals
+function InlineMapPicker({ lat, lng, onChange }: {
+  lat: number | null; lng: number | null;
+  onChange: (lat: number, lng: number) => void;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+
+  // Listen for postMessage from the iframe
+  React.useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'map_click' && typeof e.data.lat === 'number') {
+        onChange(parseFloat(e.data.lat.toFixed(6)), parseFloat(e.data.lng.toFixed(6)));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [onChange]);
+
+  // Build the inline HTML for the iframe
+  const mapHtml = React.useMemo(() => {
+    const initLat = lat ?? 32.0;
+    const initLng = lng ?? 13.5;
+    const zoom    = lat ? 14 : 6;
+    const markerScript = lat
+      ? `L.marker([${lat}, ${lng}], { icon: redIcon }).addTo(map);`
+      : '';
+    return `<!DOCTYPE html><html><head>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#0f172a;}</style>
+</head><body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var map = L.map('map', { zoomControl: true }).setView([${initLat}, ${initLng}], ${zoom});
+L.tileLayer('/tiles/satellite/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+var redIcon = L.divIcon({ className:'', html:'<div style="width:16px;height:16px;background:#ef4444;border:2px solid #fff;border-radius:50%;box-shadow:0 0 6px rgba(239,68,68,0.8)"></div>', iconSize:[16,16], iconAnchor:[8,8] });
+var marker = null;
+${markerScript}
+map.on('click', function(e){
+  if(marker) map.removeLayer(marker);
+  marker = L.marker([e.latlng.lat, e.latlng.lng], {icon: redIcon}).addTo(map);
+  window.parent.postMessage({type:'map_click', lat:e.latlng.lat, lng:e.latlng.lng}, '*');
+});
+</script></body></html>`;
+  }, [lat, lng]);
+
+  const blob = React.useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return URL.createObjectURL(new Blob([mapHtml], { type: 'text/html' }));
+  }, [mapHtml]);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+          expanded
+            ? 'border-cyan-500/50 bg-cyan-900/15 text-cyan-300'
+            : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600 hover:text-slate-300'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <MapPin className="w-3.5 h-3.5" />
+          {lat && lng
+            ? <span className="font-mono">{lat.toFixed(4)}°N, {lng.toFixed(4)}°E</span>
+            : <span>تحديد على الخريطة (اختياري)</span>
+          }
+        </div>
+        <span className="text-[10px] opacity-60">{expanded ? '▲ إخفاء' : '▼ فتح'}</span>
+      </button>
+
+      {expanded && blob && (
+        <div className="mt-2 rounded-xl overflow-hidden border border-slate-700" style={{ height: 300 }}>
+          <iframe
+            ref={iframeRef}
+            src={blob}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="map-picker"
+            sandbox="allow-scripts allow-same-origin"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── SiteSelector — dropdown of all operational sites (Phase 2) ───────────────
 function SiteSelector({ value, onChange }: {
   value: string | number;
@@ -669,10 +759,12 @@ export default function AssetRegistryPage() {
 
               {/* الموقع — اختياري بالكامل */}
               <div className="rounded-xl border border-slate-700/50 bg-slate-800/20 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
-                  <MapPin className="w-4 h-4 text-slate-400" />
-                  الموقع التشغيلي
-                  <span className="text-[11px] text-slate-600 font-normal">— اختياري، يمكن تحديده لاحقاً من GIS</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                    <MapPin className="w-4 h-4 text-slate-400" />
+                    الموقع التشغيلي
+                    <span className="text-[11px] text-slate-600 font-normal">— اختياري</span>
+                  </div>
                 </div>
 
                 {/* Dropdown مواقع من Phase 2 */}
@@ -681,29 +773,12 @@ export default function AssetRegistryPage() {
                   onChange={(siteId, siteName) => setFormData({...formData, site_id: siteId, site_name: siteName})}
                 />
 
-                {/* إحداثيات دقيقة — اختيارية */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] text-slate-500 block mb-1">خط العرض</label>
-                    <input
-                      type="number" step="0.000001"
-                      value={formData.latitude}
-                      onChange={e => setFormData({...formData, latitude: e.target.value})}
-                      placeholder="32.XXXXXX"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 placeholder-slate-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 block mb-1">خط الطول</label>
-                    <input
-                      type="number" step="0.000001"
-                      value={formData.longitude}
-                      onChange={e => setFormData({...formData, longitude: e.target.value})}
-                      placeholder="13.XXXXXX"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 placeholder-slate-700"
-                    />
-                  </div>
-                </div>
+                {/* خريطة مضمّنة لتحديد الإحداثيات */}
+                <InlineMapPicker
+                  lat={formData.latitude ? parseFloat(formData.latitude) : null}
+                  lng={formData.longitude ? parseFloat(formData.longitude) : null}
+                  onChange={(lat, lng) => setFormData({...formData, latitude: String(lat), longitude: String(lng)})}
+                />
 
                 {/* ملخص الموقع المُختار */}
                 {(formData.site_name || (formData.latitude && formData.longitude)) && (
