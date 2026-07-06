@@ -57,6 +57,37 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
   it_asset:       'bg-slate-500/15 text-slate-300 border-slate-500/25',
 };
 
+// ── SiteSelector — dropdown of all operational sites (Phase 2) ───────────────
+function SiteSelector({ value, onChange }: {
+  value: string | number;
+  onChange: (siteId: string | number, siteName: string) => void;
+}) {
+  const [sites, setSites] = React.useState<Array<{ id: number; name: string; project_name: string }>>([]);
+  React.useEffect(() => {
+    fetch('/api/v1/workspace/all-sites', { headers: getClientTenantHeaders() })
+      .then(r => r.ok ? r.json() : { sites: [] })
+      .then(d => setSites(d.sites || []))
+      .catch(() => {});
+  }, []);
+  const byProject = React.useMemo(() =>
+    sites.reduce((acc, s) => { if (!acc[s.project_name]) acc[s.project_name] = []; acc[s.project_name].push(s); return acc; }, {} as Record<string, typeof sites>),
+  [sites]);
+  return (
+    <select
+      value={value}
+      onChange={e => { const s = sites.find(x => String(x.id) === e.target.value); onChange(e.target.value, s?.name || ''); }}
+      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
+    >
+      <option value="">— اختر موقعاً تشغيلياً (اختياري) —</option>
+      {Object.entries(byProject).map(([proj, projSites]) => (
+        <optgroup key={proj} label={proj}>
+          {projSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
 export default function AssetRegistryPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
