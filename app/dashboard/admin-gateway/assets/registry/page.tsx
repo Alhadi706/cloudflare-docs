@@ -490,41 +490,44 @@ export default function AssetRegistryPage() {
                 </div>
               </div>
 
-              {/* Phase 4A: Parent Asset (for component_slot and structural children) */}
-              {(formData.asset_class === 'component_slot' || formData.asset_class === 'site_asset') && (
-                <div className={`rounded-xl border p-3 space-y-2 ${formData.asset_class === 'component_slot' ? 'border-amber-500/30 bg-amber-900/10' : 'border-slate-700 bg-slate-800/20'}`}>
-                  <label className="block text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-amber-400" />
-                    {formData.asset_class === 'component_slot' ? 'الأصل الرئيسي *' : 'الأصل الرئيسي (اختياري)'}
-                    {formData.asset_class === 'component_slot' && <span className="text-xs text-amber-400">(المكوّن جزء من هذا الأصل)</span>}
+              {/* الأصل الرئيسي — فقط للمكوّنات القابلة للاستبدال */}
+              {formData.asset_class === 'component_slot' && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-900/10 p-3 space-y-2">
+                  <label className="block text-sm font-medium text-amber-300 flex items-center gap-2">
+                    <GitBranch className="w-4 h-4" />
+                    الأصل الذي يحتوي هذا المكوّن *
                   </label>
                   <select
                     value={formData.parent_asset_id}
                     onChange={e => setFormData({...formData, parent_asset_id: e.target.value})}
-                    required={formData.asset_class === 'component_slot'}
+                    required
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500"
                   >
                     <option value="">— اختر الأصل الرئيسي —</option>
                     {parentAssets.map(a => (
                       <option key={a.id} value={a.id}>
-                        {a.asset_name} {a.asset_class ? `(${ASSET_CLASS_LABELS[a.asset_class] || a.asset_class})` : ''}
+                        {a.asset_name} ({ASSET_CLASS_LABELS[a.asset_class || ''] || a.asset_class})
                       </option>
                     ))}
                   </select>
-                  {formData.asset_class === 'component_slot' && (
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-1">اسم الـ Slot (مثال: المضخة الرئيسية، صمام التحكم A)</label>
-                      <input
-                        value={formData.component_slot_name}
-                        onChange={e => setFormData({...formData, component_slot_name: e.target.value})}
-                        placeholder="مثال: المضخة الرئيسية"
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 placeholder-slate-600"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className="text-[11px] text-slate-500 block mb-1">
+                      اسم الـ Slot — الفتحة الثابتة في الأصل (مثال: المضخة الرئيسية، صمام التحكم A)
+                    </label>
+                    <input
+                      value={formData.component_slot_name}
+                      onChange={e => setFormData({...formData, component_slot_name: e.target.value})}
+                      placeholder="مثال: المضخة الرئيسية"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 placeholder-slate-600"
+                    />
+                    <p className="text-[10px] text-slate-600 mt-1">
+                      هذا الاسم يبقى ثابتاً عند استبدال المكوّن — التاريخ يُسجَّل على الـ Slot لا على القطعة
+                    </p>
+                  </div>
                 </div>
               )}
 
+              {/* اسم الأصل + نوع تفصيلي */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">اسم الأصل *</label>
@@ -534,42 +537,44 @@ export default function AssetRegistryPage() {
                     value={formData.asset_name}
                     onChange={(e) => setFormData({...formData, asset_name: e.target.value})}
                     className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-200"
+                    placeholder={
+                      formData.asset_class === 'compound' ? 'مثال: منظومة الحساونة' :
+                      formData.asset_class === 'linear' ? 'مثال: خط النهر الرئيسي' :
+                      formData.asset_class === 'component_slot' ? 'مثال: مضخة رقم 5' :
+                      formData.asset_class === 'vehicle' ? 'مثال: شاحنة F-450' :
+                      'اسم الأصل التشغيلي'
+                    }
                   />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">نوع الأصل *</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">النوع التفصيلي</label>
                   <input
                     type="text"
-                    required
                     value={formData.asset_type}
                     onChange={(e) => setFormData({...formData, asset_type: e.target.value})}
                     className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-200"
-                    placeholder="مبنى، معدات، مركبة..."
+                    placeholder={
+                      formData.asset_class === 'compound' ? 'منظومة ضخ، محطة تحكم...' :
+                      formData.asset_class === 'site_asset' ? 'مبنى، خزان، ورشة...' :
+                      formData.asset_class === 'linear' ? 'خط مياه، خط غاز...' :
+                      formData.asset_class === 'component_slot' ? 'مضخة طاردة مركزية، صمام بوابة...' :
+                      formData.asset_class === 'vehicle' ? 'شاحنة، حفارة...' :
+                      'النوع التفصيلي للأصل'
+                    }
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">الموقع</label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({...formData, location: e.target.value})}
-                    className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-200"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">المسؤول</label>
-                  <input
-                    type="text"
-                    value={formData.responsible_person}
-                    onChange={(e) => setFormData({...formData, responsible_person: e.target.value})}
-                    className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-200"
-                  />
-                </div>
+              {/* المسؤول */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">المسؤول التشغيلي</label>
+                <input
+                  type="text"
+                  value={formData.responsible_person}
+                  onChange={(e) => setFormData({...formData, responsible_person: e.target.value})}
+                  className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-200"
+                  placeholder="اسم المسؤول أو الجهة"
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -631,38 +636,55 @@ export default function AssetRegistryPage() {
                 />
               </div>
 
-              {/* اختيار المشروع والموقع — إلزامي */}
-              <div className={`rounded-lg p-4 border ${formData.site_id ? 'bg-emerald-900/20 border-emerald-700/50' : 'bg-red-900/20 border-red-700/50'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <MapPin className={`w-4 h-4 ${formData.site_id ? 'text-emerald-400' : 'text-red-400'}`} />
-                    <span className="text-sm font-medium text-slate-200">الموقع الجغرافي *</span>
-                    {!formData.site_id && <span className="text-xs text-red-400">(إلزامي)</span>}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowMapPicker(true)}
-                    className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
-                  >
-                    {formData.site_id ? 'تغيير الموقع' : 'اختر من الخريطة'}
-                  </button>
+              {/* الموقع — اختياري بالكامل */}
+              <div className="rounded-xl border border-slate-700/50 bg-slate-800/20 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                  <MapPin className="w-4 h-4 text-slate-400" />
+                  الموقع التشغيلي
+                  <span className="text-[11px] text-slate-600 font-normal">— اختياري، يمكن تحديده لاحقاً من GIS</span>
                 </div>
-                {formData.site_id ? (
-                  <div className="text-sm space-y-1">
-                    <div className="flex items-center gap-2 text-slate-300">
-                      <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{formData.project_name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-300">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{formData.site_name}</span>
-                    </div>
-                    <div className="text-xs text-slate-500 font-mono mt-1">
-                      {Number(formData.latitude).toFixed(5)}, {Number(formData.longitude).toFixed(5)}
-                    </div>
+
+                {/* Dropdown مواقع من Phase 2 */}
+                <SiteSelector
+                  value={formData.site_id}
+                  onChange={(siteId, siteName) => setFormData({...formData, site_id: siteId, site_name: siteName})}
+                />
+
+                {/* إحداثيات دقيقة — اختيارية */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-500 block mb-1">خط العرض</label>
+                    <input
+                      type="number" step="0.000001"
+                      value={formData.latitude}
+                      onChange={e => setFormData({...formData, latitude: e.target.value})}
+                      placeholder="32.XXXXXX"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 placeholder-slate-700"
+                    />
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-500 mt-1">انقر لتحديد المشروع والموقع من الخريطة</p>
+                  <div>
+                    <label className="text-[11px] text-slate-500 block mb-1">خط الطول</label>
+                    <input
+                      type="number" step="0.000001"
+                      value={formData.longitude}
+                      onChange={e => setFormData({...formData, longitude: e.target.value})}
+                      placeholder="13.XXXXXX"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-cyan-500 placeholder-slate-700"
+                    />
+                  </div>
+                </div>
+
+                {/* ملخص الموقع المُختار */}
+                {(formData.site_name || (formData.latitude && formData.longitude)) && (
+                  <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-900/10 border border-emerald-700/30 rounded-lg px-3 py-1.5">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    {formData.site_name && <span>{formData.site_name}</span>}
+                    {formData.latitude && formData.longitude && (
+                      <span className="font-mono text-slate-500">
+                        {Number(formData.latitude).toFixed(4)}°N, {Number(formData.longitude).toFixed(4)}°E
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 
