@@ -1,6 +1,69 @@
 # تقرير تقدم إعادة هيكلة نظام الأصول
 **Canonical Asset Architecture — Implementation Progress Report**
-**تاريخ:** 2026-07-05 | **الفرع:** feat/flutter-windows-ci
+**تاريخ:** 2026-07-06 | **الفرع:** feat/flutter-windows-ci
+
+---
+
+## المبادئ المعمارية الحاكمة (مُعتمدة 2026-07-06)
+
+```
+1. PROJECT ≠ ASSET
+   المشروع أثناء التنفيذ لا يُنشئ أصولاً تشغيلية.
+   الأصل يُنشأ فقط عند Commissioning (الاستلام الرسمي).
+
+2. ASSET = كيان تشغيلي طويل العمر (30+ سنة)
+   محطة ضخ، خزان، بئر، خط أنابيب، مبنى، منظومة.
+   له هوية ثابتة حتى لو استُبدلت كل مكوناته.
+
+3. COMPONENT = جزء قابل للاستبدال داخل الأصل
+   مضخة، محرك، صمام، حساس، عداد تدفق.
+   عند الاستبدال: لا يُنشأ asset جديد.
+   يُسجَّل في component_history على نفس الـ slot.
+   الأصل يبقى. التاريخ يبقى.
+
+4. INVENTORY = مادة في المخزن (قبل التركيب)
+   ليست أصلاً تشغيلياً.
+   عند خروجها للتركيب → تصبح Component داخل Asset.
+
+5. LINEAR ASSET
+   خط الأنابيب = Asset رئيسي (asset_id واحد).
+   الصمامات / العدادات / غرف التفتيش = Components على الخط.
+   مرتبطة بـ (pipeline_id + station_m) وليس بـ site_id.
+
+6. الهرمية المزدوجة:
+   Asset → Child Assets  (هيكلية دائمة: مبنى داخل منظومة)
+   Asset → Component Slots (تشغيلية قابلة للاستبدال: مضخة داخل محطة)
+```
+
+---
+
+## ما تم إنجازه
+
+### ✅ المرحلة الصفر — UI Restructuring
+Redirects، Sidebar، Map toggle، Asset/Project 360، GM Office، GIS back button
+
+### ✅ Phase 1 — Single Creation Path
+نقطة الإنشاء الكانونية: `/admin-gateway/assets/registry → POST /api/v1/workspace/assets`
+حُذف: `digital-assets/`, `assets/list/`, `assets/types/`, `finance/asset-tracking/`, JSON-based APIs
+
+### ✅ Phase 2 — Sites Management
+`GET /api/v1/workspace/all-sites` + `/admin-gateway/sites/`
+
+### ✅ Phase 3 — GIS as Location Provider
+`CreatePrincipalAssetModal` يدعم: ربط بأصل موجود / إنشاء أصل هندسي جديد
+
+---
+
+## المراحل القادمة
+
+### 🔄 Phase 4A — Component Model + Enhanced Registry Form
+### 🔄 Phase 4B — Component Management UI in Asset 360
+### 🔄 Phase 5 — LRS كـ Component Slots
+### 🔄 Phase 6 — Fleet Assets Migration
+### 🔄 Phase 7 — Inventory → Component Flow
+### 🔄 Phase 8 — Project → Asset Commissioning
+### 🔄 Phase 9 — Full Asset 360
+### 🔄 Phase 10 — Cleanup
 
 ---
 

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, Filter, MapPin, ChevronLeft, Calendar, MapIcon, Upload } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Building2, Plus, Search, Filter, MapPin, ChevronLeft, Calendar, MapIcon, Upload, Layers, GitBranch } from 'lucide-react';
 import Link from 'next/link';
 import AssetMapPanel from '@/components/AssetMapPanel';
 import { useMapNavigation, useAssetSpatial } from '@/hooks/useErpSpatial';
@@ -23,7 +23,39 @@ interface Asset {
   condition?: string;
   responsible_person?: string;
   last_maintenance?: string;
+  // Phase 4A additions
+  asset_class?: string;
+  parent_asset_id?: number | string | null;
+  parent_asset_name?: string | null;
 }
+
+// Phase 4A: Asset classification types
+const ASSET_CLASS_OPTIONS = [
+  { value: 'site_asset',    label: 'أصل موقع (محطة / مبنى / خزان)',    desc: 'أصل ثابت مرتبط بموقع تشغيلي' },
+  { value: 'compound',      label: 'منظومة مركبة (Compound)',      desc: 'يحتوي أصولاً فرعية (مبانٍ داخل منظومة)' },
+  { value: 'linear',        label: 'أصل خطي (Linear)',          desc: 'خط أنابيب / طريق / خط كهرباء (له مكونات على مساره)' },
+  { value: 'component_slot',label: 'مكوّن تشغيلي (Component)',      desc: 'جزء قابل للاستبدال داخل أصل أكبر (مضخة / صمام / عداد)' },
+  { value: 'vehicle',       label: 'مركبة / معدة متنقلة',         desc: 'أصل متحرك مستقل (مركبات، آليات)' },
+  { value: 'it_asset',      label: 'أصل تقني معلوماتي',             desc: 'أجهزة تقنية، خوادم' },
+];
+
+const ASSET_CLASS_LABELS: Record<string, string> = {
+  site_asset:     'أصل موقع',
+  compound:       'منظومة مركبة',
+  linear:         'أصل خطي',
+  component_slot: 'مكوّن تشغيلي',
+  vehicle:        'مركبة/معدة',
+  it_asset:       'تقني معلوماتي',
+};
+
+const ASSET_CLASS_COLORS: Record<string, string> = {
+  site_asset:     'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  compound:       'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  linear:         'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+  component_slot: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  vehicle:        'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
+  it_asset:       'bg-slate-500/15 text-slate-300 border-slate-500/25',
+};
 
 export default function AssetRegistryPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -33,6 +65,8 @@ export default function AssetRegistryPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [editAsset, setEditAsset] = useState<Asset | null>(null);
   const [showMapPicker, setShowMapPicker] = useState(false);
+  // Phase 4A: parent assets for selector
+  const [parentAssets, setParentAssets] = useState<Asset[]>([]);
   
   // تكامل مكاني
   const { showMapPanel, selectedAssetId, showAssetOnMap, closeMapPanel } = useMapNavigation();
@@ -47,7 +81,11 @@ export default function AssetRegistryPage() {
     acquisition_value: '',
     condition: 'good',
     responsible_person: '',
-    // حقول الموقع المرتبطة بالمشروع
+    // Phase 4A: classification + hierarchy
+    asset_class: 'site_asset' as string,
+    parent_asset_id: '' as string | number,
+    component_slot_name: '',  // for component_slot type
+    // location fields (all optional — site OR lat/lng OR parent gives context)
     project_id: '' as string | number,
     project_name: '',
     site_id: '' as string | number,
@@ -59,7 +97,22 @@ export default function AssetRegistryPage() {
 
   useEffect(() => {
     fetchAssets();
+    fetchParentAssets();
   }, []);
+
+  // Phase 4A: load assets that can serve as parents (compound or linear)
+  const fetchParentAssets = async () => {
+    try {
+      const r = await fetch('/api/v1/workspace/assets/all?limit=500', { headers: getClientTenantHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        const all: Asset[] = d.assets || [];
+        setParentAssets(all.filter(a => 
+          a.asset_class === 'compound' || a.asset_class === 'linear' || a.asset_class === 'site_asset'
+        ));
+      }
+    } catch {/* silent */}
+  };
 
   const fetchAssets = async () => {
     try {
@@ -83,10 +136,12 @@ export default function AssetRegistryPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.project_id || !formData.site_id) {
-      alert('يجب تحديد المشروع والموقع الجغرافي قبل حفظ الأصل');
+    // Phase 4A: component_slot requires a parent
+    if (formData.asset_class === 'component_slot' && !formData.parent_asset_id) {
+      alert('المكوّن التشغيلي يجب أن يكون مرتبطاً بأصل رئيسي');
       return;
     }
+    // Location is optional — asset can exist without coordinates initially
     try {
       const url = editAsset 
         ? `/api/v1/workspace/assets/${editAsset.id}`
@@ -128,6 +183,9 @@ export default function AssetRegistryPage() {
           acquisition_value: '',
           condition: 'good',
           responsible_person: '',
+          asset_class: 'site_asset',
+          parent_asset_id: '',
+          component_slot_name: '',
           project_id: '',
           project_name: '',
           site_id: '',
@@ -406,6 +464,67 @@ export default function AssetRegistryPage() {
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+              {/* Phase 4A: Asset Classification */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-violet-400" />
+                  تصنيف الأصل *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {ASSET_CLASS_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFormData({...formData, asset_class: opt.value, parent_asset_id: ''})}
+                      className={`text-right p-2.5 rounded-xl border text-xs transition-all ${
+                        formData.asset_class === opt.value
+                          ? (ASSET_CLASS_COLORS[opt.value] || 'border-violet-500/50 bg-violet-900/20 text-violet-300')
+                          : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="font-semibold">{opt.label}</div>
+                      <div className="text-[10px] opacity-70 mt-0.5 leading-tight">{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Phase 4A: Parent Asset (for component_slot and structural children) */}
+              {(formData.asset_class === 'component_slot' || formData.asset_class === 'site_asset') && (
+                <div className={`rounded-xl border p-3 space-y-2 ${formData.asset_class === 'component_slot' ? 'border-amber-500/30 bg-amber-900/10' : 'border-slate-700 bg-slate-800/20'}`}>
+                  <label className="block text-sm font-medium text-slate-300 flex items-center gap-2">
+                    <GitBranch className="w-4 h-4 text-amber-400" />
+                    {formData.asset_class === 'component_slot' ? 'الأصل الرئيسي *' : 'الأصل الرئيسي (اختياري)'}
+                    {formData.asset_class === 'component_slot' && <span className="text-xs text-amber-400">(المكوّن جزء من هذا الأصل)</span>}
+                  </label>
+                  <select
+                    value={formData.parent_asset_id}
+                    onChange={e => setFormData({...formData, parent_asset_id: e.target.value})}
+                    required={formData.asset_class === 'component_slot'}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">— اختر الأصل الرئيسي —</option>
+                    {parentAssets.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.asset_name} {a.asset_class ? `(${ASSET_CLASS_LABELS[a.asset_class] || a.asset_class})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.asset_class === 'component_slot' && (
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-1">اسم الـ Slot (مثال: المضخة الرئيسية، صمام التحكم A)</label>
+                      <input
+                        value={formData.component_slot_name}
+                        onChange={e => setFormData({...formData, component_slot_name: e.target.value})}
+                        placeholder="مثال: المضخة الرئيسية"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 placeholder-slate-600"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">اسم الأصل *</label>
