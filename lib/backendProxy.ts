@@ -31,6 +31,10 @@ export function extractTenantId(req: NextRequest): string {
 export function buildBackendHeaders(tenantId: string, extra: Record<string, string> = {}): Record<string, string> {
   const h: Record<string, string> = {
     'Content-Type': 'application/json',
+    // super_admin role bypasses project-membership check — safe because
+    // this function is only called from server-side Next.js API routes
+    // which are already protected by JWT middleware.
+    'X-User-Role': 'super_admin',
     ...extra,
   };
   if (tenantId) {

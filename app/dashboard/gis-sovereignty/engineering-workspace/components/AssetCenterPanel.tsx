@@ -16,7 +16,7 @@ import {
   User, Plus, Trash2, Loader2, RefreshCw, ChevronRight,
   Calendar, Hash, Layers, Activity, LayoutGrid, Package,
   ChevronDown, Boxes, Pencil, Check, Cpu, TrendingUp, ShoppingCart,
-  Zap, Wind, Wifi, Monitor,
+  Zap, Wind, Wifi, Monitor, GitBranch, ArrowRight,
 } from 'lucide-react';
 import { workspaceApi } from '@/store/apiService';
 import { useToast } from '@/components/ToastProvider';
@@ -685,9 +685,9 @@ export default function AssetCenterPanel({ assetId, onClose, onSelectChild, onRe
   return (
     <div
       dir="rtl"
-      className="absolute top-0 right-0 h-full w-[500px] z-[9000] flex flex-col
-                 bg-slate-900/98 border-l border-slate-700/60 shadow-2xl
-                 backdrop-blur-xl transition-transform duration-300"
+      className="flex flex-col h-full w-[300px] shrink-0 z-10
+                 bg-slate-900 border-l border-slate-700 shadow-xl
+                 transition-all duration-300 overflow-hidden"
     >
       {/* ── Header ── */}
       <div className="px-4 py-3 border-b border-slate-700/60 bg-slate-800/60">
@@ -1462,6 +1462,74 @@ function GeoTab({
   onDeleteChild?: (id: string, name: string) => void;
 }) {
   const { asset, coordinates, geometry_type } = data;
+  const { showToast } = useToast();
+  const [linkingMode, setLinkingMode] = React.useState(false);
+  const [parentAssets, setParentAssets] = React.useState<Array<{id:string;name:string}>>([]);
+  const [linking, setLinking] = React.useState(false);
+
+  const openLinkMode = async () => {
+    setLinkingMode(true);
+    if (parentAssets.length === 0) {
+      try {
+        const tenantId = typeof window !== 'undefined'
+          ? (localStorage.getItem('tenant_id') || '') : '';
+        const res = await fetch('/api/engineering/workspace/principal-assets', {
+          headers: tenantId ? { 'X-Tenant-ID': tenantId } : {},
+        });
+        const list = res.ok ? await res.json() : [];
+        setParentAssets((list as any[])
+          .filter((a: any) => a.id !== data.asset.id)
+          .map((a: any) => ({ id: a.id, name: a.name })));
+      } catch { /* silent */ }
+    }
+  };
+
+  const handleLinkAsParent = async (parentId: string, parentName: string) => {
+    setLinking(true);
+    try {
+      const tenantId = typeof window !== 'undefined'
+        ? (localStorage.getItem('tenant_id') || '') : '';
+      // Set parent AND mark as consolidated_branch so it disappears from main list
+      const res = await fetch(`/api/engineering/workspace/principal-assets/${data.asset.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}) },
+        body: JSON.stringify({ parent_asset_id: parentId, asset_category: 'consolidated_branch' }),
+      });
+      if (!res.ok) throw new Error(`خطأ ${res.status}`);
+      showToast(`✅ تم ربط "${data.asset.asset_name}" كفرع من "${parentName}" — سيختفي من القائمة ويندمج في الشبكة`, 'success');
+      setLinkingMode(false);
+      window.dispatchEvent(new CustomEvent('engineering:refresh-principal-layer'));
+      // Close this panel and select the parent
+      window.dispatchEvent(new CustomEvent('engineering:select-asset', { detail: { assetId: parentId } }));
+    } catch (e: any) {
+      showToast(`فشل الربط: ${e.message}`, 'error');
+    } finally { setLinking(false); }
+  };
+
+  const handleMergeNetwork = async () => {
+    if (!confirm(`دمج كل مسارات شبكة "${data.asset.asset_name}" في هندسة موحدة؟\nسيتحول الأصل الرئيسي إلى MultiLineString يشمل جميع الفروع وتختفي الفروع من القائمة.`)) return;
+    setLinking(true);
+    try {
+      const tenantId = typeof window !== 'undefined'
+        ? (localStorage.getItem('tenant_id') || '') : '';
+      const res = await fetch(`/api/v1/workspace/assets/${data.asset.id}/merge-network`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}) },
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.detail || `خطأ ${res.status}`);
+      showToast(`✅ ${result.message} — فروع الشبكة اندمجت في مسار واحد`, 'success');
+      window.dispatchEvent(new CustomEvent('engineering:refresh-principal-layer'));
+      // Close panel after merge (asset list will refresh)
+      onClose();
+    } catch (e: any) {
+      showToast(`فشل الدمج: ${e.message}`, 'error');
+    } finally { setLinking(false); }
+  };
+
+  // Note: the extend draw listener lives in page.tsx (engineering:feature-drawn handler)
+  // to avoid duplicate listeners from AssetCenterPanel re-renders.
+
   return (
     <div className="p-4 space-y-4">
       {/* Compound badge or promote button */}
@@ -1495,7 +1563,7 @@ function GeoTab({
             <Row label="دائرة العرض (Lat)" value={coordinates.lat.toFixed(6)} mono />
           </>
         )}
-        <div className="pt-2">
+        <div className="pt-2 space-y-2">
           <button
             onClick={onRedraw}
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg
@@ -1505,6 +1573,80 @@ function GeoTab({
             <Pencil className="w-4 h-4" />
             إعادة رسم هندسة الأصل
           </button>
+
+          {/* ── تمديد المسار (خاص بالمسارات فقط) ───────────── */}
+          {(geometry_type === 'path' || geometry_type === 'LineString' || geometry_type === 'MultiLineString') && (
+            <button
+              onClick={() => {
+                (window as any).__extendingAssetId = data.asset.id;
+                (window as any).__childGeometryPicking = false;
+                window.dispatchEvent(new CustomEvent('engineering:start-extend', { detail: { assetId: data.asset.id } }));
+                showToast('ارسم الامتداد الجديد على الخريطة ← انقر مرتين للإنهاء', 'info');
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg
+                         text-sm text-sky-300 border border-sky-500/40 bg-sky-500/10
+                         hover:bg-sky-500/20 transition-colors"
+            >
+              <ArrowRight className="w-4 h-4" />
+              إضافة امتداد للمسار
+            </button>
+          )}
+
+          {/* ── ربط كفرع من مسار آخر ───────────────────────── */}
+          {!linkingMode ? (
+            <div className="space-y-1.5">
+              <button
+                onClick={openLinkMode}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg
+                           text-sm text-violet-300 border border-violet-500/40 bg-violet-500/10
+                           hover:bg-violet-500/20 transition-colors"
+              >
+                <GitBranch className="w-4 h-4" />
+                ربط هذا المسار كفرع من مسار آخر
+              </button>
+              {/* Show merge button only when this is a parent path with branches */}
+              {(geometry_type === 'path' || geometry_type === 'LineString' || geometry_type === 'MultiLineString') &&
+               childrenData && childrenData.total_children > 0 && (
+                <button
+                  onClick={handleMergeNetwork}
+                  disabled={linking}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg
+                             text-sm text-emerald-300 border border-emerald-500/40 bg-emerald-500/10
+                             hover:bg-emerald-500/20 transition-colors"
+                >
+                  {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Layers className="w-4 h-4" />}
+                  دمج مسارات الشبكة في هندسة موحدة
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-violet-500/30 bg-violet-900/10 p-3 space-y-2">
+              <p className="text-xs text-violet-300 font-semibold flex items-center gap-1.5">
+                <GitBranch className="w-3.5 h-3.5" />
+                اختر الأصل الرئيسي (الجذع)
+              </p>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {parentAssets.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-2">لا توجد أصول أخرى</p>
+                ) : parentAssets.map(a => (
+                  <button
+                    key={a.id}
+                    onClick={() => handleLinkAsParent(a.id, a.name)}
+                    disabled={linking}
+                    className="w-full text-right px-3 py-2 rounded-lg text-xs text-slate-300 bg-slate-800 hover:bg-violet-800/40 hover:text-violet-200 transition-colors"
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setLinkingMode(false)}
+                className="text-xs text-slate-500 hover:text-slate-300 transition w-full text-center"
+              >
+                إلغاء
+              </button>
+            </div>
+          )}
         </div>
       </InfoCard>
 

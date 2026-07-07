@@ -1,7 +1,7 @@
 'use client';
 /**
  * AddChildAssetModal
- * إضافة أصل بنت بثلاثة أنواع هندسية: نقطة / مضلع / مسار
+ * إضافة أصل فرعي بثلاثة أنواع هندسية: نقطة / مضلع / مسار
  */
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Loader2, CheckCircle, Pentagon, Waypoints } from 'lucide-react';
@@ -79,7 +79,7 @@ export default function AddChildAssetModal({ principalAssets, preselectedParentI
         setPicking(false);
         setDrawingMode('idle');
         (window as any).__childGeometryPicking = false;
-        showToast('📍 تم تحديد موقع الأصل البنت', 'success');
+        showToast('📍 تم تحديد موقع الأصل الفرعي', 'success');
       }
     };
     window.addEventListener('asset:child-point-picked', handler as EventListener);
@@ -96,7 +96,7 @@ export default function AddChildAssetModal({ principalAssets, preselectedParentI
         setPicking(false);
         setDrawingMode('idle');
         (window as any).__childGeometryPicking = false;
-        showToast('✅ تم تحديد هندسة الأصل البنت', 'success');
+        showToast('✅ تم تحديد هندسة الأصل الفرعي', 'success');
       }
     };
     window.addEventListener('engineering:feature-drawn', handler as EventListener);
@@ -129,7 +129,7 @@ export default function AddChildAssetModal({ principalAssets, preselectedParentI
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { showToast('يرجى إدخال اسم الأصل البنت', 'warning'); return; }
+    if (!name.trim()) { showToast('يرجى إدخال اسم الأصل الفرعي', 'warning'); return; }
     if (!parentId)    { showToast('اختر الأصل الرئيسي', 'warning'); return; }
     if (!geometry)    { showToast('يرجى تحديد موقع الأصل على الخريطة', 'warning'); return; }
 
@@ -165,7 +165,7 @@ export default function AddChildAssetModal({ principalAssets, preselectedParentI
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `خطأ ${res.status}`);
       }
-      showToast(`✅ تم إضافة الأصل البنت "${name}"`, 'success');
+      showToast(`✅ تم إضافة الأصل الفرعي "${name}"`, 'success');
       onSaved();
     } catch (e: any) {
       showToast(`فشل الحفظ: ${e.message}`, 'error');
@@ -213,7 +213,7 @@ export default function AddChildAssetModal({ principalAssets, preselectedParentI
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedTypeColor }} />
-            <h2 className="text-sm font-bold text-gray-100">إضافة أصل بنت</h2>
+            <h2 className="text-sm font-bold text-gray-100">إضافة أصل فرعي</h2>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition">
             <X className="w-4 h-4" />
@@ -337,7 +337,7 @@ export default function AddChildAssetModal({ principalAssets, preselectedParentI
           >
             {saving
               ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري الحفظ...</>
-              : <><CheckCircle className="w-4 h-4" /> حفظ الأصل البنت</>
+              : <><CheckCircle className="w-4 h-4" /> حفظ الأصل الفرعي</>
             }
           </button>
           <button

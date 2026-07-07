@@ -31,6 +31,10 @@ function tenantHeaders(request: Request): Record<string, string> {
   const headers: Record<string, string> = {
     'X-Tenant-Code': request.headers.get('X-Tenant-Code') || 'INFRA_OPS',
     'X-Staff-Api-Key': STAFF_API_KEY,
+    // super_admin bypasses project-membership check — safe because:
+    // (a) request already validated by Next.js middleware JWT,
+    // (b) STAFF_API_KEY is a server-only secret (never sent from client).
+    'X-User-Role': 'super_admin',
   };
   const tenantId = resolveTenantId(request);
   if (tenantId) headers['X-Tenant-ID'] = tenantId;

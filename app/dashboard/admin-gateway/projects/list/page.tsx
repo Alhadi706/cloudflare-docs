@@ -67,6 +67,7 @@ export default function ProjectsListPage() {
     location_name: '',
     priority: 'normal',
     progress_percentage: '0',
+    project_type: 'construction',
   });
 
   const { setActiveProject, loadProjects: reloadErpProjects } = useErpContextStore();
@@ -688,6 +689,32 @@ export default function ProjectsListPage() {
                     <option value="high">عالي</option>
                     <option value="critical">حرج</option>
                   </select>
+                </div>
+              </div>
+
+              {/* نوع المشروع — يحدد دورة حياته */}
+              <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-3">
+                <label className="block text-sm font-semibold text-slate-200 mb-2">نوع المشروع *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { val: 'construction',          label: '🏗️ إنشاء / تطوير',       desc: 'ينتج أصلاً تشغيلياً جديداً عند الاستلام' },
+                    { val: 'maintenance_contract',  label: '🔧 عقد صيانة كبرى',       desc: 'يُحدِّث أصلاً موجوداً — لا يُنشئ أصلاً جديداً' },
+                  ].map(opt => (
+                    <button
+                      key={opt.val} type="button"
+                      onClick={() => setFormData({...formData, project_type: opt.val})}
+                      className={`text-right p-3 rounded-xl border text-xs transition-all ${
+                        (formData as any).project_type === opt.val
+                          ? opt.val === 'construction'
+                            ? 'bg-violet-500/20 border-violet-500/60 text-violet-200'
+                            : 'bg-amber-500/20 border-amber-500/60 text-amber-200'
+                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="font-semibold">{opt.label}</div>
+                      <div className="text-[10px] opacity-70 mt-0.5 leading-tight">{opt.desc}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
 

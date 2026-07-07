@@ -454,7 +454,7 @@ export default function AssetLeftPanel({ selectedAssetId, onSelectAsset, onCreat
                     </div>
                   )}
                   {!isLoadingC && childList.length === 0 && (
-                    <p className="text-[10px] text-gray-700 py-1.5 text-center">لا توجد أصول بنت بعد</p>
+                    <p className="text-[10px] text-gray-700 py-1.5 text-center">لا توجد أصول فرعية بعد</p>
                   )}
                   {!isLoadingC && Object.entries(byDept).map(([dept, items]) => (
                     <div key={dept} className="mb-1">

@@ -211,26 +211,19 @@ class ProductionApiClient {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   async getProjects() {
-    // جلب المشاريع مباشرة من projects_core بدلاً من workspace
-    try {
-      const response = await this.client.get('/v1/projects');
-      if (Array.isArray(response.data)) return response.data;
-      if (Array.isArray(response.data?.projects)) return response.data.projects;
-      if (Array.isArray(response.data?.data?.projects)) return response.data.data.projects;
-      return response.data || [];
-    } catch (error) {
-      // Fallback إلى workspace إذا فشل
-      console.warn('⚠️ fallback from /v1/projects to /v1/workspace/projects');
-      const response = await this.client.get('/v1/workspace/projects');
-      if (Array.isArray(response.data)) return response.data;
-      if (Array.isArray(response.data?.projects)) return response.data.projects;
-      if (Array.isArray(response.data?.data?.projects)) return response.data.data.projects;
-      return response.data || [];
-    }
+    // المصدر الموحد: workspace.projects هو جدول المشاريع الوحيد
+    // فقط المشاريع الإنشائية (project_type=construction) تظهر في قائمة المشاريع
+    const response = await this.client.get('/v1/workspace/projects');
+    const all = Array.isArray(response.data) ? response.data :
+                (response.data?.projects ?? response.data ?? []);
+    // Filter out system containers (operational_registry type)
+    return Array.isArray(all)
+      ? all.filter((p: any) => (p.project_type ?? 'construction') !== 'operational_registry')
+      : all;
   }
 
   async getProject(id: number) {
-    const response = await this.client.get(`/v1/projects/${id}`);
+    const response = await this.client.get(`/v1/workspace/projects/${id}`);
     return response.data;
   }
 
@@ -245,13 +238,21 @@ class ProductionApiClient {
   }
 
   async deleteProject(id: number) {
-    const response = await this.client.delete(`/v1/projects/${id}`);
+    const response = await this.client.delete(`/v1/workspace/projects/${id}`);
     return response.data;
   }
 
   async getProjectStats() {
-    const response = await this.client.get('/v1/projects/stats/summary');
-    return response.data;
+    // إحصاءات من workspace.projects
+    const response = await this.client.get('/v1/workspace/projects');
+    const projects = Array.isArray(response.data) ? response.data :
+                     (response.data?.projects ?? []);
+    return {
+      total: projects.length,
+      active: projects.filter((p: any) => p.status === 'active').length,
+      completed: projects.filter((p: any) => p.status === 'completed').length,
+      avg_progress: projects.reduce((s: number, p: any) => s + (p.progress_percentage ?? 0), 0) / (projects.length || 1),
+    };
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

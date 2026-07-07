@@ -68,7 +68,9 @@ interface SceneMapPanelProps {
   /** Alert event markers from monitoring — shown as coloured circles */
   alertEventMarkers?: { lon: number; lat: number; severity: string; type: string; label: string }[];
   /** Satellite overlay markers (fire, leak) — fully custom color + radius */
-  satelliteOverlayMarkers?: { lon: number; lat: number; color: string; radius?: number; label: string; layerKey: string }[];
+  satelliteOverlayMarkers?: { lon: number; lat: number; color: string; radius?: number; label: string; layerKey: string; tooltip?: string }[];
+  /** Callback when user clicks a satellite overlay marker */
+  onOverlayMarkerClick?: (marker: { lon: number; lat: number; label: string; layerKey: string; tooltip?: string }) => void;
   /** Pipeline / route lines to draw on map (LineString) */
   satelliteRouteLines?: { coords: [number, number][]; color: string; width?: number; label?: string; layerKey: string }[];
   /** Change detection GeoJSON overlay */
@@ -122,6 +124,7 @@ export function SceneMapPanel({
   extractionLayers,
   alertEventMarkers,
   satelliteOverlayMarkers,
+  onOverlayMarkerClick,
   satelliteRouteLines,
   changeDetectionGeojson,
   riskGeojson,
@@ -761,12 +764,34 @@ export function SceneMapPanel({
               textAlign:   'center',
             }),
           }));
-          feat.set('sat_label', m.label);
+          feat.set('sat_label',   m.label);
+          feat.set('sat_tooltip', m.tooltip ?? m.label);
+          feat.set('sat_lon',     m.lon);
+          feat.set('sat_lat',     m.lat);
+          feat.set('sat_key',     m.layerKey);
           src.addFeature(feat);
         });
+
+        // Click handler for this overlay layer
+        if (onOverlayMarkerClick) {
+          map.on('singleclick', (evt: any) => {
+            map.forEachFeatureAtPixel(evt.pixel, (feature: any, layer: any) => {
+              if (layer === lyr) {
+                const label   = feature.get('sat_label');
+                const tooltip = feature.get('sat_tooltip');
+                const lon     = feature.get('sat_lon');
+                const lat     = feature.get('sat_lat');
+                const lKey    = feature.get('sat_key');
+                if (label !== undefined) {
+                  onOverlayMarkerClick({ lon, lat, label, layerKey: lKey, tooltip });
+                }
+              }
+            }, { hitTolerance: 8 });
+          });
+        }
       }
     })();
-  }, [satelliteOverlayMarkers, olLoaded]);
+  }, [satelliteOverlayMarkers, olLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Pipeline / route lines (LineString) ──────────────────────────────────
   const satRouteLinesLayerRef = useRef<any>(null);

@@ -124,7 +124,7 @@ const coreActions: QuickAction[] = [
   },
   {
     title: 'ذكاء الأصول',
-    href: '/dashboard/admin-gateway/platform-intelligence/asset-intelligence',
+    href: '/dashboard/asset-intelligence',
     icon: Shield,
     desc: 'تحليل ذكي للأصول: الصحة والتقييم والتنبؤ بالأعطال.',
   },
@@ -139,6 +139,24 @@ const coreActions: QuickAction[] = [
     href: '/dashboard/ai-assistant',
     icon: Cpu,
     desc: 'استعلام وتحليل مباشر للبيانات باللغة العربية.',
+  },
+  {
+    title: 'تسجيلات الموبايل',
+    href: '/dashboard/admin-gateway/security/mobile-access',
+    icon: Smartphone,
+    desc: 'قبول ورفض طلبات تسجيل الموظفين في التطبيق الميداني.',
+  },
+  {
+    title: 'الهيكل التنظيمي',
+    href: '/dashboard/admin-gateway/org-structure',
+    icon: Users,
+    desc: 'تعيين مدراء الإدارات ورؤساء الأقسام والمشرفين وصلاحيات التطبيق.',
+  },
+  {
+    title: 'إعدادات النظام',
+    href: '/dashboard/admin-gateway',
+    icon: Shield,
+    desc: 'البوابة الإدارية الكاملة — الصلاحيات والنظام.',
   },
   {
     title: 'مراقبة النظام',
@@ -373,6 +391,32 @@ export default function DashboardHome() {
 
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-6 pt-16">
 
+        {/* ══ لوحة إدارة النظام (ثابتة للمدير) ═════════════════════════ */}
+        <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-950/60 to-slate-950/80 px-5 py-4 flex items-center justify-between gap-4 shadow-xl backdrop-blur-xl">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 border border-violet-500/40 shrink-0">
+              <Shield className="h-5 w-5 text-violet-300" />
+            </div>
+            <div>
+              <p className="text-xs text-violet-400 font-semibold">لوحة الإدارة</p>
+              <h2 className="text-sm font-black text-white">إدارة النظام والمستخدمين</h2>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'إعدادات النظام',     href: '/dashboard/admin-gateway',                            color: 'border-violet-500/50 bg-violet-800/30 text-violet-100 hover:bg-violet-700/40' },
+              { label: 'الهيكل التنظيمي',   href: '/dashboard/admin-gateway/org-structure',              color: 'border-cyan-500/50 bg-cyan-800/30 text-cyan-100 hover:bg-cyan-700/40' },
+              { label: 'تسجيلات الموبايل',  href: '/dashboard/admin-gateway/security/mobile-access',    color: 'border-emerald-500/50 bg-emerald-800/30 text-emerald-100 hover:bg-emerald-700/40' },
+              { label: 'مراقبة النظام',      href: '/dashboard/system-explorer',                          color: 'border-slate-500/50 bg-slate-800/30 text-slate-200 hover:bg-slate-700/40' },
+            ].map(item => (
+              <Link key={item.href} href={item.href}
+                className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all flex items-center gap-1.5 ${item.color}`}>
+                {item.label} <ChevronLeft className="h-3 w-3 opacity-60" />
+              </Link>
+            ))}
+          </div>
+        </div>
+
         {/* ══ الإدارات الأساسية ══════════════════════════════════════════ */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 
@@ -575,7 +619,7 @@ export default function DashboardHome() {
                 { label: 'المصروفات',        href: '/dashboard/admin-gateway/finance/expenses' },
                 { label: 'التحويلات',        href: '/dashboard/admin-gateway/finance/transfers' },
                 { label: 'التقارير المالية', href: '/dashboard/admin-gateway/finance/reports' },
-                { label: 'تتبع الأصول',      href: '/dashboard/admin-gateway/assets/valuations' },
+                { label: 'تتبع الأصول',      href: '/dashboard/admin-gateway/finance/asset-tracking' },
                 { label: 'التخصيصات',        href: '/dashboard/admin-gateway/finance/allocations' },
               ].map((item) => (
                 <Link key={item.href} href={item.href}
@@ -617,7 +661,7 @@ export default function DashboardHome() {
                 { label: 'صيانة الأصول',      href: '/dashboard/admin-gateway/assets/maintenance' },
                 { label: 'التقييمات',          href: '/dashboard/admin-gateway/assets/valuations' },
                 { label: 'المراجعات الدورية',  href: '/dashboard/admin-gateway/assets/reviews' },
-                { label: 'التصنيفات',          href: '/dashboard/admin-gateway/assets/categories' },
+                { label: 'الأنواع',            href: '/dashboard/admin-gateway/assets/types' },
               ].map((item) => (
                 <Link key={item.href} href={item.href}
                   className="rounded-xl border border-rose-500/20 bg-rose-900/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-800/30 hover:border-rose-400/40 transition-all flex items-center justify-between gap-1">
@@ -877,7 +921,7 @@ export default function DashboardHome() {
             { title: 'المساعد الذكي',           href: '/dashboard/ai-assistant',                           icon: Cpu,       desc: 'استعلام وتحليل البيانات بالذكاء الاصطناعي' },
             { title: 'التقرير اليومي',          href: '/dashboard/daily-operations',                       icon: Activity,  desc: 'قراءات المحطات والتقارير التشغيلية اليومية' },
             { title: 'مراقبة النظام',           href: '/dashboard/system-explorer',                        icon: Building2, desc: 'حالة الوحدات والربط التقني للمنظومة' },
-            { title: 'ذكاء الأصول',            href: '/dashboard/admin-gateway/platform-intelligence/asset-intelligence',     icon: Shield,    desc: 'تحليل الأصول والتنبؤ بالأعطال' },
+            { title: 'ذكاء الأصول',            href: '/dashboard/asset-intelligence',                     icon: Shield,    desc: 'تحليل الأصول والتنبؤ بالأعطال' },
             { title: 'العقود والمقاولون',       href: '/dashboard/admin-gateway/contracts',                icon: FileText,  desc: 'إدارة العقود والمقاولين' },
             { title: 'الإشعارات والتنبيهات',    href: '/dashboard/admin-gateway/notifications',            icon: Bell,      desc: 'التنبيهات العاجلة والمهام المعلقة' },
           ].map((item) => {

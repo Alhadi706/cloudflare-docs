@@ -213,15 +213,24 @@ async function fetchAndCluster(
     const firstDetected = dates[0];
     const lastDetected  = dates[dates.length - 1];
 
+    // Use FRP-weighted centroid for more accurate location (higher FRP = hotter fire core)
+    const totalWeight = pts.reduce((s, p) => s + Math.max(p.frp, 0.1), 0);
+    const centLat = pts.reduce((s, p) => s + p.lat * Math.max(p.frp, 0.1), 0) / totalWeight;
+    const centLon = pts.reduce((s, p) => s + p.lon * Math.max(p.frp, 0.1), 0) / totalWeight;
+    // Use centroid if meaningfully different from grid center (>50m), else use grid center
+    const useCentroid = Math.abs(centLat - latS) > 0.0005 || Math.abs(centLon - lonS) > 0.0005;
+    const finalLat = useCentroid ? centLat : latS;
+    const finalLon = useCentroid ? centLon : lonS;
+
     // Fresh: at least one detection on/after 24h-ago timestamp
     const fresh24h = pts.some(p =>
       p.acq_date > fresh24hDate ||
       (p.acq_date === fresh24hDate && parseInt(p.acq_time) >= fresh24hTime)
     );
 
-    const city  = nearestCity(latS, lonS);
+    const city  = nearestCity(finalLat, finalLon);
     const urban = city !== null;
-    const flare = nearestFlare(latS, lonS);
+    const flare = nearestFlare(finalLat, finalLon);
     const hasHighConf = confs.includes('high') || confs.includes('h');
     const hasNomConf  = confs.includes('nominal') || confs.includes('n');
 
@@ -263,7 +272,8 @@ async function fetchAndCluster(
                                     '#facc15';   // أصفر = رصد فردي
 
     clusters.push({
-      lat: latS, lon: lonS,
+      lat: Math.round(finalLat * 100000) / 100000,
+      lon: Math.round(finalLon * 100000) / 100000,
       observation_count: pts.length, days_active: daysN,
       passes_detected: passes, both_passes: both,
       max_frp_mw: Math.round(maxFrp*10)/10, avg_frp_mw: Math.round(avgFrp*10)/10,

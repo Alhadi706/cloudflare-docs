@@ -24,8 +24,8 @@ export default function MapLocationPicker({
   isOpen,
   onClose,
   onLocationSelect,
-  initialLatitude = 24.7136,
-  initialLongitude = 46.6753,
+  initialLatitude = 32.89,
+  initialLongitude = 13.18,
   title = 'اختر الموقع على الخريطة'
 }: MapLocationPickerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -67,16 +67,27 @@ export default function MapLocationPicker({
     // Initialize map
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: {
+        version: 8,
+        sources: {
+          satellite: {
+            type: 'raster',
+            tiles: ['/tiles/satellite/{z}/{x}/{y}'],
+            tileSize: 256,
+            attribution: 'Digital Dashboard',
+          },
+        },
+        layers: [{ id: 'satellite', type: 'raster', source: 'satellite' }],
+      },
       center: [initialLongitude, initialLatitude],
-      zoom: 12
+      zoom: 7
     });
 
     // Add navigation controls
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     // Initialize marker if initial coordinates provided
-    if (initialLatitude !== 24.7136 || initialLongitude !== 46.6753) {
+    if (initialLatitude !== 32.89 || initialLongitude !== 13.18) {
       marker.current = new maplibregl.Marker({
         color: '#10b981',
         draggable: true

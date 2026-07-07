@@ -158,8 +158,8 @@ export default function OrgStructurePage() {
         fetch('/api/org/section-heads', { headers: getAuthHeaders() }),
         fetch('/api/org/employees', { headers: getAuthHeaders() }),
       ]);
-      const deptData = deptRes.ok ? await deptRes.json() : { departments: [] };
-      const sectData = sectRes.ok ? await sectRes.json() : { sections: [] };
+      const deptData = deptRes.ok ? await deptRes.json() : { departments: [], sections: [] };
+      const sectData = sectRes.ok ? await sectRes.json() : { roles: [] };
       const empData  = empRes.ok  ? await empRes.json()  : { employees: [] };
 
       // If no departments yet, seed defaults
@@ -168,7 +168,13 @@ export default function OrgStructurePage() {
         depts = await seedDefaults();
       }
       setDepartments(depts);
-      setSections(sectData.sections ?? []);
+      // Sections come from /api/org/departments response
+      let sects: Section[] = deptData.sections ?? [];
+      // If no sections exist, seed them now using loaded departments
+      if (sects.length === 0 && depts.length > 0) {
+        sects = await seedSections(depts);
+      }
+      setSections(sects);
       setEmployees(empData.employees ?? []);
     } finally {
       setLoading(false);
@@ -186,15 +192,40 @@ export default function OrgStructurePage() {
         const data = await res.json();
         if (data.department) {
           created.push(data.department);
-          // Seed sections for this dept
-          const sects = DEFAULT_SECTIONS[d.code] ?? [];
-          for (const s of sects) {
-            await fetch('/api/org/section-heads', {
-              method: 'POST', headers: getAuthHeaders(),
-              body: JSON.stringify({ ...s, department_id: data.department.id }),
+        }
+      } catch { /* ignore */ }
+    }
+    return created;
+  }
+
+  async function seedSections(depts: Department[]): Promise<Section[]> {
+    const created: Section[] = [];
+    const deptMap = Object.fromEntries(depts.map(d => [d.code, d.id]));
+    for (const [deptCode, sects] of Object.entries(DEFAULT_SECTIONS)) {
+      const deptId = deptMap[deptCode];
+      if (!deptId) continue;
+      for (const s of sects) {
+        try {
+          const res = await fetch('/api/org/section-heads', {
+            method: 'POST', headers: getAuthHeaders(),
+            body: JSON.stringify({ ...s, department_id: deptId, department_code: deptCode }),
+          });
+          const data = await res.json();
+          if (data.ok && data.id) {
+            created.push({
+              id: data.id, code: data.code || s.code, name_ar: data.name_ar || s.name_ar,
+              name_en: s.name_en || s.name_ar, department_id: deptId, department_code: deptCode,
+              section_manager_employee_no: null, section_manager_name: null, is_active: true,
             });
           }
-        }
+        } catch { /* ignore */ }
+      }
+    }
+    // Reload after seeding
+    if (created.length > 0) {
+      try {
+        const res = await fetch('/api/org/departments', { headers: getAuthHeaders() });
+        if (res.ok) { const d = await res.json(); return d.sections ?? created; }
       } catch { /* ignore */ }
     }
     return created;

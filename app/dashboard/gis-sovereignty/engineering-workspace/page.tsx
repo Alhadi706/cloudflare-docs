@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState, useCallback, Suspense } from 'reac
 import { useGisEngine } from '@/store/gisEngine';
 import { GisErrorBoundary } from '../components/GisErrorBoundary';
 import { workspaceApi } from '@/store/apiService';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import AssetTopBar from './components/AssetTopBar';
 import AssetLeftPanel, { type PrincipalAsset } from './components/AssetLeftPanel';
 import CreatePrincipalAssetModal from './components/CreatePrincipalAssetModal';
@@ -287,6 +287,34 @@ async function postJsonWithFallbackEndpoints(
   throw lastError || new Error(errorFallbackLabel);
 }
 
+/** Route-aware title strip: shows registry context or standalone engineering context */
+function TitleStrip() {
+  const pathname = usePathname();
+  const isRegistry = pathname?.includes('/assets/registry');
+  return (
+    <div className="h-9 shrink-0 border-b border-slate-800 bg-slate-900/80 px-4 flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.7)]">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      {isRegistry ? (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-cyan-300 tracking-wide">سجل الأصول</span>
+          <span className="text-slate-600 text-xs">·</span>
+          <span className="text-[10px] text-slate-500">الإدارة الهندسية</span>
+          <a
+            href="/dashboard/admin-gateway"
+            className="mr-auto text-[10px] text-slate-600 hover:text-slate-400 transition flex items-center gap-1"
+          >
+            ← بوابة النظام
+          </a>
+        </div>
+      ) : (
+        <span className="text-xs font-bold text-cyan-300 tracking-wide">وحدة الإدارة الهندسية السيادية</span>
+      )}
+    </div>
+  );
+}
+
 function EngineeringWorkspaceInner() {
   const searchParams   = useSearchParams();
   const setWorkspace   = useGisEngine(s => s.setWorkspace);
@@ -407,11 +435,42 @@ function EngineeringWorkspaceInner() {
     }
   }, []);
 
-  // Load principal assets for child modal and catalog actions.
+  // Load principal assets for child modal, catalog actions, and after any save.
   useEffect(() => {
     if (!showChildModal && !(extractPanelOpen && extractionTab === 'catalog')) return;
     void loadPrincipalAssets();
   }, [showChildModal, extractPanelOpen, extractionTab, loadPrincipalAssets]);
+
+  // Also reload principal assets whenever a new asset is saved (refresh-principal-layer event).
+  useEffect(() => {
+    const handler = () => void loadPrincipalAssets();
+    window.addEventListener('engineering:refresh-principal-layer', handler);
+    return () => window.removeEventListener('engineering:refresh-principal-layer', handler);
+  }, [loadPrincipalAssets]);
+
+  // Listen for path extension request — activate draw mode so user can draw the extension
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ assetId: string }>;
+      if (!ev.detail?.assetId) return;
+      // Start line draw mode — when done, AssetCenterPanel picks up the feature-drawn event
+      setDrawingMode('line');
+      (window as any).__extendingAssetId = ev.detail.assetId;
+    };
+    window.addEventListener('engineering:start-extend', handler);
+    return () => window.removeEventListener('engineering:start-extend', handler);
+  }, [setDrawingMode]);
+
+  // Forward engineering:show-toast → useToast (for extend/merge feedback)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ message: string; type?: string }>;
+      const { message, type } = ev.detail ?? {};
+      if (message) showToast(message, (type as any) ?? 'info');
+    };
+    window.addEventListener('engineering:show-toast', handler);
+    return () => window.removeEventListener('engineering:show-toast', handler);
+  }, [showToast]);
 
   // Refresh key for left panel — increment to force reload
   const [leftPanelRefreshKey, setLeftPanelRefreshKey] = useState(0);
@@ -684,9 +743,38 @@ function EngineeringWorkspaceInner() {
       if (showChildModal) return;
       // Skip if child asset geometry picking is active
       if ((window as any).__childGeometryPicking) return;
+
+      // Extension flow — append new segment to existing asset
+      const extendingId = (window as any).__extendingAssetId;
       const ev = e as CustomEvent<{ geometry: any; mode: string }>;
       const { geometry, mode } = ev.detail ?? {};
       if (!geometry) return;
+
+      if (extendingId) {
+        (window as any).__extendingAssetId = null;
+        setDrawingMode('idle');
+        const newCoords = geometry.type === 'LineString' ? geometry.coordinates : null;
+        if (!newCoords) return;
+        try {
+          const r = await fetch(`/api/v1/workspace/assets/${extendingId}/extend`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': TENANT_ID },
+            body: JSON.stringify({ new_coordinates: newCoords }),
+          });
+          const result = await r.json().catch(() => ({}));
+          if (r.ok) {
+            const km = result.length_km ? `${result.length_km} كم` : '';
+            window.dispatchEvent(new CustomEvent('engineering:show-toast', { detail: { message: `✅ تم تمديد المسار${km ? ` — الطول: ${km}` : ''}`, type: 'success' } }));
+            window.dispatchEvent(new CustomEvent('engineering:refresh-principal-layer'));
+            window.dispatchEvent(new CustomEvent('engineering:clear-preview'));
+            setLeftPanelRefreshKey(k => k + 1);
+          } else {
+            window.dispatchEvent(new CustomEvent('engineering:show-toast', { detail: { message: `فشل تمديد المسار: ${result.detail || result.error || r.status}`, type: 'error' } }));
+            console.warn('Extend failed:', result);
+          }
+        } catch { /* ignore */ }
+        return;
+      }
 
       // Extraction flow (polygon scope)
       if (extractMode === 'polygon') {
@@ -878,11 +966,8 @@ function EngineeringWorkspaceInner() {
     <GisErrorBoundary title="تعذر تحميل مساحة العمل الهندسية">
       <div className="flex flex-col h-screen w-full bg-slate-950 text-slate-200 overflow-hidden relative" dir="rtl">
 
-        {/* Title strip */}
-        <div className="h-9 shrink-0 border-b border-slate-800 bg-slate-900/80 px-4 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.7)]"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span className="text-xs font-bold text-cyan-300 tracking-wide">وحدة الإدارة الهندسية السيادية</span>
-        </div>
+        {/* Title strip — route-aware */}
+        <TitleStrip />
 
         {/* Asset-centric toolbar */}
         <AssetTopBar
@@ -946,20 +1031,8 @@ function EngineeringWorkspaceInner() {
         />
 
         <div className="flex flex-1 overflow-hidden relative z-0">
-          {/* Asset list panel */}
-          <AssetLeftPanel
-            selectedAssetId={selectedAssetId}
-            onSelectAsset={handleSelectAsset}
-            onCreatePrincipal={() => { setPendingGeometry(null); setPendingGeometryType(null); setShowCreateModal(true); }}
-            refreshKey={leftPanelRefreshKey}
-            mode={panelMode}
-          />
-
-          {/* Map + right panels */}
-          <main className="flex flex-1 relative">
-            <MapCenterCanvas hideControls={true} />
-
-            {/* Asset detail panel — slides in when asset selected */}
+          {/* Sidebar: asset list OR asset detail panel — never both at once */}
+          {selectedAssetId ? (
             <AssetCenterPanel
               assetId={selectedAssetId}
               onClose={() => handleSelectAsset(null)}
@@ -971,6 +1044,19 @@ function EngineeringWorkspaceInner() {
                 }));
               }}
             />
+          ) : (
+            <AssetLeftPanel
+              selectedAssetId={selectedAssetId}
+              onSelectAsset={handleSelectAsset}
+              onCreatePrincipal={() => { setPendingGeometry(null); setPendingGeometryType(null); setShowCreateModal(true); }}
+              refreshKey={leftPanelRefreshKey}
+              mode={panelMode}
+            />
+          )}
+
+          {/* Map — always takes remaining space */}
+          <main className="flex flex-1 relative">
+            <MapCenterCanvas hideControls={true} />
           </main>
         </div>
 

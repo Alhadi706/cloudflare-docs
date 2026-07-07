@@ -54,12 +54,14 @@ export async function POST(req: NextRequest) {
   if (!reviewed) return NextResponse.json({ detail: 'فشل التحديث' }, { status: 500 });
 
   if (action === 'approve') {
+    const assignedRole = String(body.mobile_role || '').trim() || 'employee';
+    const validRoles = ['employee', 'supervisor', 'section_manager', 'dept_manager', 'corrosion_field'];
     upsertEmployeeCredentialUser({
       tenant_id: record.tenant_id, tenant_code: record.tenant_code,
       employee_no: record.employee_no, full_name: record.full_name || '',
       department_code: record.department_code,
       secret_hash: record.secret_hash, secret_salt: record.secret_salt,
-      mobile_role: (record as any).mobile_role || undefined,
+      mobile_role: validRoles.includes(assignedRole) ? assignedRole : 'employee',
     });
   }
 

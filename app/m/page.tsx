@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, RotateCcw, Plus, Trash2, Activity, ChevronDown,
   ChevronUp, Eye, FileText, Users, Building2, Layers, BookOpen, GitBranch,
   ExternalLink, Mail, MessageSquare, Megaphone, ClipboardCheck, Star,
-  CheckCircle, XCircle,
+  CheckCircle, XCircle, BarChart3, TrendingUp, AlertOctagon,
 } from 'lucide-react';
 
 const MOBILE_TOKEN_KEY = 'mobile_auth_token';
@@ -32,11 +32,21 @@ const DEPT_TAB_ICONS: Record<string, React.ElementType> = {
   ctrl_monitoring: Activity,
   corrosion_team:  Wrench,
   maintenance_team: Wrench,
+  dept_board:  BarChart3,
+  team_mgmt:   Users,
 };
 const DEPT_TAB_COLORS: Record<string, string> = {
   ctrl_monitoring: 'text-cyan-400',
   corrosion_team:  'text-amber-400',
   maintenance_team: 'text-emerald-400',
+  dept_board:  'text-violet-400',
+  team_mgmt:   'text-sky-400',
+};
+const DEPT_TAB_LABELS: Record<string, string> = {
+  ctrl_monitoring: 'رصد',
+  corrosion_team:  'فريقي',
+  dept_board:      'قيادة',
+  team_mgmt:       'فريقي',
 };
 
 // ── Corrosion team types ───────────────────────────────────────────────────
@@ -1686,6 +1696,34 @@ export default function MobileFieldPage() {
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [leaveSubmitMsg, setLeaveSubmitMsg] = useState('');
 
+  // Self-service features
+  const [showCertificate, setShowCertificate] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [cpCurrent, setCpCurrent] = useState('');
+  const [cpNew, setCpNew] = useState('');
+  const [cpConfirm, setCpConfirm] = useState('');
+  const [cpMsg, setCpMsg] = useState('');
+  const [cpSubmitting, setCpSubmitting] = useState(false);
+  const [promotions, setPromotions] = useState<Array<{ date: string; from_grade: string; to_grade: string; decision: string; notes: string }>>([]);
+  const [promotionsLoading, setPromotionsLoading] = useState(false);
+
+  // Manager dashboard
+  type ManagerKPI = { present_today: number; checked_out: number; wo_open: number; wo_in_progress: number; wo_completed_today: number; wo_overdue: number; pending_approvals: number; pending_parts: number; open_faults: number; pending_leaves: number };
+  type TeamMember = { id: number; employee_no: string; name: string; role: string; department: string; attendance: { present: boolean; checkin: string | null; checkout: string | null } };
+  type PendingLeave = { id: string; employee_no: string; employee_name: string; leave_type: string; start_date: string; end_date: string; days: number; status: string; reason: string };
+  const [managerKpis, setManagerKpis] = useState<ManagerKPI | null>(null);
+  const [managerRecentFaults, setManagerRecentFaults] = useState<any[]>([]);
+  const [managerPendingLeaves, setManagerPendingLeaves] = useState<PendingLeave[]>([]);
+  const [managerLoading, setManagerLoading] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamSummary, setTeamSummary] = useState<{ total: number; present: number; absent: number } | null>(null);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [leaveApprovals, setLeaveApprovals] = useState<PendingLeave[]>([]);
+  const [leaveApprovalLoading, setLeaveApprovalLoading] = useState(false);
+  const [reviewingLeaveId, setReviewingLeaveId] = useState<string | null>(null);
+  const [leaveRejectReason, setLeaveRejectReason] = useState('');
+  const [accessRequestRole, setAccessRequestRole] = useState<Record<string, string>>({});
+
   // Phase 4: Attendance
   const [attendance, setAttendance] = useState<{ today: AttendanceRecord | null; checked_in: boolean; checked_out: boolean } | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -2200,13 +2238,13 @@ export default function MobileFieldPage() {
     } catch { /* ignore */ } finally { setAccessRequestsLoading(false); }
   }, []);
 
-  const reviewAccessRequest = async (requestId: string, action: 'approve' | 'reject', reason?: string) => {
+  const reviewAccessRequest = async (requestId: string, action: 'approve' | 'reject', mobileRole?: string) => {
     setReviewingRequest(requestId);
     try {
       const res = await fetch('/api/auth/mobile/access-requests', {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ request_id: requestId, action, reason }),
+        body: JSON.stringify({ request_id: requestId, action, mobile_role: mobileRole }),
       });
       if (res.ok) {
         void fetchAccessRequests();
@@ -2235,7 +2273,7 @@ export default function MobileFieldPage() {
 
   // Phase 7 — Team Status Dashboard
   const [teamStatus, setTeamStatus] = useState<any | null>(null);
-  const [teamLoading, setTeamLoading] = useState(false);
+  // teamLoading/setTeamLoading already declared above
 
   const fetchTeamStatus = async () => {
     setTeamLoading(true);
@@ -2415,6 +2453,81 @@ export default function MobileFieldPage() {
       method: 'PATCH', headers: getHeaders(), body: JSON.stringify({ id }),
     });
     if (res.ok) void fetchLeaveRequests();
+  };
+
+  const changePassword = async () => {
+    if (!cpCurrent || !cpNew || !cpConfirm) { setCpMsg('⚠ جميع الحقول مطلوبة'); return; }
+    if (cpNew !== cpConfirm) { setCpMsg('⚠ كلمة المرور الجديدة وتأكيدها غير متطابقتان'); return; }
+    if (cpNew.length < 6) { setCpMsg('⚠ كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return; }
+    setCpSubmitting(true); setCpMsg('');
+    try {
+      const res = await fetch('/api/auth/mobile/change-password', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ current_password: cpCurrent, new_password: cpNew, confirm_password: cpConfirm }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setCpMsg('✓ تم تغيير كلمة المرور بنجاح');
+        setCpCurrent(''); setCpNew(''); setCpConfirm('');
+        setTimeout(() => { setShowChangePassword(false); setCpMsg(''); }, 2500);
+      } else {
+        setCpMsg(`⚠ ${data.detail || 'حدث خطأ'}`);
+      }
+    } catch { setCpMsg('⚠ تعذر الاتصال بالخادم'); } finally { setCpSubmitting(false); }
+  };
+
+  const fetchPromotions = async () => {
+    setPromotionsLoading(true);
+    try {
+      const empNo = profile?.employeeNo || '';
+      const res = await fetch(`/api/v1/hr/promotions?employee_no=${empNo}`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPromotions(Array.isArray(data.promotions) ? data.promotions : []);
+      }
+    } catch { /* ignore */ } finally { setPromotionsLoading(false); }
+  };
+
+  // Manager dashboard fetches
+  const fetchManagerDashboard = async () => {
+    setManagerLoading(true);
+    try {
+      const res = await fetch('/api/auth/mobile/manager', { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setManagerKpis(data.kpis ?? null);
+        setManagerRecentFaults(Array.isArray(data.recent_faults) ? data.recent_faults : []);
+        setManagerPendingLeaves(Array.isArray(data.pending_leaves) ? data.pending_leaves : []);
+      }
+    } catch { /* ignore */ } finally { setManagerLoading(false); }
+  };
+
+  // fetchTeamStatus already declared above (Phase 7 section)
+
+  const fetchLeaveApprovals = async () => {
+    setLeaveApprovalLoading(true);
+    try {
+      const res = await fetch('/api/auth/mobile/leave-approval?status=pending', { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setLeaveApprovals(Array.isArray(data.leaves) ? data.leaves : []);
+      }
+    } catch { /* ignore */ } finally { setLeaveApprovalLoading(false); }
+  };
+
+  const reviewLeaveRequest = async (id: string, action: 'approve' | 'reject', reason = '') => {
+    setReviewingLeaveId(id);
+    try {
+      const res = await fetch('/api/auth/mobile/leave-approval', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ id, action, reason }),
+      });
+      if (res.ok) {
+        void fetchLeaveApprovals();
+        void fetchManagerDashboard();
+        setLeaveRejectReason('');
+      }
+    } catch { /* ignore */ } finally { setReviewingLeaveId(null); }
   };
 
   const fetchCorrosionTeam = async () => {
@@ -2763,7 +2876,7 @@ export default function MobileFieldPage() {
             <ClipboardList className="h-10 w-10 text-emerald-300" />
           </div>
           <h1 className="text-2xl font-black text-white">أوامري — الميدان</h1>
-          <p className="mt-2 text-sm text-slate-400">الدخول يتطلب موافقة المؤسسة ثم الرقم السري</p>
+          <p className="mt-2 text-sm text-slate-400">سجّل دخولك برمز المؤسسة ورقمك الوظيفي</p>
         </div>
         <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
           <div className="relative">
@@ -2776,7 +2889,7 @@ export default function MobileFieldPage() {
               className="w-full rounded-2xl border border-slate-700 bg-slate-900 pr-10 pl-4 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
               autoComplete="organization"
             />
-            <p className="mt-1 text-[11px] text-slate-500">للدخول السريع استخدم: asset</p>
+            <p className="mt-1 text-[11px] text-slate-500">رمز مؤسستك — مثال: <span className="text-emerald-400 font-bold">INFRA_OPS</span></p>
           </div>
           <div className="relative">
             <Hash className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -2789,7 +2902,7 @@ export default function MobileFieldPage() {
               inputMode="text"
               autoComplete="username"
             />
-            <p className="mt-1 text-[11px] text-slate-500">مثال: EMP-1001 (ليس الدور مثل member/admin)</p>
+            <p className="mt-1 text-[11px] text-slate-500">رقمك الوظيفي — مثال: 2055 أو EMP-001</p>
           </div>
           <div className="relative">
             <LogIn className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -2822,12 +2935,28 @@ export default function MobileFieldPage() {
             href="/entry"
             className="block w-full text-center rounded-2xl border border-emerald-600/40 bg-emerald-900/20 py-3 text-sm font-bold text-emerald-200"
           >
-            تسجيل حساب جديد
+            طلب تسجيل حساب جديد
           </a>
         </form>
-        <p className="text-xs text-slate-600 text-center">
-          تحتاج اعتماد طلب الوصول أولاً عبر الإدارة<br />
-          <a href="/entry/mobile-qa" className="text-emerald-500 underline">فتح خطوات التفعيل</a>
+
+        {/* خطوات التسجيل */}
+        <div className="w-full max-w-xs rounded-2xl border border-slate-700/50 bg-slate-900/60 p-4 space-y-2.5 text-xs text-slate-400">
+          <p className="text-[11px] font-bold text-slate-300 mb-1">📋 خطوات التسجيل لأول مرة:</p>
+          {[
+            { n: '1', text: 'اضغط "طلب تسجيل حساب جديد" أدناه' },
+            { n: '2', text: 'أدخل رمز المؤسسة + رقمك الوظيفي + كلمة سر' },
+            { n: '3', text: 'انتظر موافقة المشرف (إشعار تلقائي)' },
+            { n: '4', text: 'بعد الموافقة ادخل بنفس رمز المؤسسة + رقمك + كلمة السر' },
+          ].map(s => (
+            <div key={s.n} className="flex items-start gap-2">
+              <span className="shrink-0 w-4 h-4 rounded-full bg-emerald-700/60 text-emerald-200 text-[10px] flex items-center justify-center font-bold">{s.n}</span>
+              <span>{s.text}</span>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-slate-600 text-center">
+          رمز المؤسسة: <span className="text-emerald-500 font-bold">INFRA_OPS</span>
         </p>
       </div>
     );
@@ -2958,8 +3087,8 @@ export default function MobileFieldPage() {
           {deptTabs.map((dt) => {
             const Icon = DEPT_TAB_ICONS[dt.tab_key] ?? Activity;
             const color = DEPT_TAB_COLORS[dt.tab_key] ?? 'text-cyan-400';
-            // Short label: first word before —
-            const shortLabel = dt.label.split('—')[0].trim().slice(0, 5);
+            // Short label: from DEPT_TAB_LABELS map first, then first word before —
+            const shortLabel = DEPT_TAB_LABELS[dt.tab_key] || dt.label.split('—')[0].trim().slice(0, 5);
             return (
               <button
                 key={dt.tab_key}
@@ -2969,6 +3098,8 @@ export default function MobileFieldPage() {
                     isSupervisor ? void fetchMonitoringApprovalQueue() : void fetchMyMonitoringTeam();
                   }
                   if (dt.tab_key === 'corrosion_team') void fetchCorrosionTeam();
+                  if (dt.tab_key === 'dept_board') void fetchManagerDashboard();
+                  if (dt.tab_key === 'team_mgmt') { void fetchTeamStatus(); void fetchLeaveApprovals(); }
                 }}
                 className={`flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 text-[10px] font-bold transition-all ${
                   mainTab === dt.tab_key ? 'bg-slate-700 text-white' : `${color} hover:text-white`
@@ -3023,47 +3154,350 @@ export default function MobileFieldPage() {
 
         {mainTab === 'info' && (
           <>
+            {/* ── بيانات الموظف ── */}
             <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 divide-y divide-slate-800">
-              <div className="px-4 py-3 text-xs font-bold text-emerald-300">معلوماتي الإدارية</div>
+              <div className="px-4 py-3 text-xs font-bold text-emerald-300 flex items-center gap-2">
+                <UserRound className="h-3.5 w-3.5" /> معلوماتي الإدارية
+              </div>
               {[
-                { label: 'الاسم', value: employeeRecord?.name_ar || employeeRecord?.name || profile?.fullName || '—' },
-                { label: 'الرقم الوظيفي', value: employeeRecord?.employee_number || profile?.employeeNo || '—' },
-                { label: 'المؤسسة', value: profile?.organizationName || '—' },
-                { label: 'رمز المؤسسة', value: profile?.tenantCode || tenantCode || '—' },
-                { label: 'القسم', value: employeeRecord?.department || profile?.departmentCode || '—' },
-                { label: 'الدور', value: employeeRecord?.role || profile?.role || 'employee' },
-                { label: 'الحالة', value: employeeRecord?.employment_status || '—' },
-                { label: 'تاريخ التعيين', value: employeeRecord?.hire_date ? new Date(employeeRecord.hire_date).toLocaleDateString('ar-SA') : '—' },
+                { label: 'الاسم الكامل',    value: employeeRecord?.name_ar || employeeRecord?.name || profile?.fullName || employeeLabel.split('(')[0].trim() || '—' },
+                { label: 'الرقم الوظيفي',   value: employeeRecord?.employee_number || profile?.employeeNo || '—' },
+                { label: 'المؤسسة',          value: profile?.organizationName || '—' },
+                { label: 'القسم / الإدارة',  value: employeeRecord?.department || profile?.departmentCode || '—' },
+                { label: 'المسمى الوظيفي',   value: employeeRecord?.role || profile?.role || '—' },
+                { label: 'الحالة الوظيفية',  value: employeeRecord?.employment_status || 'نشط' },
+                { label: 'تاريخ التعيين',    value: employeeRecord?.hire_date ? new Date(employeeRecord.hire_date).toLocaleDateString('ar-SA') : '—' },
+                { label: 'البريد الإلكتروني', value: employeeRecord?.email || '—' },
               ].map((row) => (
-                <div key={row.label} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <span className="text-slate-400">{row.label}</span>
-                  <span className="font-semibold text-white text-left max-w-[62%] text-right">{row.value}</span>
+                <div key={row.label} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                  <span className="text-slate-400 text-xs">{row.label}</span>
+                  <span className="font-semibold text-white text-right text-xs max-w-[60%]">{row.value}</span>
                 </div>
               ))}
             </div>
 
+            {/* ── أرصدة الإجازات ── */}
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 divide-y divide-emerald-900/30">
+              <div className="px-4 py-3 text-xs font-bold text-emerald-300 flex items-center gap-2">
+                <CalendarCheck className="h-3.5 w-3.5" /> أرصدة الإجازات
+              </div>
+              <div className="grid grid-cols-2 gap-0 divide-x divide-x-reverse divide-emerald-900/30">
+                {[
+                  { label: 'السنوية المتبقية', value: employeeRecord?.annual_leave_balance != null ? `${employeeRecord.annual_leave_balance} يوم` : `${Math.max(0, 30 - (leaveUsedDays['annual'] ?? 0))} يوم`, color: 'text-emerald-300' },
+                  { label: 'المرضية المتبقية',  value: employeeRecord?.sick_leave_balance   != null ? `${employeeRecord.sick_leave_balance}   يوم` : `${Math.max(0, 15 - (leaveUsedDays['sick'] ?? 0))} يوم`,   color: 'text-cyan-300' },
+                  { label: 'مستخدمة هذا العام (سنوية)', value: `${leaveUsedDays['annual'] ?? 0} يوم`, color: 'text-slate-400' },
+                  { label: 'طلبات قيد المراجعة', value: `${leaveRequests.filter(r => r.status === 'pending').length}`, color: 'text-amber-300' },
+                ].map((item) => (
+                  <div key={item.label} className="px-4 py-3 text-center">
+                    <p className={`text-base font-black ${item.color}`}>{item.value}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── طلب إجازة ── */}
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-950/10 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3">
+                <p className="text-xs font-bold text-amber-300 flex items-center gap-2">
+                  <CalendarCheck className="h-3.5 w-3.5" /> طلب إجازة
+                </p>
+                <button
+                  onClick={() => { setShowLeaveForm(!showLeaveForm); if (!showLeaveForm) void fetchLeaveRequests(); }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                    showLeaveForm ? 'bg-slate-700 text-white' : 'bg-amber-700/80 text-white hover:bg-amber-600'
+                  }`}
+                >
+                  {showLeaveForm ? 'إغلاق' : '+ تقديم طلب'}
+                </button>
+              </div>
+
+              {leaveSubmitMsg && (
+                <div className={`mx-4 mb-3 rounded-xl px-3 py-2 text-xs font-bold ${
+                  leaveSubmitMsg.startsWith('✓') ? 'bg-emerald-900/40 text-emerald-300' : 'bg-red-900/40 text-red-300'
+                }`}>{leaveSubmitMsg}</div>
+              )}
+
+              {showLeaveForm && (
+                <div className="border-t border-amber-800/30 p-4 space-y-3">
+                  {/* نوع الإجازة */}
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1.5">نوع الإجازة</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { key: 'annual',      label: 'سنوية',        icon: '🌴' },
+                        { key: 'sick',        label: 'مرضية',        icon: '🏥' },
+                        { key: 'emergency',   label: 'طارئة',        icon: '⚡' },
+                        { key: 'unpaid',      label: 'بدون راتب',    icon: '📋' },
+                        { key: 'bereavement', label: 'وفاة',         icon: '🕊️' },
+                        { key: 'study',       label: 'دراسية',       icon: '📚' },
+                      ].map(t => (
+                        <button
+                          key={t.key}
+                          onClick={() => setLeaveType(t.key)}
+                          className={`rounded-xl px-2 py-2 text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                            leaveType === t.key
+                              ? 'bg-amber-700/80 border-amber-500 text-white'
+                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-amber-500/40'
+                          }`}
+                        >
+                          <span>{t.icon}</span> {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* تواريخ */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">من تاريخ</label>
+                      <input
+                        type="date"
+                        value={leaveStartDate}
+                        onChange={e => setLeaveStartDate(e.target.value)}
+                        min={new Date().toISOString().slice(0, 10)}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">إلى تاريخ</label>
+                      <input
+                        type="date"
+                        value={leaveEndDate}
+                        onChange={e => setLeaveEndDate(e.target.value)}
+                        min={leaveStartDate || new Date().toISOString().slice(0, 10)}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* عدد الأيام */}
+                  {leaveStartDate && leaveEndDate && new Date(leaveStartDate) <= new Date(leaveEndDate) && (
+                    <div className="rounded-lg bg-amber-900/30 px-3 py-2 text-center">
+                      <span className="text-amber-200 font-black text-sm">
+                        {Math.round((new Date(leaveEndDate).getTime() - new Date(leaveStartDate).getTime()) / 86400000) + 1} يوم
+                      </span>
+                      <span className="text-slate-400 text-xs mr-2">إجمالي مدة الإجازة</span>
+                    </div>
+                  )}
+
+                  {/* السبب */}
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">السبب / الملاحظات (اختياري)</label>
+                    <textarea
+                      value={leaveReason}
+                      onChange={e => setLeaveReason(e.target.value)}
+                      rows={2}
+                      placeholder="أدخل سبب الإجازة..."
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white resize-none focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <button
+                    onClick={submitLeaveRequest}
+                    disabled={leaveSubmitting || !leaveStartDate || !leaveEndDate}
+                    className="w-full rounded-xl bg-amber-700 py-3 text-sm font-black text-white disabled:opacity-50 hover:bg-amber-600 flex items-center justify-center gap-2"
+                  >
+                    {leaveSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {leaveSubmitting ? 'جارٍ الإرسال...' : 'إرسال الطلب'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── سجل الإجازات ── */}
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                <p className="text-xs font-bold text-slate-300">سجل طلبات الإجازة</p>
+                <button onClick={() => void fetchLeaveRequests()} className="text-slate-400 hover:text-white">
+                  <RefreshCw className={`h-3.5 w-3.5 ${leaveLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              {leaveLoading ? (
+                <div className="p-6 flex justify-center"><RefreshCw className="h-6 w-6 animate-spin text-amber-400" /></div>
+              ) : leaveRequests.length === 0 ? (
+                <div className="p-6 text-center">
+                  <p className="text-xs text-slate-500">لا توجد طلبات إجازة مسبقة</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-800">
+                  {leaveRequests.slice(0, 5).map(lr => {
+                    const statusMap: Record<string, { label: string; color: string }> = {
+                      pending:   { label: 'قيد المراجعة', color: 'bg-amber-800/60 text-amber-200' },
+                      approved:  { label: 'موافق عليه',   color: 'bg-emerald-800/60 text-emerald-200' },
+                      rejected:  { label: 'مرفوض',        color: 'bg-red-800/60 text-red-200' },
+                      cancelled: { label: 'ملغي',         color: 'bg-slate-700 text-slate-400' },
+                    };
+                    const leaveLabels: Record<string, string> = {
+                      annual: 'سنوية', sick: 'مرضية', emergency: 'طارئة',
+                      unpaid: 'بدون راتب', bereavement: 'وفاة', study: 'دراسية',
+                    };
+                    const st = statusMap[lr.status] ?? { label: lr.status, color: 'bg-slate-700 text-white' };
+                    return (
+                      <div key={lr.id} className="px-4 py-3 flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white">{leaveLabels[lr.leave_type] ?? lr.leave_type}</p>
+                          <p className="text-[11px] text-slate-400">{lr.start_date} → {lr.end_date} ({lr.days} أيام)</p>
+                          {lr.rejection_reason && <p className="text-[11px] text-red-400 mt-0.5">سبب الرفض: {lr.rejection_reason}</p>}
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className={`text-[10px] rounded-full px-2 py-0.5 font-bold ${st.color}`}>{st.label}</span>
+                          {lr.status === 'pending' && (
+                            <button
+                              onClick={() => cancelLeaveRequest(lr.id)}
+                              className="text-[10px] text-red-400 hover:text-red-300"
+                            >إلغاء</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── خدمات ذاتية ── */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold text-slate-400 px-1">خدمات ذاتية</p>
+
+              {/* بطاقات الخدمات */}
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { key: 'cert',  icon: '📋', label: 'شهادة عمل',       color: 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300' },
+                  { key: 'pass',  icon: '🔐', label: 'تغيير كلمة المرور', color: 'border-blue-500/30   bg-blue-950/20   text-blue-300'    },
+                  { key: 'promo', icon: '📈', label: 'الترقيات',         color: 'border-purple-500/30 bg-purple-950/20 text-purple-300' },
+                ].map(card => (
+                  <button
+                    key={card.key}
+                    onClick={() => {
+                      if (card.key === 'cert')  { setShowCertificate(!showCertificate); setShowChangePassword(false); }
+                      if (card.key === 'pass')  { setShowChangePassword(!showChangePassword); setShowCertificate(false); setCpMsg(''); }
+                      if (card.key === 'promo') { setShowCertificate(false); setShowChangePassword(false); void fetchPromotions(); }
+                    }}
+                    className={`rounded-2xl border p-3 flex flex-col items-center gap-1.5 text-center transition-all active:scale-95 ${card.color}`}
+                  >
+                    <span className="text-xl">{card.icon}</span>
+                    <p className="text-[11px] font-bold leading-tight">{card.label}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* ── شهادة العمل ── */}
+              {showCertificate && (
+                <div className="rounded-2xl border border-emerald-500/30 bg-slate-950 p-4 space-y-3">
+                  <div className="text-center border-b border-slate-700 pb-3">
+                    <p className="text-[11px] text-slate-400 font-bold tracking-widest">بسم الله الرحمن الرحيم</p>
+                    <p className="text-base font-black text-white mt-1">شهادة عمل</p>
+                    <p className="text-[11px] text-emerald-300">{profile?.organizationName || 'المؤسسة'}</p>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-7 text-right">
+                    تُفيد هذه الشهادة بأن الموظف{' '}
+                    <span className="font-black text-white">{employeeRecord?.name_ar || employeeRecord?.name || profile?.fullName || '—'}</span>
+                    {' '}يعمل لدى{' '}
+                    <span className="font-black text-emerald-300">{profile?.organizationName || 'المؤسسة'}</span>
+                    {' '}بوظيفة{' '}
+                    <span className="font-black text-white">{employeeRecord?.role || profile?.role || '—'}</span>
+                    {' '}في قسم{' '}
+                    <span className="font-black text-white">{employeeRecord?.department || profile?.departmentCode || '—'}</span>
+                    {employeeRecord?.hire_date ? ` وذلك منذ تاريخ ${new Date(employeeRecord.hire_date).toLocaleDateString('ar-SA')}` : ''}
+                    {'، وقد أُصدرت هذه الشهادة بناءً على طلبه لتُقدَّم لمن يلزم.'}
+                  </p>
+                  <div className="flex items-center justify-between border-t border-slate-700 pt-3">
+                    <p className="text-[10px] text-slate-500">الرقم الوظيفي: {profile?.employeeNo || '—'}</p>
+                    <p className="text-[10px] text-slate-500">{new Date().toLocaleDateString('ar-SA')}</p>
+                  </div>
+                  <p className="text-[10px] text-slate-600 text-center">— صادرة من النظام الرقمي — للاستخدام الرسمي —</p>
+                </div>
+              )}
+
+              {/* ── تغيير كلمة المرور ── */}
+              {showChangePassword && (
+                <div className="rounded-2xl border border-blue-500/20 bg-blue-950/10 p-4 space-y-3">
+                  <p className="text-xs font-bold text-blue-300 flex items-center gap-2">🔐 تغيير كلمة المرور</p>
+                  {cpMsg && (
+                    <p className={`text-xs font-bold rounded-xl px-3 py-2 ${cpMsg.startsWith('✓') ? 'bg-emerald-900/40 text-emerald-300' : 'bg-red-900/40 text-red-300'}`}>
+                      {cpMsg}
+                    </p>
+                  )}
+                  {[
+                    { id: 'cp-current', label: 'كلمة المرور الحالية', val: cpCurrent, set: setCpCurrent },
+                    { id: 'cp-new',     label: 'كلمة المرور الجديدة', val: cpNew,     set: setCpNew     },
+                    { id: 'cp-confirm', label: 'تأكيد كلمة المرور',   val: cpConfirm, set: setCpConfirm },
+                  ].map(f => (
+                    <div key={f.id}>
+                      <label className="block text-[11px] text-slate-400 mb-1">{f.label}</label>
+                      <input
+                        type="password"
+                        value={f.val}
+                        onChange={e => f.set(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-600"
+                      />
+                    </div>
+                  ))}
+                  <button
+                    onClick={changePassword}
+                    disabled={cpSubmitting}
+                    className="w-full rounded-xl bg-blue-700 py-2.5 text-sm font-black text-white disabled:opacity-50 hover:bg-blue-600 flex items-center justify-center gap-2"
+                  >
+                    {cpSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : '🔐'}
+                    {cpSubmitting ? 'جارٍ الحفظ...' : 'حفظ كلمة المرور الجديدة'}
+                  </button>
+                </div>
+              )}
+
+              {/* ── الترقيات والنقل ── */}
+              {promotionsLoading && (
+                <div className="rounded-2xl border border-purple-500/20 bg-purple-950/10 p-5 flex justify-center">
+                  <RefreshCw className="h-6 w-6 animate-spin text-purple-400" />
+                </div>
+              )}
+              {!promotionsLoading && promotions.length > 0 && (
+                <div className="rounded-2xl border border-purple-500/20 bg-purple-950/10 overflow-hidden">
+                  <p className="px-4 py-3 text-xs font-bold text-purple-300 border-b border-purple-900/40">📈 سجل الترقيات والنقل</p>
+                  <div className="divide-y divide-purple-900/30">
+                    {promotions.map((p, i) => (
+                      <div key={i} className="px-4 py-3 flex items-start gap-3">
+                        <div className="rounded-full bg-purple-800/40 p-1.5 shrink-0">
+                          <span className="text-sm">⭐</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-white">{p.from_grade} → {p.to_grade}</p>
+                          <p className="text-[11px] text-slate-400">{p.date ? new Date(p.date).toLocaleDateString('ar-SA') : '—'}</p>
+                          {p.decision && <p className="text-[10px] text-purple-300 mt-0.5">قرار رقم: {p.decision}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!promotionsLoading && promotions.length === 0 && promotions !== undefined && (
+                <div className="rounded-2xl border border-purple-500/20 bg-purple-950/10 p-4 text-center">
+                  <p className="text-xs text-slate-500">لا توجد ترقيات أو نقل مسجّل حتى الآن</p>
+                </div>
+              )}
+            </div>
+
+            {/* ── المعلومات المالية ── */}
             <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 divide-y divide-cyan-900/50">
               <div className="px-4 py-3 text-xs font-bold text-cyan-300 flex items-center gap-2">
-                <Wallet className="h-4 w-4" />
-                معلوماتي المالية الشخصية
+                <Wallet className="h-3.5 w-3.5" /> معلوماتي المالية
               </div>
               {[
                 { label: 'الراتب الأساسي', value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.base_salary ?? employeeRecord?.salary)) },
-                { label: 'الإضافي / overtime', value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.overtime_allowance)) },
-                { label: 'الحقلية', value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.field_allowance)) },
-                { label: 'البدلات الأخرى', value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.allowances)) },
-                { label: 'الاستقطاعات', value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.deductions)) },
-                { label: 'الصافي', value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.net_salary)) },
-                { label: 'الإجازة السنوية', value: employeeRecord?.annual_leave_balance != null ? `${employeeRecord.annual_leave_balance} يوم` : '—' },
-                { label: 'الإجازة المرضية', value: employeeRecord?.sick_leave_balance != null ? `${employeeRecord.sick_leave_balance} يوم` : '—' },
+                { label: 'الإضافي',         value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.overtime_allowance)) },
+                { label: 'بدل حقلي',        value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.field_allowance)) },
+                { label: 'البدلات الأخرى',  value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.allowances)) },
+                { label: 'الاستقطاعات',     value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.deductions)) },
+                { label: 'الصافي',           value: formatCurrencyLYD(normalizeMaybeNumber(employeeRecord?.net_salary)) },
               ].map((row) => (
-                <div key={row.label} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <span className="text-slate-300">{row.label}</span>
-                  <span className="font-semibold text-white">{row.value}</span>
+                <div key={row.label} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                  <span className="text-slate-300 text-xs">{row.label}</span>
+                  <span className="font-semibold text-white text-xs">{row.value}</span>
                 </div>
               ))}
-              <div className="px-4 py-3 text-[11px] text-slate-400 leading-5">
-                إذا لم تظهر الأرقام هنا فهذا يعني أن كشف الرواتب الفردي غير مربوط بعد من الشؤون الإدارية. عند تفعيله سيظهر الراتب والإضافي والحقلية تلقائياً.
+              <div className="px-4 py-3 text-[11px] text-slate-500">
+                إذا لم تظهر الأرقام المالية فهذا يعني أن كشف الرواتب لم يُفعَّل بعد من الشؤون الإدارية.
               </div>
             </div>
           </>
@@ -3781,6 +4215,204 @@ export default function MobileFieldPage() {
           </div>
         )}
 
+        {/* ══ Manager Dashboard Tab ══ */}
+        {mainTab === 'dept_board' && (
+          <div className="space-y-4 pb-32">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-black text-violet-300 flex items-center gap-2"><BarChart3 className="h-4 w-4" /> لوحة قيادة الإدارة</p>
+              <button onClick={() => void fetchManagerDashboard()} className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300">
+                <RefreshCw className={`h-3 w-3 ${managerLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {managerLoading && !managerKpis ? (
+              <div className="flex justify-center py-12"><RefreshCw className="h-7 w-7 animate-spin text-violet-400" /></div>
+            ) : managerKpis ? (<>
+              {/* KPI Grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'حضر اليوم',       value: managerKpis.present_today,     icon: '✅', color: 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300' },
+                  { label: 'أوامر مفتوحة',     value: managerKpis.wo_open,           icon: '📋', color: 'border-amber-500/30   bg-amber-950/20   text-amber-300' },
+                  { label: 'جارٍ تنفيذها',     value: managerKpis.wo_in_progress,    icon: '⚙️', color: 'border-cyan-500/30    bg-cyan-950/20    text-cyan-300' },
+                  { label: 'متأخرة',            value: managerKpis.wo_overdue,        icon: '⚠️', color: 'border-red-500/30     bg-red-950/20     text-red-300' },
+                  { label: 'تقارير معلقة',     value: managerKpis.pending_approvals, icon: '📝', color: 'border-orange-500/30  bg-orange-950/20  text-orange-300' },
+                  { label: 'طلبات إجازة',      value: managerKpis.pending_leaves,    icon: '🌴', color: 'border-sky-500/30     bg-sky-950/20     text-sky-300' },
+                  { label: 'أعطال مفتوحة',     value: managerKpis.open_faults,       icon: '🔧', color: 'border-rose-500/30    bg-rose-950/20    text-rose-300' },
+                  { label: 'مكتمل اليوم',      value: managerKpis.wo_completed_today,icon: '🏁', color: 'border-teal-500/30    bg-teal-950/20    text-teal-300' },
+                ].map(kpi => (
+                  <div key={kpi.label} className={`rounded-2xl border p-3 flex items-center gap-3 ${kpi.color}`}>
+                    <span className="text-xl">{kpi.icon}</span>
+                    <div>
+                      <p className="text-xl font-black text-white">{kpi.value ?? 0}</p>
+                      <p className="text-[11px] opacity-80">{kpi.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recent Faults */}
+              {managerRecentFaults.length > 0 && (
+                <div className="rounded-2xl border border-red-500/20 bg-red-950/10 overflow-hidden">
+                  <p className="px-4 py-2.5 text-xs font-bold text-red-300 border-b border-red-900/30 flex items-center gap-2">
+                    <AlertOctagon className="h-3.5 w-3.5" /> أحدث الأعطال المفتوحة
+                  </p>
+                  {managerRecentFaults.map((f: any) => (
+                    <div key={f.id} className="flex items-center justify-between px-4 py-2.5 border-b border-red-900/20 last:border-0">
+                      <p className="text-xs text-white font-semibold">{f.title}</p>
+                      <span className={`text-[10px] rounded-full px-2 py-0.5 font-bold ${f.severity === 'critical' ? 'bg-red-800/60 text-red-200' : f.severity === 'high' ? 'bg-orange-800/60 text-orange-200' : 'bg-amber-800/60 text-amber-200'}`}>
+                        {f.severity === 'critical' ? 'حرج' : f.severity === 'high' ? 'عالي' : 'متوسط'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Pending leaves quick view */}
+              {managerPendingLeaves.length > 0 && (
+                <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 overflow-hidden">
+                  <p className="px-4 py-2.5 text-xs font-bold text-sky-300 border-b border-sky-900/30">🌴 طلبات إجازة تنتظر موافقتك</p>
+                  {managerPendingLeaves.map((l: any) => (
+                    <div key={l.id} className="flex items-center justify-between px-4 py-2.5 border-b border-sky-900/20 last:border-0">
+                      <div>
+                        <p className="text-xs font-bold text-white">{l.employee_name || l.employee_no}</p>
+                        <p className="text-[11px] text-slate-400">{l.leave_type} — {l.days} أيام ({l.start_date})</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => void reviewLeaveRequest(l.id, 'approve')} disabled={reviewingLeaveId === l.id}
+                          className="rounded-lg bg-emerald-700/80 px-2 py-1 text-[11px] font-bold text-white disabled:opacity-50">✓</button>
+                        <button onClick={() => setReviewingLeaveId(reviewingLeaveId === l.id ? null : l.id)} disabled={reviewingLeaveId !== null && reviewingLeaveId !== l.id}
+                          className="rounded-lg bg-red-700/80 px-2 py-1 text-[11px] font-bold text-white disabled:opacity-50">✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>) : (
+              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-8 text-center">
+                <BarChart3 className="mx-auto h-12 w-12 text-slate-600 mb-2" />
+                <p className="text-slate-400 font-bold text-sm">اضغط زر التحديث لتحميل البيانات</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ Team Management Tab ══ */}
+        {mainTab === 'team_mgmt' && (
+          <div className="space-y-4 pb-32">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-black text-sky-300 flex items-center gap-2"><Users className="h-4 w-4" /> فريقي وحضور اليوم</p>
+              <button onClick={() => { void fetchTeamStatus(); void fetchLeaveApprovals(); }}
+                className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300">
+                <RefreshCw className={`h-3 w-3 ${teamLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {/* Summary */}
+            {teamSummary && (
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: 'إجمالي الفريق', value: teamSummary.total,   color: 'text-white' },
+                  { label: 'حاضر اليوم',   value: teamSummary.present, color: 'text-emerald-300' },
+                  { label: 'غائب',          value: teamSummary.absent,  color: 'text-red-300' },
+                ].map(s => (
+                  <div key={s.label} className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-3 text-center">
+                    <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                    <p className="text-[11px] text-slate-400">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Team list */}
+            {teamLoading && teamMembers.length === 0 ? (
+              <div className="flex justify-center py-8"><RefreshCw className="h-6 w-6 animate-spin text-sky-400" /></div>
+            ) : teamMembers.length > 0 ? (
+              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 overflow-hidden">
+                <p className="px-4 py-2.5 text-xs font-bold text-slate-300 border-b border-slate-800">أعضاء الفريق</p>
+                <div className="divide-y divide-slate-800">
+                  {teamMembers.map(m => (
+                    <div key={m.id} className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${m.attendance.present ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                        <div>
+                          <p className="text-xs font-bold text-white">{m.name || m.employee_no}</p>
+                          <p className="text-[11px] text-slate-500">{m.role || m.department}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {m.attendance.present ? (
+                          <p className="text-[11px] text-emerald-400 font-bold">
+                            {m.attendance.checkin ? new Date(m.attendance.checkin).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                            {m.attendance.checkout && <span className="text-slate-500"> → {new Date(m.attendance.checkout).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' })}</span>}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-red-400 font-bold">لم يسجل حضور</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 text-center">
+                <Users className="mx-auto h-10 w-10 text-slate-600 mb-2" />
+                <p className="text-xs text-slate-500">لا توجد بيانات فريق — اضغط زر التحديث</p>
+              </div>
+            )}
+
+            {/* Leave approvals */}
+            <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-sky-900/30">
+                <p className="text-xs font-bold text-sky-300">🌴 طلبات الإجازة ({leaveApprovals.length})</p>
+                {leaveApprovalLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin text-sky-400" />}
+              </div>
+              {leaveApprovals.length === 0 ? (
+                <p className="px-4 py-4 text-xs text-slate-500 text-center">لا توجد طلبات إجازة معلقة</p>
+              ) : (
+                <div className="divide-y divide-sky-900/20">
+                  {leaveApprovals.map(l => {
+                    const leaveLabels: Record<string,string> = { annual:'سنوية', sick:'مرضية', emergency:'طارئة', unpaid:'بدون راتب', bereavement:'وفاة', study:'دراسية' };
+                    return (
+                      <div key={l.id} className="p-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-bold text-white">{l.employee_name || l.employee_no}</p>
+                            <p className="text-[11px] text-slate-400">{leaveLabels[l.leave_type]??l.leave_type} — {l.days} أيام</p>
+                            <p className="text-[11px] text-slate-500">{l.start_date} → {l.end_date}</p>
+                            {l.reason && <p className="text-[11px] text-slate-500 italic">"{l.reason}"</p>}
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => void reviewLeaveRequest(l.id, 'approve')} disabled={reviewingLeaveId === l.id}
+                              className="rounded-lg bg-emerald-700/80 px-2.5 py-1.5 text-xs font-black text-white disabled:opacity-50 hover:bg-emerald-600">
+                              {reviewingLeaveId === l.id ? '...' : '✓ موافقة'}
+                            </button>
+                            <button onClick={() => { setReviewingLeaveId(l.id === reviewingLeaveId ? null : l.id); setLeaveRejectReason(''); }}
+                              className="rounded-lg bg-red-700/80 px-2.5 py-1.5 text-xs font-black text-white hover:bg-red-600">
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                        {reviewingLeaveId === l.id && (
+                          <div className="flex gap-2">
+                            <input
+                              type="text" placeholder="سبب الرفض (اختياري)"
+                              value={leaveRejectReason}
+                              onChange={e => setLeaveRejectReason(e.target.value)}
+                              className="flex-1 rounded-lg border border-red-700/50 bg-slate-800 px-3 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                            <button onClick={() => void reviewLeaveRequest(l.id, 'reject', leaveRejectReason)}
+                              className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-black text-white">رفض</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ══ Access Requests Tab (managers only) ══ */}
         {mainTab === 'access-requests' && isSupervisor && (
           <div className="space-y-3" dir="rtl">
@@ -3817,10 +4449,32 @@ export default function MobileFieldPage() {
                         <span className="rounded-full bg-indigo-900/60 px-2 py-0.5 text-xs text-indigo-300">{req.mobile_role}</span>
                       )}
                     </div>
+                    {/* Role selector before approve/reject */}
+                    <div className="mb-2">
+                      <p className="text-[11px] text-slate-500 mb-1">صلاحية الحساب</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {[
+                          { v: 'employee',        l: '👷 موظف' },
+                          { v: 'supervisor',      l: '👁 مشرف' },
+                          { v: 'section_manager', l: '📋 رئيس قسم' },
+                          { v: 'dept_manager',    l: '🏛 مدير إدارة' },
+                        ].map(opt => (
+                          <button
+                            key={opt.v}
+                            onClick={() => setAccessRequestRole(prev => ({ ...prev, [req.id]: opt.v }))}
+                            className={`rounded-lg px-2 py-1.5 text-[11px] font-bold border transition-all ${
+                              (accessRequestRole[req.id] || 'employee') === opt.v
+                                ? 'bg-emerald-700/80 border-emerald-500 text-white'
+                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-emerald-500/40'
+                            }`}
+                          >{opt.l}</button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         disabled={reviewingRequest === req.id}
-                        onClick={() => void reviewAccessRequest(req.id, 'approve')}
+                        onClick={() => void reviewAccessRequest(req.id, 'approve', accessRequestRole[req.id] || 'employee')}
                         className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-700/80 py-1.5 text-sm font-medium text-white active:bg-emerald-600 disabled:opacity-50"
                       >
                         {reviewingRequest === req.id ? (

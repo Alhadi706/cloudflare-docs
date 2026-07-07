@@ -23,5 +23,12 @@ export function getClientTenantId(): string {
 
 export function getClientTenantHeaders(): Record<string, string> {
   const tenantId = getClientTenantId();
-  return tenantId ? { 'X-Tenant-ID': tenantId } : {};
+  const headers: Record<string, string> = {};
+  if (tenantId) headers['X-Tenant-ID'] = tenantId;
+  // Include auth token so API routes behind middleware don't reject with 401
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token') || '';
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
 }

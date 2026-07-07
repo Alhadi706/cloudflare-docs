@@ -50,7 +50,7 @@ import SatelliteTrendPanel from './SatelliteTrendPanel';
 import ObjectDetectionPanel from './ObjectDetectionPanel';
 import InSARPanel from './InSARPanel';
 import NetworkDesignPanel from './NetworkDesignPanel';
-import RSCRightPanel from '../../remote-sensing-center/components/RSCRightPanel';
+import RSCRightPanel, { PanSharpPanel } from '../../remote-sensing-center/components/RSCRightPanel';
 import type { RSCModule, RSCTool } from '../../remote-sensing-center/components/RemoteSensingShell';
 
 type RightTab = 'report' | 'chat' | 'temporal' | 'simulation' | 'areas' | 'terrain3d' | 'compliance' | 'suitability' | 'routing' | 'change_detection' | 'risk' | 'alerts' | 'satellite_trend' | 'object_detection' | 'insar' | 'network' | 'spatial_analyst' | 'image_analyst' | '3d_analyst';
@@ -1470,6 +1470,11 @@ export default function SatIntelRightPanel({
 
         {/* ── RSC merged modules ─────────────────────────────────────────── */}
         {(tab === 'spatial_analyst' || tab === 'image_analyst' || tab === '3d_analyst') && (
+          rscActiveTool === 'ia_pansharp' ? (
+            <PanSharpPanel
+              drawnPolygon={drawnPolygon ?? null}
+            />
+          ) : (
           <RSCRightPanel
             activeModule={
               tab === 'spatial_analyst' ? 'spatial'
@@ -1481,7 +1486,9 @@ export default function SatIntelRightPanel({
             processing={rscProcessing}
             setProcessing={(v) => onRscProcessingChange?.(v)}
             setAnalysisResult={(r) => onRscResultChange?.(r)}
+            drawnPolygon={drawnPolygon ?? null}
           />
+          )
         )}
 
         {tab === 'change_detection' && (

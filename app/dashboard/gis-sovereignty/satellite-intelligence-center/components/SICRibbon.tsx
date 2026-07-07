@@ -27,6 +27,8 @@ import {
 import { BASEMAPS, type DrawMode, type BaseStyle } from './SceneMapPanel';
 import type { SceneListItem, WorkflowInfo } from '@/lib/satelliteIntelAPI';
 import AssetTopBar from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetTopBar';
+import StudyLayerBar from './StudyLayerBar';
+import type { StudyLayerSummary } from '@/lib/studyLayersAPI';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +60,6 @@ export type RibbonGroup =
   | 'routing'      // optimal path
   | 'report'       // scene report + temporal + chat
   | 'compliance'   // ArcGIS compliance
-  | 'pipeline'     // pipeline route editor
   | 'layers'       // engineering layer editor (AssetTopBar tools)
   // RSC modules merged into SIC
   | 'spatial_analyst'  // Spatial Analyst tools
@@ -150,6 +151,15 @@ interface SICRibbonProps {
   onToggleLeakLayer?: () => void;
   onToggleUrbanLeakLayer?: () => void;
   onToggleEncroachLayer?: () => void;
+  // Study layers
+  activeStudyLayer?: StudyLayerSummary | null;
+  onOpenStudyLayer?: (layer: StudyLayerSummary) => void;
+  onCloseStudyLayer?: () => void;
+  onStudyLayersChange?: (layers: StudyLayerSummary[]) => void;
+  // Registered assets overlay toggle
+  showAssetsOverlay?: boolean;
+  assetsOverlayCount?: number;
+  onToggleAssetsOverlay?: () => void;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -166,12 +176,21 @@ const RIBBON_CATEGORIES: RibbonCategory[] = [
     labelAr: 'الاستشعار عن بعد',
     color: 'text-yellow-500',
     groups: [
-      { id: 'scenes',       label: 'الصور',   Icon: Camera,    color: 'text-blue-400'   },
-      { id: 'monitoring',   label: 'رصد',     Icon: ScanSearch, color: 'text-yellow-400' },
-      { id: 'detection',    label: 'كشف AI', Icon: BellRing,  color: 'text-purple-400' },
-      { id: 'cva',          label: 'CVA',     Icon: GitMerge,  color: 'text-teal-400'   },
-      { id: 'insar',        label: 'InSAR',   Icon: Radio,     color: 'text-violet-400' },
-      { id: 'image_analyst',label: 'Image',   Icon: Satellite, color: 'text-emerald-400'},
+      { id: 'scenes',       label: 'الصور',        Icon: Camera,    color: 'text-blue-400'   },
+      { id: 'monitoring',   label: 'رصد حي',       Icon: ScanSearch, color: 'text-yellow-400' },
+      { id: 'detection',    label: 'كشف AI',       Icon: BellRing,  color: 'text-purple-400' },
+      { id: 'cva',          label: 'CVA',           Icon: GitMerge,  color: 'text-teal-400'   },
+      { id: 'insar',        label: 'InSAR',         Icon: Radio,     color: 'text-violet-400' },
+      { id: 'image_analyst',label: 'مؤشرات',       Icon: Satellite, color: 'text-emerald-400'},
+    ],
+  },
+  {
+    labelAr: 'التخطيط والدراسات المكانية',
+    color: 'text-amber-500',
+    groups: [
+      { id: 'terrain',     label: 'تحليل التضاريس',    Icon: Mountain, color: 'text-amber-400'  },
+      { id: 'suitability', label: 'دراسة الموقع',       Icon: Target,   color: 'text-green-400'  },
+      { id: 'routing',     label: 'تصميم المسار',       Icon: Route,    color: 'text-cyan-400'   },
     ],
   },
   {
@@ -186,10 +205,9 @@ const RIBBON_CATEGORIES: RibbonCategory[] = [
     labelAr: 'أدوات',
     color: 'text-emerald-500',
     groups: [
-      { id: 'draw',       label: 'رسم',      Icon: Pencil,     color: 'text-emerald-400' },
-      { id: 'pipeline',   label: 'المسارات', Icon: Route,     color: 'text-cyan-400'   },
-      { id: 'report',     label: 'التقرير',  Icon: FileText,   color: 'text-slate-300'  },
-      { id: 'compliance', label: 'المطابقة', Icon: ShieldCheck, color: 'text-rose-400'   },
+      { id: 'draw',       label: 'رسم',       Icon: Pencil,     color: 'text-emerald-400' },
+      { id: 'report',     label: 'التقرير',   Icon: FileText,   color: 'text-slate-300'  },
+      { id: 'compliance', label: 'المطابقة',  Icon: ShieldCheck, color: 'text-rose-400'   },
     ],
   },
 ];
@@ -571,7 +589,9 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
     <div className="shrink-0 bg-slate-900 border-b border-slate-800 z-[200] relative" dir="rtl">
 
       {/* ── Row 1: Group buttons — categorized ──────────────────── */}
-      <div className="flex items-stretch gap-0 border-b border-slate-800/60 overflow-x-auto scrollbar-none">
+      <div className="flex items-stretch border-b border-slate-800/60">
+        {/* Scrollable categories section */}
+        <div className="flex items-stretch gap-0 overflow-x-auto scrollbar-none flex-1">
         {RIBBON_CATEGORIES.map((cat, catIdx) => (
           <React.Fragment key={cat.labelAr}>
             {/* Category label + its buttons */}
@@ -611,30 +631,35 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
             )}
           </React.Fragment>
         ))}
-        {/* ── Navigation shortcuts to specialist pages ── */}
-        <div className="w-px bg-slate-700/50 self-stretch mx-0.5 shrink-0" />
-        <div className="flex flex-col shrink-0 justify-center">
-          <div className="text-[9px] font-bold uppercase tracking-widest px-2 pt-1 pb-0 text-slate-600 text-center">انتقال</div>
-          <div className="flex items-stretch flex-1">
-            <Link
-              href="/dashboard/gis-sovereignty/spatial-analytics"
-              className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 min-w-[52px] text-slate-500 hover:text-blue-300 hover:bg-slate-800/40 transition-colors border-l border-slate-800/30"
-              title="مختبر التحليل المكاني — تضاريس، ملاءمة، مسار أمثل"
-            >
-              <Mountain size={14} className="text-amber-500/70" />
-              <span className="text-[10px] font-medium whitespace-nowrap">التحليل</span>
-            </Link>
-            <Link
-              href="/dashboard/gis-sovereignty/engineering-workspace"
-              className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 min-w-[52px] text-slate-500 hover:text-emerald-300 hover:bg-slate-800/40 transition-colors border-l border-slate-800/30"
-              title="مساحة العمل الهندسية — الطبقات والرسم الهندسي"
-            >
-              <Layers3 size={14} className="text-indigo-500/70" />
-              <span className="text-[10px] font-medium whitespace-nowrap">الطبقات</span>
-            </Link>
-          </div>
+        </div>{/* end scrollable categories */}
+
+        {/* ── Fixed section: Study Layers + Assets overlay ── */}
+        <div className="flex items-center px-2 gap-2 shrink-0 border-r border-slate-700/40 bg-slate-900">
+          {/* Assets overlay toggle */}
+          <button
+            onClick={props.onToggleAssetsOverlay}
+            title="عرض الأصول المسجلة على الخريطة"
+            className={`flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-sm transition-colors ${
+              props.showAssetsOverlay
+                ? 'bg-teal-900/30 text-teal-300'
+                : 'text-slate-500 hover:bg-slate-800/40 hover:text-slate-300'
+            }`}
+          >
+            <Satellite size={13} className={props.showAssetsOverlay ? 'text-teal-400' : 'text-slate-500'} />
+            <span className="text-[9px] font-medium whitespace-nowrap">الأصول</span>
+            {(props.assetsOverlayCount ?? 0) > 0 && (
+              <span className="text-[8px] bg-teal-700/50 text-teal-300 rounded-full px-1">{props.assetsOverlayCount}</span>
+            )}
+          </button>
+
+          <StudyLayerBar
+            activeLayer={props.activeStudyLayer ?? null}
+            onOpenLayer={l => props.onOpenStudyLayer?.(l)}
+            onCloseLayer={() => props.onCloseStudyLayer?.()}
+            onLayersChange={ls => props.onStudyLayersChange?.(ls)}
+          />
         </div>
-      </div>
+      </div>{/* end Row 1 */}
 
       {/* ── Row 2: Contextual sub-tools ─────────────────────────── */}
       <div className="flex items-center gap-0 px-3 h-9 overflow-visible">
@@ -669,57 +694,20 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
 
             <div className="w-px h-5 bg-slate-700/60 self-center" />
 
-            {/* ── طبقة 2: تسريبات النهر الصناعي ── */}
+            {/* ── طبقة 2: ماسح الشذوذات المائية (حسب الطلب) ── */}
             <button
-              onClick={props.onToggleLeakLayer}
-              disabled={props.leakLoading}
-              title="تسريبات النهر الصناعي — Sentinel-2/1 + Sentinel Hub NDWI/NDVI"
-              className={`relative flex items-center gap-1.5 px-3.5 h-full text-xs font-semibold transition-all border-b-2 ${
-                props.showLeakLayer
-                  ? 'border-cyan-400 text-cyan-300 bg-slate-800/70'
-                  : 'border-transparent text-slate-400 hover:text-cyan-300 hover:bg-slate-800/30'
-              }`}
+              title="ماسح المياه — يعمل على أي منطقة مرسومة أو أصل مسجل (حسب الطلب)"
+              onClick={() => props.onRibbonChange({ activeGroup: 'monitoring' })}
+              className="relative flex items-center gap-1.5 px-3.5 h-full text-xs font-semibold transition-all border-b-2 border-transparent text-slate-400 hover:text-cyan-300 hover:bg-slate-800/30"
             >
-              <span>{props.leakLoading ? '⏳' : '💧'}</span>
-              <span>تسريبات النهر</span>
-              {(props.leakCount ?? 0) > 0 && (
-                <span className={`text-[9px] px-1 rounded-full font-bold ${
-                  props.showLeakLayer ? 'bg-cyan-500/40 text-cyan-200' : 'bg-slate-700 text-slate-400'
-                }`}>{props.leakCount}</span>
-              )}
-              {props.showLeakLayer && (
-                <span className="absolute bottom-0 right-0 left-0 h-0.5 bg-cyan-400 rounded-t" />
-              )}
+              <span>💧</span>
+              <span>ماسح المياه</span>
+              <span className="text-[9px] text-slate-600 font-normal">← اللوحة اليسرى</span>
             </button>
 
             <div className="w-px h-5 bg-slate-700/60 self-center" />
 
-            {/* ── طبقة 3: تسريبات المدن ── */}
-            <button
-              onClick={props.onToggleUrbanLeakLayer}
-              disabled={props.urbanLeakLoading}
-              title="تسريبات شبكات المياه الحضرية — كشف شبكات المياه المعطّلة"
-              className={`relative flex items-center gap-1.5 px-3.5 h-full text-xs font-semibold transition-all border-b-2 ${
-                props.showUrbanLeakLayer
-                  ? 'border-blue-400 text-blue-300 bg-slate-800/70'
-                  : 'border-transparent text-slate-400 hover:text-blue-300 hover:bg-slate-800/30'
-              }`}
-            >
-              <span>{props.urbanLeakLoading ? '⏳' : '🏙️'}</span>
-              <span>تسريبات المدن</span>
-              {(props.urbanLeakCount ?? 0) > 0 && (
-                <span className={`text-[9px] px-1 rounded-full font-bold ${
-                  props.showUrbanLeakLayer ? 'bg-blue-500/40 text-blue-200' : 'bg-slate-700 text-slate-400'
-                }`}>{props.urbanLeakCount}</span>
-              )}
-              {props.showUrbanLeakLayer && (
-                <span className="absolute bottom-0 right-0 left-0 h-0.5 bg-blue-400 rounded-t" />
-              )}
-            </button>
-
-            <div className="w-px h-5 bg-slate-700/60 self-center" />
-
-            {/* ── طبقة 4: اعتداءات الحرم ── */}
+            {/* ── طبقة 3: اعتداءات الحرم ── */}
             <button
               onClick={props.onToggleEncroachLayer}
               disabled={props.encroachLoading}
@@ -743,7 +731,7 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
             </button>
 
             {/* ── وصف الطبقة النشطة ── */}
-            {(props.showFireLayer || props.showLeakLayer || props.showUrbanLeakLayer || props.showEncroachLayer) && (
+            {(props.showFireLayer || props.showEncroachLayer) && (
               <>
                 <div className="w-px h-5 bg-slate-700/60 self-center mx-1" />
                 <div className="flex items-center gap-2 text-[10px] text-slate-400 px-1">
@@ -761,19 +749,6 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
                         }`}
                         title={props.fireShowAll ? 'عرض المؤكد فقط' : 'عرض كل الرصد (180 نقطة)'}
                       >{props.fireShowAll ? 'مؤكد فقط ↑' : 'كل الرصد ↓'}</button>
-                    </>
-                  )}
-                  {props.showLeakLayer && (
-                    <>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>مؤكد</span>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>مرتفع</span>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block"/>متوسط</span>
-                    </>
-                  )}
-                  {props.showUrbanLeakLayer && (
-                    <>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"/>تسرب حضري</span>
-                      <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block"/>رطوبة شاذة</span>
                     </>
                   )}
                   {props.showEncroachLayer && (
@@ -826,13 +801,34 @@ export default function SICRibbon(props: SICRibbonProps) {  const { ribbonState,
             onDrawModeChange={props.onDrawModeChange}
           />
         )}
-        {activeGroup === 'pipeline' && (
-          <span className="flex items-center gap-2 text-xs text-cyan-300 font-semibold">
-            <Route size={13} className="text-cyan-400 shrink-0" />
-            <span>🗺️ <strong>مسارات الأنابيب:</strong> رسم وتحرير مسارات النهر الصناعي وخطوط النفط — استخدم اللوحة اليمنى</span>
-          </span>
+        {/* terrain/suitability/routing — back in this ribbon, panel shown in SatIntelRightPanel */}
+        {activeGroup === 'terrain' && (
+          <SubBarTerrain
+            ribbonState={ribbonState}
+            onRibbonChange={onRibbonChange}
+            running={props.running}
+            onRunAnalysis={props.onRunAnalysis}
+          />
         )}
-        {/* terrain/suitability/routing/layers moved to /spatial-analytics and /engineering-workspace */}
+        {activeGroup === 'suitability' && (
+          <SubBarSuitability
+            ribbonState={ribbonState}
+            onRibbonChange={onRibbonChange}
+            running={props.running}
+            onRunAnalysis={props.onRunAnalysis}
+          />
+        )}
+        {activeGroup === 'routing' && (
+          <SubBarRouting
+            ribbonState={ribbonState}
+            onRibbonChange={onRibbonChange}
+            routingPickMode={props.routingPickMode}
+            routingStartPoint={props.routingStartPoint}
+            routingEndPoint={props.routingEndPoint}
+            onStartRoutingPick={props.onStartRoutingPick}
+            onClearRoutingPoints={props.onClearRoutingPoints}
+          />
+        )}
         {activeGroup === 'report' && (
           <SubBarReport
             ribbonState={ribbonState}

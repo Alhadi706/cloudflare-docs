@@ -50,7 +50,7 @@ export const URBAN_WATER_ZONES: UrbanZone[] = [
     name: 'طرابلس — جنزور (شبكة توزيع غرب)',
     city: 'طرابلس',
     type: 'distribution',
-    bbox: [12.94, 32.83, 13.09, 32.94],
+    bbox: [12.94, 32.82, 13.09, 32.89],  // capped at 32.89 to stay on land
     priority: 'high',
   },
   {

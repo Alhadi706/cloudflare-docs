@@ -41,15 +41,41 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!tenantId) return NextResponse.json({ error: 'tenant_id مطلوب' }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const url  = `${BACKEND}/api/v1/workspace/assets/${params.id}/children?tenant_id=${tenantId}`;
+  const today = new Date().toISOString().split('T')[0];
+
+  // Transform AddChildAssetModal payload → backend ChildAsset schema
+  const backendPayload = {
+    asset_name:        body.asset_name ?? body.name ?? 'بدون اسم',
+    asset_type:        body.asset_type ?? body.classification ?? 'component',
+    owning_department: body.owning_department ?? body.owner_department ?? body.department_owner ?? 'engineering',
+    status:            body.status ?? 'active',
+    health_score:      body.health_score ?? 100,
+    installation_date: body.installation_date ?? today,
+    geometry:          body.geometry ?? { type: 'Point', coordinates: [13.18, 32.89] },
+    properties:        {
+      ...(body.properties ?? {}),
+      geometry_mode:   body.properties?.geometry_mode ?? 'point',
+      asset_class:     'component_slot',
+      parent_asset_id: params.id,
+    },
+  };
+
+  const url = `${BACKEND}/api/v1/workspace/assets/${params.id}/children?tenant_id=${tenantId}`;
   try {
     const res = await fetch(url, {
       method: 'POST', headers: buildBackendHeaders(tenantId),
-      body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify(backendPayload), signal: AbortSignal.timeout(10_000),
     });
     const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
+    if (!res.ok) {
+      const detail = Array.isArray(data?.detail)
+        ? data.detail.map((e: any) => `${e.loc?.slice(-1)[0]}: ${e.msg}`).join(' | ')
+        : (data?.detail ?? `خطأ ${res.status}`);
+      return NextResponse.json({ error: detail }, { status: res.status });
+    }
+    return NextResponse.json(data);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 502 });
   }
 }
+

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useGisEngine } from '@/store/gisEngine';
 import {
   getSceneSummary,
@@ -32,6 +32,7 @@ import ServiceLayerCreateDialog, { LAYER_TEMPLATES, type LayerTemplate } from '.
 import ServiceLayerFeaturesPanel, { type AddPointModePayload } from './ServiceLayerFeaturesPanel';
 import SICLayerEditorPanel from './SICLayerEditorPanel';
 import SmartAlertsPanel from './SmartAlertsPanel';
+import WaterScannerPanel from './WaterScannerPanel';
 import TaskLaunchPanel, { TaskGuideBar, TASKS, type TaskMode } from './TaskLaunchPanel';
 import AssetLeftPanel, { type PrincipalAsset } from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetLeftPanel';
 import AssetCenterPanel from '@/app/dashboard/gis-sovereignty/engineering-workspace/components/AssetCenterPanel';
@@ -46,6 +47,12 @@ import {
   reorderServiceLayers,
   type ServiceLayerRecord,
 } from '@/lib/serviceLayersAPI';
+import {
+  getStudyLayer,
+  addFeatureToStudyLayer,
+  type StudyLayerSummary,
+  type StudyLayerFeature,
+} from '@/lib/studyLayersAPI';
 
 function polygonToBbox(polygon: [number, number][] | null): [number, number, number, number] | null {
   if (!polygon || polygon.length === 0) return null;
@@ -55,6 +62,15 @@ function polygonToBbox(polygon: [number, number][] | null): [number, number, num
     Math.max(...polygon.map(c => c[0])),
     Math.max(...polygon.map(c => c[1])),
   ];
+}
+
+/** Extract flat [lon,lat][] from a GeoJSON geometry (LineString or Polygon) */
+function extractCoords(geometry: any): [number, number][] {
+  if (!geometry) return [];
+  if (geometry.type === 'LineString') return (geometry.coordinates ?? []).map((c: number[]) => [c[0], c[1]] as [number, number]);
+  if (geometry.type === 'Polygon')    return (geometry.coordinates?.[0] ?? []).map((c: number[]) => [c[0], c[1]] as [number, number]);
+  if (geometry.type === 'MultiLineString') return (geometry.coordinates?.[0] ?? []).map((c: number[]) => [c[0], c[1]] as [number, number]);
+  return [];
 }
 
 export default function SatelliteIntelLegacyShell() {
@@ -164,8 +180,10 @@ export default function SatelliteIntelLegacyShell() {
   // selectedMuniKey: last municipality key selected from AssetTopBar
   const [selectedMuniKey, setSelectedMuniKey] = useState<string>('');
 
-  const isLayersMode = ribbonState.activeGroup === 'layers';
-  const isMonitoringMode = ribbonState.activeGroup === 'monitoring';
+  const isLayersMode      = ribbonState.activeGroup === 'layers';
+  const isMonitoringMode  = ribbonState.activeGroup === 'monitoring';
+  const isPipelineMode    = false; // pipeline group removed — kept for compatibility
+  const focusMode         = false; // legacy focus mode — kept for compatibility
 
   // Bridge gisEngine.drawingMode → SceneMapPanel drawMode when in layers mode
   const effectiveDrawMode = useMemo<DrawMode>(() => {
@@ -408,41 +426,91 @@ export default function SatelliteIntelLegacyShell() {
   const [leakLoading,        setLeakLoading]        = useState(false);
   const [urbanLeakLoading,   setUrbanLeakLoading]   = useState(false);
   const [encroachLoading,    setEncroachLoading]    = useState(false);
+  // ── Water scanner state ──────────────────────────────────────────────────
+  const [waterScanMarkers,   setWaterScanMarkers]   = useState<any[]>([]);
+  const [waterScanDrawing,   setWaterScanDrawing]   = useState(false);
+  // ── Study layers (طبقات الدراسة الخاصة) ───────────────────────────────────
+  const [activeStudyLayer,         setActiveStudyLayer]         = useState<StudyLayerSummary | null>(null);
+  const [studyLayerFeatures,       setStudyLayerFeatures]       = useState<StudyLayerFeature[]>([]);
+  const [studyLayersList,          setStudyLayersList]          = useState<StudyLayerSummary[]>([]);
+  // ── Registered assets overlay ─────────────────────────────────────────────
+  const [showAssetsOverlay,        setShowAssetsOverlay]        = useState(true); // افتراضياً: الأصول مرئية
+  const [assetsOverlayMarkers,     setAssetsOverlayMarkers]     = useState<any[]>([]);
+  const [assetsOverlayLoading,     setAssetsOverlayLoading]     = useState(false);
+  // ── Map marker popup state ────────────────────────────────────────────────
+  const [mapPopup, setMapPopup] = useState<{ label: string; tooltip: string; layerKey: string; lon: number; lat: number } | null>(null);
+  // ── Full fire API data for the report panel ───────────────────────────────
+  const [fireApiData, setFireApiData] = useState<any>(null);
+  // ── Use ref for loading guard (avoids stale-closure bug with useCallback) ─
+  const fireLoadingRef = useRef(false);
 
   const loadFireLayer = useCallback(async () => {
-    if (fireLoading) return;
+    if (fireLoadingRef.current) return;
+    fireLoadingRef.current = true;
     setFireLoading(true);
     try {
-      const res = await fetch('/api/v1/satellite/fire-monitor?days=7');
+      // Fetch ALL clusters including gas flares for the full report
+      const res = await fetch('/api/v1/satellite/fire-monitor?days=7&no_flares=false');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const clusters: any[] = data.all_clusters ?? [];
+      // Use all_clusters so gas flares appear in report, alert_clusters for map markers
+      const mapClusters: any[] = data.alert_clusters ?? [];
+      const reportData = { ...data, all_for_report: data.all_clusters ?? [] };
+
       const colorMap: Record<string, string> = {
-        gas_flare:         '#a855f7',
+        urban_incident:    '#f43f5e',
         confirmed_fire:    '#ef4444',
+        gas_flare:         '#a855f7',
         recurring_anomaly: '#f97316',
         single_detection:  '#facc15',
       };
-      const markers = clusters
+
+      const markers = mapClusters
         .filter((c: any) => c.lon != null && c.lat != null)
-        .map((c: any) => ({
-          lon:      c.lon,
-          lat:      c.lat,
-          color:    colorMap[c.classification] ?? '#94a3b8',
-          radius:   Math.min(18, 6 + (c.observations ?? c.total_count ?? 1) * 0.5),
-          label:    c.classification === 'gas_flare' ? 'حرق غاز' :
-                    c.classification === 'confirmed_fire' ? 'حريق مؤكد' :
-                    c.classification === 'recurring_anomaly' ? 'شذوذ متكرر' : 'رصد واحد',
-          layerKey: 'fire_viirs',
-        }));
+        .map((c: any) => {
+          const city  = c.nearest_city   ? `${c.nearest_city}(${c.nearest_city_km}كم)` : '';
+          const days  = c.days_active    ? `${c.days_active}أيام` : '';
+          const frp   = c.max_frp_mw     ? `FRP:${c.max_frp_mw}MW` : '';
+          const label =
+            c.classification === 'urban_incident'    ? `🔴 حادث حضري${city ? ` — ${c.nearest_city}` : ''}` :
+            c.classification === 'confirmed_fire'    ? `🔥 حريق مؤكد${city ? ` ${city}` : ''}` :
+            c.classification === 'gas_flare'         ? `🟣 حرق غاز صناعي` :
+            c.classification === 'recurring_anomaly' ? `🟠 شذوذ متكرر ${days}` :
+                                                       `🟡 رصد فردي`;
+          const alertReason = c.alert_reason ?? '';
+          const dates       = (c.dates_active ?? []).slice(-3).join('، ');
+          const cityInfo    = c.nearest_city ? `📍 ${c.nearest_city} (${c.nearest_city_km ?? '?'} كم)` : '';
+          const flareInfo   = c.known_flare_site ? `⚗️ موقع صناعي: ${c.known_flare_site}` : '';
+          const tooltip =
+            `${label}\n` +
+            `${frp ? `🔥 ${frp}` : ''}${frp && days ? '  |  ' : ''}${days ? `📅 ${days}` : ''}\n` +
+            `${cityInfo ? `${cityInfo}\n` : ''}` +
+            `${alertReason ? `ℹ️ ${alertReason}\n` : ''}` +
+            `${flareInfo ? `${flareInfo}\n` : ''}` +
+            `${dates ? `🗓️ آخر رصد: ${dates}` : ''}`;
+          return {
+            lon:      c.lon,
+            lat:      c.lat,
+            color:    colorMap[c.classification] ?? '#94a3b8',
+            radius:   c.classification === 'urban_incident' ? Math.min(22, 8 + (c.max_frp_mw ?? 1) / 2) :
+                      c.classification === 'confirmed_fire' ? Math.min(18, 7 + (c.max_frp_mw ?? 1) / 3) :
+                      Math.min(12, 4 + (c.observations ?? c.total_count ?? 1) * 0.4),
+            label,
+            tooltip:  tooltip.trim(),
+            layerKey: 'fire_viirs',
+          };
+        });
       setFireMarkers(markers);
+      setFireApiData(reportData);
     } catch (e: any) {
       console.warn('Fire layer load failed:', e.message);
       setFireMarkers([]);
     } finally {
+      fireLoadingRef.current = false;
       setFireLoading(false);
     }
-  }, [fireLoading]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadLeakLayer = useCallback(async () => {
     if (leakLoading) return;
@@ -512,14 +580,28 @@ export default function SatelliteIntelLegacyShell() {
       };
       const markers = (data.zones ?? [])
         .filter((z: any) => z.leak_probability !== 'none')
-        .map((z: any) => ({
-          lon:      z.center[0],
-          lat:      z.center[1],
-          color:    colorMap[z.leak_probability] ?? '#60a5fa',
-          radius:   8,
-          label:    `🏙️ ${z.zone_name ?? z.city} (${z.confidence_pct}%)`,
-          layerKey: 'urban_leak',
-        }));
+        .map((z: any) => {
+          const prob    = z.leak_probability ?? 'low';
+          const conf    = z.confidence_pct   ?? 0;
+          const probLabel = prob === 'confirmed' ? '🔵 مؤكد'   :
+                            prob === 'high'      ? '🔴 عالٍ'   :
+                            prob === 'medium'    ? '🟠 متوسط'  : '🟡 منخفض';
+          const evidence = (z.evidence ?? []).slice(0, 3).join('\n');
+          const tooltip  = [
+            `احتمال التسرب: ${probLabel} (${conf}%)`,
+            evidence,
+            z.zone_type ? `نوع الشبكة: ${z.zone_type}` : '',
+          ].filter(Boolean).join('\n');
+          return {
+            lon:      z.center[0],
+            lat:      z.center[1],
+            color:    colorMap[prob] ?? '#60a5fa',
+            radius:   prob === 'confirmed' ? 12 : prob === 'high' ? 10 : 8,
+            label:    `🏙️ ${z.zone_name ?? z.city} (${conf}%)`,
+            tooltip,
+            layerKey: 'urban_leak',
+          };
+        });
       setUrbanLeakMarkers(markers);
     } catch (e: any) {
       console.warn('Urban leak layer load failed:', e.message);
@@ -572,6 +654,14 @@ export default function SatelliteIntelLegacyShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showFireLayer]);
 
+  // ── Auto-load registered assets overlay on first mount ────────────────────
+  // الأصول المسجلة هي الطبقة الافتراضية عند فتح مركز الاستشعار
+  useEffect(() => {
+    setShowAssetsOverlay(true);
+    loadAssetsOverlay();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (showLeakLayer && leakMarkers.length === 0) loadLeakLayer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -587,16 +677,120 @@ export default function SatelliteIntelLegacyShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showEncroachLayer]);
 
+  // ── Assets overlay loader ─────────────────────────────────────────────────
+  const loadAssetsOverlay = useCallback(async () => {
+    if (assetsOverlayLoading) return;
+    setAssetsOverlayLoading(true);
+    try {
+      const TENANT_ID = (typeof window !== 'undefined' && window.localStorage.getItem('tenant_id')) || 'aaaaaaaa-0000-4000-a000-000000000001';
+      const res = await fetch('/api/engineering/workspace/principal-assets?limit=500', {
+        headers: { 'X-Tenant-ID': TENANT_ID },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const assets: any[] = data.assets ?? data.data ?? [];
+      const markers = assets
+        .filter((a: any) => a.geometry?.coordinates)
+        .map((a: any) => {
+          const geom = a.geometry;
+          let lon = 0, lat = 0;
+          if (geom.type === 'Point')      { [lon, lat] = geom.coordinates; }
+          else if (geom.type === 'LineString') { [lon, lat] = geom.coordinates[Math.floor(geom.coordinates.length / 2)]; }
+          else if (geom.type === 'Polygon')    { [lon, lat] = geom.coordinates[0][0]; }
+          if (!lon && !lat) return null;
+          const typeIcon =
+            geom.type === 'LineString' ? '〰️' :
+            geom.type === 'Polygon'    ? '⬡' : '📍';
+          return {
+            lon, lat,
+            color:    '#14b8a6',
+            radius:   6,
+            label:    `${typeIcon} ${a.name ?? a.asset_name ?? 'أصل'}`,
+            tooltip:  [
+              a.name ?? a.asset_name,
+              a.asset_type ? `النوع: ${a.asset_type}` : '',
+              a.status     ? `الحالة: ${a.status}` : '',
+            ].filter(Boolean).join('\n'),
+            layerKey: 'registered_assets',
+          };
+        })
+        .filter(Boolean);
+      setAssetsOverlayMarkers(markers);
+    } catch (e: any) {
+      console.warn('Assets overlay load failed:', e.message);
+      setAssetsOverlayMarkers([]);
+    } finally {
+      setAssetsOverlayLoading(false);
+    }
+  }, [assetsOverlayLoading]);
+
+  useEffect(() => {
+    if (showAssetsOverlay && assetsOverlayMarkers.length === 0) loadAssetsOverlay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAssetsOverlay]);
+
+  // ── Study layer: open / close / save feature ──────────────────────────────
+  const handleOpenStudyLayer = useCallback(async (layer: StudyLayerSummary) => {
+    setActiveStudyLayer(layer);
+    try {
+      const full = await getStudyLayer(layer.id);
+      setStudyLayerFeatures(full.features ?? []);
+    } catch {
+      setStudyLayerFeatures([]);
+    }
+  }, []);
+
+  const handleCloseStudyLayer = useCallback(() => {
+    setActiveStudyLayer(null);
+    setStudyLayerFeatures([]);
+    // Don't clear drawn polygon — keep it usable for analysis
+  }, []);
+
+  // Auto-save drawn polygon/line to active study layer
+  const handleStudyLayerFeatureSave = useCallback(async (
+    geometry: any,
+    name?: string,
+  ) => {
+    if (!activeStudyLayer) return;
+    try {
+      const feature = await addFeatureToStudyLayer(activeStudyLayer.id, geometry, name);
+      setStudyLayerFeatures(prev => [...prev, feature]);
+      // Update feature count in active layer summary
+      setActiveStudyLayer(prev => prev ? { ...prev, feature_count: (prev.feature_count ?? 0) + 1 } : prev);
+    } catch (e: any) {
+      console.warn('Failed to save study layer feature:', e.message);
+    }
+  }, [activeStudyLayer]);
+
   const satelliteOverlayMarkers = useMemo(() => [
     ...(showFireLayer      ? fireMarkers      : []),
     ...(showLeakLayer      ? leakMarkers      : []),
     ...(showUrbanLeakLayer ? urbanLeakMarkers : []),
     ...(showEncroachLayer  ? encroachMarkers  : []),
-  ], [showFireLayer, showLeakLayer, showUrbanLeakLayer, showEncroachLayer, fireMarkers, leakMarkers, urbanLeakMarkers, encroachMarkers]);
+    ...(showAssetsOverlay  ? assetsOverlayMarkers : []),
+    // Water scanner results always shown when available
+    ...waterScanMarkers,
+  ], [showFireLayer, showLeakLayer, showUrbanLeakLayer, showEncroachLayer, showAssetsOverlay, fireMarkers, leakMarkers, urbanLeakMarkers, encroachMarkers, assetsOverlayMarkers, waterScanMarkers]);
+
+  // Study layer features → route lines + highlight polygons for the map
+  const studyLayerRouteLines = useMemo(() => {
+    if (!activeStudyLayer || studyLayerFeatures.length === 0) return [];
+    return studyLayerFeatures
+      .filter(f => f.type === 'line')
+      .map(f => ({
+        coords:   extractCoords(f.geometry),
+        color:    activeStudyLayer.color,
+        width:    3,
+        label:    f.name,
+        layerKey: `study_layer_${activeStudyLayer.id}`,
+      }))
+      .filter(r => r.coords.length >= 2);
+  }, [activeStudyLayer, studyLayerFeatures]);
 
   const satelliteRouteLines = useMemo(() => [
     ...(showLeakLayer ? leakRouteLines : []),
-  ], [showLeakLayer, leakRouteLines]);
+    ...studyLayerRouteLines,
+  ], [showLeakLayer, leakRouteLines, studyLayerRouteLines]);
 
 
   const refreshAreaProducts = useCallback(async (options?: { requireNative?: boolean; bbox?: [number, number, number, number] | null; polygon?: [number, number][] | null }) => {
@@ -827,16 +1021,37 @@ export default function SatelliteIntelLegacyShell() {
 
   // Extraction layers for map rendering (per-layer color-coded)
   const extractionLayerEntries = useMemo(() => {
-    if (!layerExtractionResult || !Array.isArray(layerExtractionResult.layers)) return [];
-    return layerExtractionResult.layers
-      .map((l: any) => ({
-        layerKey: l.layer_key,
-        layerName: l.layer_name,
-        color: l.color || '#38bdf8',
-        geojson: l.geojson || { type: 'FeatureCollection', features: [] },
-        visible: layerExtractSelectedKeys.includes(l.layer_key),
-      }));
-  }, [layerExtractionResult, layerExtractSelectedKeys]);
+    const baseEntries = !layerExtractionResult || !Array.isArray(layerExtractionResult.layers)
+      ? []
+      : layerExtractionResult.layers.map((l: any) => ({
+          layerKey: l.layer_key,
+          layerName: l.layer_name,
+          color: l.color || '#38bdf8',
+          geojson: l.geojson || { type: 'FeatureCollection', features: [] },
+          visible: layerExtractSelectedKeys.includes(l.layer_key),
+        }));
+
+    // Also show study layer polygons as extraction-style overlay
+    if (activeStudyLayer && studyLayerFeatures.length > 0) {
+      const polygonFeatures = studyLayerFeatures
+        .filter(f => f.type === 'polygon')
+        .map(f => ({
+          type: 'Feature',
+          geometry: f.geometry,
+          properties: { name: f.name },
+        }));
+      if (polygonFeatures.length > 0) {
+        baseEntries.push({
+          layerKey:  `study_layer_${activeStudyLayer.id}`,
+          layerName: activeStudyLayer.name,
+          color:     activeStudyLayer.color,
+          geojson:   { type: 'FeatureCollection' as const, features: polygonFeatures },
+          visible:   true,
+        });
+      }
+    }
+    return baseEntries;
+  }, [layerExtractionResult, layerExtractSelectedKeys, activeStudyLayer, studyLayerFeatures]);
 
   useEffect(() => {
     syncClientTenantFromEnv();
@@ -1047,6 +1262,17 @@ export default function SatelliteIntelLegacyShell() {
           if (next && encroachMarkers.length === 0) loadEncroachLayer();
           patchRibbon({ activeGroup: 'monitoring' });
         }}
+        showAssetsOverlay={showAssetsOverlay}
+        assetsOverlayCount={assetsOverlayMarkers.length}
+        onToggleAssetsOverlay={() => {
+          const next = !showAssetsOverlay;
+          setShowAssetsOverlay(next);
+          if (next && assetsOverlayMarkers.length === 0) loadAssetsOverlay();
+        }}
+        activeStudyLayer={activeStudyLayer}
+        onOpenStudyLayer={handleOpenStudyLayer}
+        onCloseStudyLayer={handleCloseStudyLayer}
+        onStudyLayersChange={setStudyLayersList}
       />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -1067,17 +1293,152 @@ export default function SatelliteIntelLegacyShell() {
             mode="engineering"
           />
         ) : isMonitoringMode ? (
-          /* monitoring mode: SmartAlertsPanel only if there are active alerts or a polygon is drawn */
-          /* Otherwise collapse this panel to free up space for the map */
-          effectivePolygon || fireMarkers.length > 0 || leakMarkers.length > 0 || urbanLeakMarkers.length > 0 || encroachMarkers.length > 0 ? (
-          <div className="w-72 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col overflow-hidden transition-all duration-300">
-            <SmartAlertsPanel
-              scenes={scenes}
-              drawnPolygon={effectivePolygon}
-              onResultReady={() => {}}
-            />
+          /* Monitoring Report Panel — single wide scrollable panel */
+          <div className="w-96 shrink-0 border-l border-slate-800 bg-slate-900/80 flex flex-col overflow-hidden" dir="rtl">
+            {/* Header */}
+            <div className="shrink-0 px-3 py-2.5 bg-gradient-to-l from-orange-950/40 to-slate-900 border-b border-orange-800/30">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🛰️</span>
+                <div>
+                  <p className="text-xs font-bold text-orange-200">تقرير الاستخبارات الفضائية</p>
+                  <p className="text-[10px] text-slate-500">VIIRS + MODIS — {new Date().toLocaleDateString('ar-LY',{day:'numeric',month:'short'})}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+
+              {/* Fire section */}
+              {showFireLayer ? (
+                fireLoading ? (
+                  <div className="px-3 py-4 flex flex-col items-center gap-2 border-b border-slate-800">
+                    <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center animate-pulse"><span className="text-lg">🔥</span></div>
+                    <p className="text-xs text-slate-400 text-center">جاري تحميل بيانات الحرائق…</p>
+                    <p className="text-[10px] text-slate-600">NASA FIRMS VIIRS — قد يستغرق 10–30 ثانية</p>
+                  </div>
+                ) : fireMarkers.length > 0 ? (() => {
+                  const s   = (fireApiData?.summary) ?? {};
+                  // Use all_for_report (includes gas flares) for accurate counts
+                  const allForReport: any[] = fireApiData?.all_for_report ?? [];
+                  const countByCls = (cls: string) =>
+                    allForReport.filter((c:any) => c.classification === cls).length;
+                  const urbanCount   = countByCls('urban_incident')    || fireMarkers.filter((m:any)=>m.label?.includes('حضري')).length;
+                  const fireCount    = countByCls('confirmed_fire')    || fireMarkers.filter((m:any)=>m.label?.includes('مؤكد')).length;
+                  const recurCount   = countByCls('recurring_anomaly') || fireMarkers.filter((m:any)=>m.label?.includes('شذوذ')).length;
+                  const flareCount   = countByCls('gas_flare')         || 0;
+                  const singleCount  = countByCls('single_detection')  || 0;
+                  const totalAll     = allForReport.length || fireMarkers.length;
+                  const alerts: any[] = (fireApiData?.alert_clusters ?? []).slice(0,5);
+                  const riskLevel   = s.risk_level ?? (urbanCount>5?'critical':urbanCount>0?'high':'medium');
+                  const riskColor   = riskLevel==='critical'?'text-red-300':riskLevel==='high'?'text-orange-300':'text-amber-300';
+                  const riskBg      = riskLevel==='critical'?'bg-red-500/10 border-red-500/30':riskLevel==='high'?'bg-orange-500/10 border-orange-500/30':'bg-amber-500/10 border-amber-500/30';
+                  const totalAlerts = s.alert_worthy ?? (urbanCount + fireCount);
+                  const cities      = (s.urban_cities as string[] | undefined) ?? [];
+                  return (
+                  <div className="border-b border-slate-800">
+                    <div className={`mx-3 mt-2.5 mb-2 px-3 py-2 rounded-xl border ${riskBg}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-bold ${riskColor}`}>
+                          {riskLevel==='critical'?'🔴 مستوى حرج':riskLevel==='high'?'🟠 مستوى عالٍ':'🟡 متوسط'}
+                        </span>
+                        <span className="text-[10px] text-slate-500">{totalAlerts} تنبيه | {totalAll} رصد</span>
+                      </div>
+                      {cities.length>0&&<p className="text-[10px] text-slate-400 mt-0.5">مدن: {cities.slice(0,3).join('، ')}</p>}
+                    </div>
+                    {/* Classification table */}
+                    <div className="px-3 pb-2">
+                      <table className="w-full text-[11px]">
+                        <tbody className="divide-y divide-slate-800">
+                          {([
+                            {icon:'🔴',lbl:'حوادث حضرية',   val:urbanCount,  c:'text-pink-300',   desc:'حريق قرب مدينة مأهولة'},
+                            {icon:'🔥',lbl:'حرائق مؤكدة',   val:fireCount,   c:'text-red-300',    desc:'رُصد في AM + PM'},
+                            {icon:'🟣',lbl:'حرق صناعي',      val:flareCount,  c:'text-purple-300', desc:'حقول نفط وتصفية — طبيعي'},
+                            {icon:'🟠',lbl:'شذوذ حراري متكرر',val:recurCount, c:'text-orange-300', desc:'3+ أيام — مراقبة'},
+                            {icon:'🟡',lbl:'رصد فردي',        val:singleCount, c:'text-yellow-300', desc:'مرة واحدة — يحتاج تأكيد'},
+                          ] as any[]).filter(x=>x.val>0).map(({icon,lbl,val,c,desc})=>(
+                            <tr key={lbl} className="hover:bg-slate-800/40">
+                              <td className="py-1.5 pr-1"><span className={`font-medium ${c}`}>{icon} {lbl}</span></td>
+                              <td className={`py-1.5 font-bold text-center w-8 ${c}`}>{val}</td>
+                              <td className="py-1.5 pl-1 text-slate-600 text-[9px]">{desc}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t-2 border-slate-700">
+                            <td className="py-1 text-slate-400 font-semibold">الإجمالي</td>
+                            <td className="py-1 font-bold text-center text-slate-300">{totalAll}</td>
+                            <td className="py-1 text-slate-600 text-[9px]">7 أيام الأخيرة</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    {alerts.length>0&&(
+                    <div className="px-3 pb-2.5">
+                      <p className="text-[10px] font-bold text-slate-400 mb-1.5">⚡ أبرز التهديدات</p>
+                      <div className="space-y-1">
+                        {alerts.map((c:any,i:number)=>{
+                          const isUrban=c.classification==='urban_incident', isFire=c.classification==='confirmed_fire', isFlare=c.classification==='gas_flare';
+                          const clr=isUrban?'text-pink-300':isFire?'text-red-300':isFlare?'text-purple-300':'text-orange-300';
+                          const bg2=isUrban?'bg-pink-500/10 border-pink-500/20 hover:bg-pink-500/20':isFire?'bg-red-500/10 border-red-500/20 hover:bg-red-500/20':'bg-slate-800/40 border-slate-700/30 hover:bg-slate-700/50';
+                          const title=isUrban?`🔴 ${c.nearest_city??'مدينة'}`:isFire?'🔥 حريق مؤكد':isFlare?`🟣 ${c.known_flare_site??'حقل غاز'}`:'🟠 شذوذ';
+                          return(
+                            <button key={i} className={`w-full text-right px-2 py-1.5 rounded-lg text-[10px] border transition-colors ${bg2}`}
+                              onClick={()=>c.lat&&c.lon&&setMapPopup({lat:c.lat,lon:c.lon,layerKey:'fire_viirs',label:title,
+                                tooltip:[`القوة الحرارية: ${c.max_frp_mw??'?'} MW`,c.days_active?`${c.days_active} أيام نشطة`:'',c.alert_reason??'',c.nearest_city?`أقرب مدينة: ${c.nearest_city}`:'']
+                                  .filter(Boolean).join('\n')})}>
+                              <div className="flex items-center justify-between"><span className={`font-semibold ${clr}`}>{title}</span><span className="text-slate-500">{c.max_frp_mw??'?'} MW</span></div>
+                              <p className="text-slate-500 truncate">{(c.alert_reason??'').slice(0,55)}</p>
+                            </button>);
+                        })}
+                      </div>
+                    </div>
+                    )}
+                    <div className="px-3 pb-3">
+                      <details className="text-[10px] text-slate-500"><summary className="cursor-pointer hover:text-slate-400 mb-1">📖 دليل التصنيف</summary>
+                        <div className="space-y-1 bg-slate-800/40 rounded-lg p-2">
+                          <p>🔴 <strong className="text-pink-400">حادث حضري</strong>: حريق قرب مدينة — تحقق</p>
+                          <p>🔥 <strong className="text-red-400">حريق مؤكد</strong>: AM + PM — نار حقيقية</p>
+                          <p>🟠 <strong className="text-orange-400">شذوذ متكرر</strong>: 3+ أيام — نار بدوية</p>
+                          <p>🟣 <strong className="text-purple-400">حرق صناعي</strong>: حقول نفط — طبيعي</p>
+                        </div>
+                      </details>
+                    </div>
+                  </div>);
+                })() : (
+                  <div className="px-3 py-3 border-b border-slate-800 text-center space-y-2">
+                    <p className="text-xs text-slate-500">لا توجد بيانات حرائق في الفترة الحالية</p>
+                    <button
+                      onClick={() => { setFireMarkers([]); loadFireLayer(); }}
+                      className="px-3 py-1 text-[10px] bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg border border-orange-500/30 transition-colors"
+                    >
+                      🔄 إعادة المحاولة
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="px-3 py-4 flex flex-col items-center gap-2 border-b border-slate-800">
+                  <div className="w-8 h-8 rounded-full bg-orange-500/10 flex items-center justify-center"><span className="text-lg">🔥</span></div>
+                  <p className="text-xs text-slate-400 text-center">انقر على <strong className="text-orange-300">حرائق VIIRS</strong> في الشريط العلوي لتفعيل الطبقة</p>
+                </div>
+              )}
+              {/* Water Anomaly Scanner — ماسح الشذوذات المائية */}
+              <WaterScannerPanel
+                drawnPolygon={effectivePolygon}
+                onStartDraw={() => { setDrawMode('polygon'); setWaterScanDrawing(true); }}
+                onCancelDraw={() => { setDrawMode('off'); setWaterScanDrawing(false); }}
+                onClearDraw={() => { setDrawnPolygon(null); setDrawMode('off'); setWaterScanDrawing(false); }}
+                isDrawing={waterScanDrawing}
+                onResultReady={(markers) => setWaterScanMarkers(markers)}
+                onFlyTo={(lon, lat) => setFlyToPin({ lon, lat, zoom: 12 })}
+              />
+              {showEncroachLayer && encroachMarkers.length>0 && (
+              <div className="px-3 py-2 border-b border-slate-800">
+                <p className="text-xs font-semibold text-rose-300">🚧 اعتداءات الحرم ({encroachMarkers.length})</p>
+              </div>)}
+
+            </div>
+            <div className="shrink-0 px-3 py-2 border-t border-slate-800 bg-slate-900/80">
+              <p className="text-[10px] text-slate-600">NOAA-20 + SNPP + MODIS | ≥0.5MW | 375م</p>
+            </div>
           </div>
-          ) : null
         ) : (
           <SatIntelLeftPanel
             scenes={scenes}
@@ -1099,13 +1460,13 @@ export default function SatelliteIntelLegacyShell() {
 
         <div className={`min-w-0 relative transition-all duration-300 ${rightPanelSize === 'full' ? 'w-0 overflow-hidden flex-none' : 'flex-1'}`}>
 
-          {/* Task Launch Panel — shown when no task selected yet */}
-          {taskMode === null && (
-            <TaskLaunchPanel
-              onSelectTask={(mode) => {
+          {/* Task Launch Panel — absolute overlay, only when NOT in monitoring/pipeline mode */}
+          {taskMode === null && !isMonitoringMode && !isPipelineMode && (
+            <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+              <TaskLaunchPanel
+                onSelectTask={(mode) => {
                 setTaskMode(mode);
                 setTaskStep(0);
-                // Activate the first step's ribbon group
                 if (mode !== 'custom') {
                   const task = TASKS.find(t => t.id === mode);
                   if (task && task.steps.length > 0) {
@@ -1114,6 +1475,7 @@ export default function SatelliteIntelLegacyShell() {
                 }
               }}
             />
+            </div>
           )}
 
           <SceneMapPanel
@@ -1139,6 +1501,15 @@ export default function SatelliteIntelLegacyShell() {
               } else {
                 setDrawnPolygon(coords);
                 setActiveArea(null);
+                // If a study layer is active, auto-save this feature to it
+                if (activeStudyLayer) {
+                  const isModePolygon = drawMode === 'polygon' || drawMode === 'box';
+                  const geomType = isModePolygon ? 'Polygon' : 'LineString';
+                  const geometry = isModePolygon
+                    ? { type: 'Polygon', coordinates: [[...coords.map(c => [c[0], c[1]] as [number,number]), [coords[0][0], coords[0][1]]]] }
+                    : { type: 'LineString', coordinates: coords.map(c => [c[0], c[1]]) };
+                  handleStudyLayerFeatureSave(geometry);
+                }
               }
             }}
             onDrawEnd={() => { setDrawMode('off'); if (isLayersMode) setGisDrawingMode('idle'); }}
@@ -1183,7 +1554,64 @@ export default function SatelliteIntelLegacyShell() {
             riskGeojson={riskGeojson}
             satelliteOverlayMarkers={satelliteOverlayMarkers.length > 0 ? satelliteOverlayMarkers : undefined}
             satelliteRouteLines={satelliteRouteLines.length > 0 ? satelliteRouteLines : undefined}
+            onOverlayMarkerClick={(m) => {
+                setMapPopup(m);
+                // Fly map to the clicked marker location
+                setFlyToPin({ lon: m.lon, lat: m.lat, zoom: 13 });
+              }}
           />
+
+          {/* ── Fire/satellite marker popup ─────────────────────────────── */}
+          {mapPopup && (
+            <div
+              className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-auto min-w-[320px] max-w-[420px]"
+              dir="rtl"
+            >
+              <div className={`rounded-2xl border shadow-2xl text-sm overflow-hidden ${
+                mapPopup.layerKey === 'fire_viirs'   ? 'bg-slate-950 border-orange-400/60' :
+                mapPopup.layerKey === 'urban_leak'   ? 'bg-slate-950 border-blue-400/60' :
+                mapPopup.layerKey === 'gas_monitor'  ? 'bg-slate-950 border-violet-400/60' :
+                                                       'bg-slate-950 border-cyan-400/60'
+              }`}>
+                {/* ── Header ──────────────────────────────── */}
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${
+                  mapPopup.layerKey === 'fire_viirs' ? 'border-orange-500/30 bg-orange-500/15' :
+                  mapPopup.layerKey === 'urban_leak' ? 'border-blue-500/30 bg-blue-500/15' :
+                                                       'border-cyan-500/30 bg-cyan-500/15'
+                }`}>
+                  <span className="font-bold text-white text-base leading-tight">{mapPopup.label}</span>
+                  <button onClick={() => setMapPopup(null)} className="text-slate-400 hover:text-white text-xl leading-none shrink-0 ml-3">×</button>
+                </div>
+                {/* ── Content ─────────────────────────────── */}
+                <div className="px-4 py-3 space-y-2">
+                  {mapPopup.tooltip.split('\n').filter(Boolean).map((line, i) => (
+                    line !== mapPopup.label ? (
+                      <p key={i} className="text-slate-200 text-sm leading-relaxed flex items-start gap-2">
+                        <span className="shrink-0 mt-0.5">
+                          {line.startsWith('🔥') || line.startsWith('🔴') || line.startsWith('🟠') || line.startsWith('🟣') || line.startsWith('🟡') ? '' :
+                           line.startsWith('احتمال') ? '📊' :
+                           line.startsWith('القوة') ? '⚡' :
+                           line.startsWith('نشط') ? '📅' :
+                           line.startsWith('أقرب') ? '📍' :
+                           line.startsWith('آخر') ? '🕐' :
+                           line.startsWith('نوع') ? '🔧' : '•'}
+                        </span>
+                        <span>{line}</span>
+                      </p>
+                    ) : null
+                  ))}
+                </div>
+                {/* ── Footer ──────────────────────────────── */}
+                <div className="px-4 pb-3 pt-1 flex items-center justify-between border-t border-slate-800/80 mt-1">
+                  <span className="text-slate-500 text-xs font-mono">{mapPopup.lat.toFixed(5)}°N {mapPopup.lon.toFixed(5)}°E</span>
+                  <span className="text-slate-600 text-[10px]">
+                    {mapPopup.layerKey === 'fire_viirs' ? 'NASA FIRMS VIIRS' :
+                     mapPopup.layerKey === 'urban_leak' ? 'Sentinel-2 SH Stats' : 'Sentinel Hub'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {addPointMode && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-900/90 border border-blue-500/60 text-blue-100 text-xs shadow-xl backdrop-blur-sm">
@@ -1399,7 +1827,8 @@ export default function SatelliteIntelLegacyShell() {
           )}
         </div>
 
-        <SatIntelRightPanel
+        {/* SatIntelRightPanel — hidden in monitoring & pipeline modes (they have their own panels) */}
+        {!isMonitoringMode && !isPipelineMode && !focusMode && <SatIntelRightPanel
           summary={summary}
           loading={running}
           error={error}
@@ -1455,7 +1884,7 @@ export default function SatelliteIntelLegacyShell() {
           hideTabBar={forcedTab !== null || isLayersMode}
           panelSize={rightPanelSize}
           onPanelSizeChange={setRightPanelSize}
-        />
+        />}
 
         {/* Engineering asset modals */}
         {layerShowCreateModal && (

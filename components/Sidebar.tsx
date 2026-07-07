@@ -8,7 +8,7 @@ import {
   Activity, Layers, Briefcase, Scale, Users, Cpu,
   ShoppingCart, Heart, Leaf, Wrench, Megaphone, Banknote,
   Target, Settings, Award, Shield, GraduationCap, Eye,
-  HardHat, Fuel, MapPin, LayoutDashboard,
+  HardHat, Fuel, MapPin, LayoutDashboard, UserCheck, Smartphone,
 } from 'lucide-react';
 import { useActivatedDepartments, sidebarDepts, type ActivatedDept } from '@/store/activatedDepartments';
 import { useUserStore } from '@/store/useUserStore';
@@ -74,9 +74,11 @@ const STATIC_NAV = [
 
 // Admin-only static items (shown below dept list)
 const ADMIN_STATIC_NAV = [
-  { href: '/dashboard/spatial-analytics',        icon: <Layers    className="w-5 h-5 shrink-0" />, label: 'التحليلات المكانية' },
-  { href: '/dashboard/system-explorer',          icon: <Activity  className="w-5 h-5 shrink-0" />, label: 'مراقبة النظام' },
-  { href: '/dashboard/admin-gateway',            icon: <Building2 className="w-5 h-5 shrink-0" />, label: 'إعدادات النظام' },
+  { href: '/dashboard/admin-gateway/security/mobile-access', icon: <Smartphone className="w-5 h-5 shrink-0" />, label: 'تسجيلات الموبايل' },
+  { href: '/dashboard/admin-gateway/org-structure',          icon: <UserCheck  className="w-5 h-5 shrink-0" />, label: 'الهيكل التنظيمي' },
+  { href: '/dashboard/spatial-analytics',                    icon: <Layers     className="w-5 h-5 shrink-0" />, label: 'التحليلات المكانية' },
+  { href: '/dashboard/system-explorer',                      icon: <Activity   className="w-5 h-5 shrink-0" />, label: 'مراقبة النظام' },
+  { href: '/dashboard/admin-gateway',                        icon: <Building2  className="w-5 h-5 shrink-0" />, label: 'إعدادات النظام' },
 ];
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -100,8 +102,13 @@ export default function Sidebar({ className }: { className?: string }) {
   });
   const isAdmin =
     currentUser?.role === 'super_admin' ||
+    currentUser?.role === 'admin'       ||
+    currentUser?.role === 'founder'     ||
+    currentUser?.role === 'tenant_admin'||
     !!currentUser?.roles?.includes('admin') ||
-    !!currentUser?.roles?.includes('super_admin');
+    !!currentUser?.roles?.includes('super_admin') ||
+    !!currentUser?.roles?.includes('founder') ||
+    !!currentUser?.roles?.includes('tenant_admin');
   const isSupervisorOrAbove =
     isAdmin ||
     ['supervisor', 'section_manager', 'dept_manager', 'site_manager',
@@ -244,31 +251,33 @@ export default function Sidebar({ className }: { className?: string }) {
             ))}
           </div>
         )}
-
-        {/* ── Admin / system tools (bottom of nav, admin-only) ── */}
-        {bottomNavItems.length > 0 && (
-          <div className="pt-3 border-t border-slate-800/50 mt-2 space-y-0.5">
-            {!isCollapsed && (
-              <p className="px-3 py-1 text-[10px] uppercase tracking-widest text-slate-600 font-semibold">إدارة النظام</p>
-            )}
-            {bottomNavItems.map((item) => {
-              const hrefPath = item.href.split('?')[0];
-              const isActive = pathname?.startsWith(hrefPath) ?? false;
-              return (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  isCollapsed={isCollapsed}
-                  active={isActive}
-                  highlight={false}
-                />
-              );
-            })}
-          </div>
-        )}
       </nav>
+
+      {/* ── Admin / system tools — FIXED above footer, always visible ── */}
+      {bottomNavItems.length > 0 && (
+        <div className="border-t border-violet-900/50 bg-slate-950 px-3 py-2 space-y-0.5 shrink-0">
+          {!isCollapsed && (
+            <p className="px-1 py-1 text-[9px] uppercase tracking-widest text-violet-600 font-bold flex items-center gap-1">
+              <Shield className="w-3 h-3" /> إدارة النظام
+            </p>
+          )}
+          {bottomNavItems.map((item) => {
+            const hrefPath = item.href.split('?')[0];
+            const isActive = pathname?.startsWith(hrefPath) ?? false;
+            return (
+              <NavItem
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                isCollapsed={isCollapsed}
+                active={isActive}
+                highlight={false}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {/* User footer */}
       <div className="p-4 border-t border-slate-800 mt-auto flex justify-center">

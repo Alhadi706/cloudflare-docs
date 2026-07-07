@@ -404,11 +404,11 @@ export default function AssetTopBar({
         {/* Add child asset — GIS only */}
         <button
           onClick={onAddChildAsset}
-          title="إضافة أصل بنت إلى أصل رئيسي"
+          title="إضافة أصل فرعي إلى أصل رئيسي"
           className="p-2 rounded-lg flex items-center gap-1.5 text-xs text-gray-400 hover:text-amber-300 hover:bg-amber-900/20 border border-transparent hover:border-amber-700/40 transition-all"
         >
           <Plus style={{ width: 16, height: 16 }} />
-          <span className="hidden sm:inline text-[11px]">أصل بنت</span>
+          <span className="hidden sm:inline text-[11px]">أصل فرعي</span>
         </button>
 
         <div className="w-px h-6 bg-gray-700/60 mx-1.5" />
