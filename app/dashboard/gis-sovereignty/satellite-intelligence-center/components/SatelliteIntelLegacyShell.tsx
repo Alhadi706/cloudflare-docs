@@ -659,6 +659,35 @@ export default function SatelliteIntelLegacyShell() {
   useEffect(() => {
     setShowAssetsOverlay(true);
     loadAssetsOverlay();
+
+    // Load operational assets with FULL GEOMETRY into the principal layer
+    // so they render as actual polygons/lines, not just point markers
+    const TENANT_ID = (typeof window !== 'undefined' && window.localStorage.getItem('tenant_id')) || '';
+    fetch('/api/engineering/workspace/principal-assets', {
+      headers: TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {},
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then((assets: any[]) => {
+        const principalList = assets.map((a: any) => ({
+          id:               a.id,
+          name:             a.name,
+          geometry_type:    a.geometry?.type === 'LineString' || a.geometry?.type === 'MultiLineString' ? 'path' : 'polygon',
+          classification:   a.classification ?? null,
+          owner_department: a.owner_department ?? null,
+          status:           a.status ?? 'active',
+          health_score:     a.health_score ?? null,
+          geometry:         a.geometry ?? null,
+          geometry_json:    a.geometry ?? null,
+          created_at:       a.created_at ?? null,
+          tenant_id:        a.tenant_id ?? null,
+          site_id:          null,
+          length_km:        null,
+          description:      null,
+        }));
+        setLayerPrincipalAssets(principalList);
+      })
+      .catch(() => {});
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -683,18 +712,18 @@ export default function SatelliteIntelLegacyShell() {
     setAssetsOverlayLoading(true);
     try {
       const TENANT_ID = (typeof window !== 'undefined' && window.localStorage.getItem('tenant_id')) || 'aaaaaaaa-0000-4000-a000-000000000001';
-      const res = await fetch('/api/engineering/workspace/principal-assets?limit=500', {
+      const res = await fetch(`/api/v1/satellite/registered-assets?limit=500&tenant_id=${TENANT_ID}`, {
         headers: { 'X-Tenant-ID': TENANT_ID },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const assets: any[] = data.assets ?? data.data ?? [];
+      const assets: any[] = data.assets ?? [];
       const markers = assets
         .filter((a: any) => a.geometry?.coordinates)
         .map((a: any) => {
           const geom = a.geometry;
           let lon = 0, lat = 0;
-          if (geom.type === 'Point')      { [lon, lat] = geom.coordinates; }
+          if (geom.type === 'Point')           { [lon, lat] = geom.coordinates; }
           else if (geom.type === 'LineString') { [lon, lat] = geom.coordinates[Math.floor(geom.coordinates.length / 2)]; }
           else if (geom.type === 'Polygon')    { [lon, lat] = geom.coordinates[0][0]; }
           if (!lon && !lat) return null;
@@ -705,9 +734,9 @@ export default function SatelliteIntelLegacyShell() {
             lon, lat,
             color:    '#14b8a6',
             radius:   6,
-            label:    `${typeIcon} ${a.name ?? a.asset_name ?? 'أصل'}`,
+            label:    `${typeIcon} ${a.name ?? 'أصل'}`,
             tooltip:  [
-              a.name ?? a.asset_name,
+              a.name,
               a.asset_type ? `النوع: ${a.asset_type}` : '',
               a.status     ? `الحالة: ${a.status}` : '',
             ].filter(Boolean).join('\n'),
@@ -1031,6 +1060,26 @@ export default function SatelliteIntelLegacyShell() {
           visible: layerExtractSelectedKeys.includes(l.layer_key),
         }));
 
+    // ── الأصول التشغيلية — تُعرض كأشكالها الحقيقية (مضلع / مسار) ──────────
+    if (layerPrincipalAssets.length > 0) {
+      const assetFeatures = layerPrincipalAssets
+        .filter((a: any) => a.geometry && a.geometry.type && a.geometry.coordinates)
+        .map((a: any) => ({
+          type: 'Feature',
+          geometry: a.geometry,
+          properties: { name: a.name, asset_id: a.id },
+        }));
+      if (assetFeatures.length > 0) {
+        baseEntries.push({
+          layerKey:  'operational_assets',
+          layerName: 'الأصول التشغيلية',
+          color:     '#10b981', // emerald — same as engineering workspace
+          geojson:   { type: 'FeatureCollection' as const, features: assetFeatures },
+          visible:   true,
+        });
+      }
+    }
+
     // Also show study layer polygons as extraction-style overlay
     if (activeStudyLayer && studyLayerFeatures.length > 0) {
       const polygonFeatures = studyLayerFeatures
@@ -1051,7 +1100,7 @@ export default function SatelliteIntelLegacyShell() {
       }
     }
     return baseEntries;
-  }, [layerExtractionResult, layerExtractSelectedKeys, activeStudyLayer, studyLayerFeatures]);
+  }, [layerExtractionResult, layerExtractSelectedKeys, activeStudyLayer, studyLayerFeatures, layerPrincipalAssets]);
 
   useEffect(() => {
     syncClientTenantFromEnv();

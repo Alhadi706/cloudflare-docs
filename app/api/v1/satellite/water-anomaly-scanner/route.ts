@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
     mode = 'polygon',      // 'polygon' | 'asset' | 'corridor' | 'bbox'
     polygon,               // [[lon,lat], ...] for mode=polygon
     asset_id,              // UUID for mode=asset
+    asset_geometry,        // optional: GeoJSON geometry passed directly (avoids backend fetch)
     waypoints,             // [[lon,lat], ...] for mode=corridor
     bbox: inputBbox,       // [minLon,minLat,maxLon,maxLat] for mode=bbox
     buffer_m = 500,        // buffer in meters for corridor/asset
@@ -153,31 +154,50 @@ export async function POST(req: NextRequest) {
     geometrySource = 'polygon';
 
   } else if (mode === 'asset' && asset_id) {
-    // Fetch asset geometry from backend
-    const tenantId = extractTenantId(req) || 'aaaaaaaa-0000-4000-a000-000000000001';
-    try {
-      const assetRes = await fetch(`${BACKEND}/api/v1/workspace/assets/${asset_id}?tenant_id=${tenantId}`, {
-        headers: buildBackendHeaders(tenantId),
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!assetRes.ok) throw new Error(`Asset fetch: HTTP ${assetRes.status}`);
-      const asset = await assetRes.json();
-      assetGeometry = asset.geometry;
-      const p = asset.properties ?? {};
-      scanName = scanName || p.asset_name || p.name || 'أصل مجهول';
-      if (assetGeometry?.coordinates) {
-        const coords = assetGeometry.type === 'LineString'
-          ? assetGeometry.coordinates as [number,number][]
-          : assetGeometry.type === 'Polygon'
-          ? assetGeometry.coordinates[0] as [number,number][]
-          : (assetGeometry.coordinates.flat?.(2) as [number,number][]) ?? [];
-        if (coords.length > 0) {
-          scanBbox = expandBbox(polygonToBbox(coords), bufferDeg + 0.005);
-        }
+    // Use geometry passed directly from client (preferred — avoids backend single-fetch 405)
+    if (asset_geometry?.coordinates) {
+      assetGeometry = asset_geometry;
+      scanName = scanName || name || 'أصل مسجل';
+      const coords = assetGeometry.type === 'LineString'
+        ? assetGeometry.coordinates as [number,number][]
+        : assetGeometry.type === 'Polygon'
+        ? assetGeometry.coordinates[0] as [number,number][]
+        : (assetGeometry.coordinates.flat?.(2) as [number,number][]) ?? [];
+      if (coords.length > 0) {
+        scanBbox = expandBbox(polygonToBbox(coords), bufferDeg + 0.005);
       }
       geometrySource = 'asset';
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: `فشل جلب الأصل: ${e.message}` }, { status: 422 });
+    } else {
+      // Fallback: try fetching from backend list and filtering by ID
+      const tenantId = extractTenantId(req) || 'aaaaaaaa-0000-4000-a000-000000000001';
+      try {
+        const assetRes = await fetch(`${BACKEND}/api/v1/workspace/assets?tenant_id=${tenantId}&limit=500`, {
+          headers: buildBackendHeaders(tenantId),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!assetRes.ok) throw new Error(`Asset list fetch: HTTP ${assetRes.status}`);
+        const allAssets: any[] = await assetRes.json();
+        const found = Array.isArray(allAssets)
+          ? allAssets.find((f: any) => f.id === asset_id)
+          : null;
+        if (!found) throw new Error(`الأصل ${asset_id} غير موجود`);
+        assetGeometry = found.geometry;
+        const p = found.properties ?? {};
+        scanName = scanName || p.asset_name || p.name || 'أصل مجهول';
+        if (assetGeometry?.coordinates) {
+          const coords = assetGeometry.type === 'LineString'
+            ? assetGeometry.coordinates as [number,number][]
+            : assetGeometry.type === 'Polygon'
+            ? assetGeometry.coordinates[0] as [number,number][]
+            : (assetGeometry.coordinates.flat?.(2) as [number,number][]) ?? [];
+          if (coords.length > 0) {
+            scanBbox = expandBbox(polygonToBbox(coords), bufferDeg + 0.005);
+          }
+        }
+        geometrySource = 'asset';
+      } catch (e: any) {
+        return NextResponse.json({ ok: false, error: `فشل جلب الأصل: ${e.message}` }, { status: 422 });
+      }
     }
 
   } else if (mode === 'corridor' && waypoints?.length >= 2) {

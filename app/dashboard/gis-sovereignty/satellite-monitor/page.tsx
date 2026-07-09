@@ -21,22 +21,41 @@ const MapCenterCanvas = dynamic(() => import('../components/MapCenterCanvas'), {
   ),
 });
 
-const SOURCES: { key: BasemapKey; icon: string; desc: string }[] = [
-  { key: 'satellite', icon: '🛰️', desc: 'Esri World Imagery'   },
-  { key: 'ndvi',      icon: '🌿', desc: 'Sentinel-2 NDVI (EOX)'  },
-  { key: 'terrain',   icon: '🏔️', desc: 'OpenTopoMap DEM'        },
-  { key: 'road',      icon: '🗺️', desc: 'OpenStreetMap'          },
-  { key: 'light',     icon: '☀️', desc: 'CartoDB Light'          },
-  { key: 'dark',      icon: '🌑', desc: 'CartoDB Dark'           },
+const SOURCES: { key: BasemapKey; icon: string; desc: string; group: string }[] = [
+  // Esri / base
+  { key: 'satellite', icon: '🛰️', desc: 'Esri (ثابتة، دقة عالية)',       group: 'خرائط أساسية' },
+  { key: 'terrain',   icon: '🏔️', desc: 'OpenTopoMap DEM',                 group: 'خرائط أساسية' },
+  { key: 'road',      icon: '🗺️', desc: 'OpenStreetMap',                   group: 'خرائط أساسية' },
+  { key: 'dark',      icon: '🌑', desc: 'CartoDB Dark',                    group: 'خرائط أساسية' },
+  // Sentinel-2 live
+  { key: 's2_tci',   icon: '📸', desc: 'لون حقيقي — متجدد كل 5 أيام',   group: 'Sentinel-2 (حي)' },
+  { key: 's2_ndvi',  icon: '🌿', desc: 'NDVI غطاء نباتي',                 group: 'Sentinel-2 (حي)' },
+  { key: 's2_ndwi',  icon: '💧', desc: 'NDWI مؤشر المياه',                group: 'Sentinel-2 (حي)' },
+  { key: 's2_cir',   icon: '🔴', desc: 'أشعة تحت حمراء CIR',              group: 'Sentinel-2 (حي)' },
+  { key: 's2_swir',  icon: '🟠', desc: 'SWIR حرارة / بيولوجيا',          group: 'Sentinel-2 (حي)' },
+  // Sentinel-1 SAR
+  { key: 's1_sar',   icon: '📡', desc: 'رادار VV — يخترق الغيوم والليل', group: 'Sentinel-1 SAR (حي)' },
+  { key: 's1_rgb',   icon: '🎨', desc: 'رادار RGB (VV+VH) — مركب',       group: 'Sentinel-1 SAR (حي)' },
+  // DEM
+  { key: 'dem',       icon: '🏔️', desc: 'ارتفاع التضاريس — Copernicus 30م', group: 'بيانات إضافية' },
+  { key: 'hillshade', icon: '🌄', desc: 'تظليل التضاريس (Relief)',           group: 'بيانات إضافية' },
 ];
 
 function SatelliteMonitorContent() {
   const setWorkspace = useGisEngine(s => s.setWorkspace);
+  const setCenter    = useGisEngine(s => s.setCenter);
+  const setZoom      = useGisEngine(s => s.setZoom);
   const basemap      = useGisEngine(s => s.basemap);
   const setBasemap   = useGisEngine(s => s.setBasemap);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => { setWorkspace('monitor'); }, []);
+  useEffect(() => {
+    setWorkspace('monitor');
+    // Center on Libya — zoom 8 = مستوى مناسب لرؤية ليبيا مع تفاصيل Sentinel
+    setCenter([17.0, 27.0]);
+    setZoom(8);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const current = SOURCES.find(s => s.key === basemap) ?? SOURCES[0];
 
@@ -59,22 +78,30 @@ function SatelliteMonitorContent() {
             <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
           {open && (
-            <div className="absolute left-0 top-full mt-1 w-52 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden" dir="rtl">
-              {SOURCES.map(({ key, icon, desc }) => (
-                <button
-                  key={key}
-                  onClick={() => { setBasemap(key); setOpen(false); }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-700 ${
-                    basemap === key ? 'bg-purple-500/20 text-purple-300 font-semibold' : 'text-slate-300'
-                  }`}
-                >
-                  <span className="text-base">{icon}</span>
-                  <div className="flex-1 text-right">
-                    <div className="font-semibold">{BASEMAPS[key]?.labelAr ?? key}</div>
-                    <div className="text-[10px] text-slate-500">{desc}</div>
+            <div className="absolute left-0 top-full mt-1 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-y-auto max-h-96" dir="rtl">
+              {/* Group sources */}
+              {Array.from(new Set(SOURCES.map(s => s.group))).map(group => (
+                <div key={group}>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-700/50">
+                    {group}
                   </div>
-                  {basemap === key && <span className="text-purple-400">✓</span>}
-                </button>
+                  {SOURCES.filter(s => s.group === group).map(({ key, icon, desc }) => (
+                    <button
+                      key={key}
+                      onClick={() => { setBasemap(key); setOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-slate-700 ${
+                        basemap === key ? 'bg-purple-500/20 text-purple-300 font-semibold' : 'text-slate-300'
+                      }`}
+                    >
+                      <span className="text-sm">{icon}</span>
+                      <div className="flex-1 text-right">
+                        <div className="font-semibold">{BASEMAPS[key]?.labelAr ?? key}</div>
+                        <div className="text-[10px] text-slate-500">{desc}</div>
+                      </div>
+                      {basemap === key && <span className="text-purple-400 text-xs">✓</span>}
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           )}

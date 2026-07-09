@@ -86,8 +86,8 @@ export default function ProjectsManagerPage() {
   const [activeTab, setActiveTab] = useState<'sections' | 'monitoring' | 'correspondence'>('sections');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8" dir="rtl">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-full w-full bg-slate-950 text-slate-100" dir="rtl">
+      <div className="w-full p-4 md:p-6 space-y-6">
 
         <div>
           <Link href="/dashboard/admin-gateway/projects" className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors text-sm mb-4">

@@ -39,7 +39,9 @@ const API = '/api/v1';
 
 export type GisWorkspace = 'satellite' | 'engineering' | 'maintenance' | 'executive' | 'spatial' | 'monitor' | 'remote_sensing';
 
-export type BasemapKey = 'satellite' | 'terrain' | 'light' | 'dark' | 'road' | 'ndvi';
+export type BasemapKey = 'satellite' | 'terrain' | 'light' | 'dark' | 'road' | 'ndvi'
+  | 's2_tci' | 's2_ndvi' | 's2_ndwi' | 's2_cir' | 's2_swir' | 's1_sar' | 's1_rgb'
+  | 'dem' | 'hillshade';
 
 // Drawing modes — used by engineering workspace toolbar
 export type DrawingMode = 'idle' | 'polygon' | 'line' | 'point' | 'aoi-rectangle' | 'trace' | 'orthogonal-polygon' | 'modify' | 'delete' | 'measure-distance' | 'measure-area' | 'inspect-coordinate' | 'pick-location' | 'buffer' | 'nearby' | 'intersect';
@@ -425,15 +427,26 @@ export const LAYER_REGISTRY: LayerDef[] = [
   },
 ];
 
-export const BASEMAPS: Record<BasemapKey, { labelAr: string; url: string; attr: string }> = {
+export const BASEMAPS: Record<BasemapKey, { labelAr: string; url: string; attr: string; group?: string }> = {
   // Use same-origin proxy to avoid browser/network blocking of third-party tile hosts.
-  satellite: { labelAr: 'صور فضائية', url: '/tiles/satellite/{z}/{y}/{x}', attr: 'Esri World Imagery (proxied)' },
-  terrain:   { labelAr: 'تضاريس',    url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',                                               attr: 'OpenTopoMap' },
-  light:     { labelAr: 'فاتح',      url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',                                    attr: 'CartoDB' },
-  dark:      { labelAr: 'داكن',      url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',                                     attr: 'CartoDB' },
-  // OSM is used for road mode as a robust public fallback when Carto tiles are blocked/rate-limited.
-  road:      { labelAr: 'الطرق',     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',                                             attr: 'OpenStreetMap contributors' },
-  ndvi:      { labelAr: 'غطاء نباتي (NDVI)', url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg', attr: 'EOX Sentinel-2 proxy' },
+  satellite: { labelAr: 'صور فضائية (Esri)',  url: '/tiles/satellite/{z}/{y}/{x}',                                                             attr: 'Esri World Imagery (proxied)',   group: 'base'      },
+  terrain:   { labelAr: 'تضاريس',              url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',                                              attr: 'OpenTopoMap',                   group: 'base'      },
+  light:     { labelAr: 'فاتح',                url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',                                   attr: 'CartoDB',                       group: 'base'      },
+  dark:      { labelAr: 'داكن',                url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',                                    attr: 'CartoDB',                       group: 'base'      },
+  road:      { labelAr: 'الطرق',               url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',                                            attr: 'OpenStreetMap contributors',    group: 'base'      },
+  ndvi:      { labelAr: 'NDVI (EOX 2020)',      url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg', attr: 'EOX Sentinel-2 proxy',          group: 'base'      },
+  // ── Sentinel-2 live layers (via CDSE Process API proxy) ────────────────────────────
+  s2_tci:    { labelAr: 'سنتينل-2 لون حقيقي (TCI)', url: '/tiles/sentinel/tci/latest/{z}/{y}/{x}',              attr: 'Copernicus Sentinel-2 L2A — متجدد دورياً', group: 'sentinel' },
+  s2_ndvi:   { labelAr: 'سنتينل-2 NDVI حي',         url: '/tiles/sentinel/ndvi/latest/{z}/{y}/{x}',              attr: 'Copernicus Sentinel-2 — غطاء نباتي حي',  group: 'sentinel' },
+  s2_ndwi:   { labelAr: 'سنتينل-2 NDWI مياه',       url: '/tiles/sentinel/ndwi/latest/{z}/{y}/{x}',              attr: 'Copernicus Sentinel-2 — مؤشر المياه',      group: 'sentinel' },
+  s2_cir:    { labelAr: 'سنتينل-2 أشعة تحت حمراء (CIR)', url: '/tiles/sentinel/cir/latest/{z}/{y}/{x}',         attr: 'Copernicus Sentinel-2 — لون مصطنع',         group: 'sentinel' },
+  s2_swir:   { labelAr: 'سنتينل-2 SWIR حراري',      url: '/tiles/sentinel/swir/latest/{z}/{y}/{x}',              attr: 'Copernicus Sentinel-2 — SWIR',            group: 'sentinel' },
+  // ── Sentinel-1 SAR (radar) ─────────────────────────────────────────────────────
+  s1_sar:    { labelAr: 'سنتينل-1 رادار VV',         url: '/tiles/sentinel/sar/latest/{z}/{y}/{x}',               attr: 'Copernicus Sentinel-1 SAR — يخترق الغيوم', group: 'sentinel' },
+  s1_rgb:    { labelAr: 'سنتينل-1 SAR RGB',        url: '/tiles/sentinel/sar_rgb/latest/{z}/{y}/{x}',           attr: 'Copernicus Sentinel-1 VV/VH — مركب',   group: 'sentinel' },
+  // ── Copernicus DEM ────────────────────────────────────────────────────────────────
+  dem:       { labelAr: 'تضاريس DEM 30م (Copernicus)', url: '/tiles/sentinel/dem/latest/{z}/{y}/{x}',                attr: 'Copernicus DEM GLO-30',               group: 'dem' },
+  hillshade: { labelAr: 'تظليل التضاريس',         url: '/tiles/sentinel/hillshade/latest/{z}/{y}/{x}',         attr: 'Copernicus DEM — Hillshade',              group: 'dem' },
 };
 
 // ══════════════════════════════════════════════════════════════════

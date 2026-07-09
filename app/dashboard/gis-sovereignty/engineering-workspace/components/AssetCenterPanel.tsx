@@ -162,6 +162,7 @@ interface AuditEvent {
 
 interface Props {
   assetId: string | null;
+  panelWidth?: number;
   onClose: () => void;
   onSelectChild?: (childId: string) => void;
   onRedrawGeometry?: (geometryType: string | null) => void;
@@ -270,7 +271,7 @@ function fmtDate(s?: string | null): string {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function AssetCenterPanel({ assetId, onClose, onSelectChild, onRedrawGeometry }: Props) {
+export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, onSelectChild, onRedrawGeometry }: Props) {
   const { showToast } = useToast();
   const [data, setData]                     = useState<AssetCenterData | null>(null);
   const [childrenData, setChildrenData]     = useState<ChildrenData | null>(null);
@@ -685,9 +686,10 @@ export default function AssetCenterPanel({ assetId, onClose, onSelectChild, onRe
   return (
     <div
       dir="rtl"
-      className="flex flex-col h-full w-[300px] shrink-0 z-10
+      className="flex flex-col h-full shrink-0 z-10
                  bg-slate-900 border-l border-slate-700 shadow-xl
-                 transition-all duration-300 overflow-hidden"
+                 transition-[border] duration-150 overflow-hidden"
+      style={{ width: panelWidth }}
     >
       {/* ── Header ── */}
       <div className="px-4 py-3 border-b border-slate-700/60 bg-slate-800/60">
@@ -1466,6 +1468,32 @@ function GeoTab({
   const [linkingMode, setLinkingMode] = React.useState(false);
   const [parentAssets, setParentAssets] = React.useState<Array<{id:string;name:string}>>([]);
   const [linking, setLinking] = React.useState(false);
+  const [trimFromEnd, setTrimFromEnd] = React.useState(0);
+  const [trimFromStart, setTrimFromStart] = React.useState(0);
+  const [trimming, setTrimming] = React.useState(false);
+
+  const handleTrim = async () => {
+    if (trimFromEnd === 0 && trimFromStart === 0) return;
+    if (!confirm(`حذف ${trimFromStart > 0 ? `${trimFromStart} نقطة من البداية` : ''}${trimFromStart > 0 && trimFromEnd > 0 ? ' و' : ''}${trimFromEnd > 0 ? `${trimFromEnd} نقطة من النهاية` : ''}؟`)) return;
+    setTrimming(true);
+    try {
+      const tenantId = typeof window !== 'undefined' ? (localStorage.getItem('tenant_id') || '') : '';
+      const res = await fetch(`/api/v1/workspace/assets/${data.asset.id}/trim-path`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}) },
+        body: JSON.stringify({ from_end: trimFromEnd, from_start: trimFromStart }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.detail || `خطأ ${res.status}`);
+      showToast(`✅ ${result.message}`, 'success');
+      setTrimFromEnd(0);
+      setTrimFromStart(0);
+      window.dispatchEvent(new CustomEvent('engineering:refresh-principal-layer'));
+      void load();
+    } catch (e: any) {
+      showToast(`فشل التقليص: ${e.message}`, 'error');
+    } finally { setTrimming(false); }
+  };
 
   const openLinkMode = async () => {
     setLinkingMode(true);

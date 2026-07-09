@@ -315,6 +315,11 @@ export function PanSharpPanel({ drawnPolygon, drawnBbox }: SRPanelProps) {
   const [srResult,  setSrResult]  = useState<any>(null);
   const [srError,   setSrError]   = useState<string | null>(null);
   const [srView,    setSrView]    = useState<'enhanced' | 'original'>('enhanced');
+  // SAR Fusion state
+  const [fusionRunning, setFusionRunning] = useState(false);
+  const [fusionResult,  setFusionResult]  = useState<any>(null);
+  const [fusionError,   setFusionError]   = useState<string | null>(null);
+  const [activeTab,     setActiveTab]     = useState<'sr' | 'fusion'>('fusion');
 
   const bbox = drawnBbox ?? (drawnPolygon && drawnPolygon.length >= 3
     ? [
@@ -341,24 +346,45 @@ export function PanSharpPanel({ drawnPolygon, drawnBbox }: SRPanelProps) {
     finally { setSrRunning(false); }
   };
 
+  const handleFusion = async () => {
+    if (!bbox) { setFusionError('ارسم منطقة على الخريطة أولاً'); return; }
+    setFusionRunning(true); setFusionError(null); setFusionResult(null);
+    try {
+      const r = await fetch('/api/v1/satellite/fusion', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ bbox, size: 256, scale: 2 }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setFusionError(d.hint ?? d.error); return; }
+      setFusionResult(d);
+    } catch (e: any) { setFusionError(e.message); }
+    finally { setFusionRunning(false); }
+  };
+
   return (
     <div className="flex flex-col gap-3 p-3" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
         <Zap className="w-4 h-4 text-yellow-400 shrink-0" />
         <div>
-          <p className="text-sm font-bold text-white">تحسين الدقة بالذكاء الاصطناعي</p>
-          <p className="text-[10px] text-slate-500">Pan-Sharpening · Super-Resolution</p>
+          <p className="text-sm font-bold text-white">تعزيز الصورة بالذكاء الاصطناعي</p>
+          <p className="text-[10px] text-slate-500">SAR Fusion · Super-Resolution</p>
         </div>
       </div>
 
-      {/* Info */}
-      <div className="flex items-start gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5">
-        <Info className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-        <p className="text-[10px] text-blue-300 leading-relaxed">
-          يُحسّن الصورة من دقة <strong>10م</strong> إلى <strong>2.5م</strong> باستخدام نموذج
-          <strong> Swin2SR</strong> المتخصص في صور الأقمار الاصطناعية.
-        </p>
+      {/* Tab selector */}
+      <div className="flex gap-1">
+        {([{ key: 'fusion', label: 'دمج SAR+Optical', color: 'text-orange-300', activeBg: 'bg-orange-500/20 border-orange-500/40' },
+           { key: 'sr',     label: 'رفع الدقة 4×',   color: 'text-yellow-300', activeBg: 'bg-yellow-500/20 border-yellow-500/40' }
+        ] as const).map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors ${
+              activeTab === t.key ? `${t.activeBg} ${t.color}` : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
+            }`}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* AOI status */}
@@ -366,142 +392,109 @@ export function PanSharpPanel({ drawnPolygon, drawnBbox }: SRPanelProps) {
         bbox ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
       }`}>
         <Map className="w-3.5 h-3.5 shrink-0" />
-        {bbox
-          ? `✓ منطقة محددة (${(Math.abs(bbox[2]-bbox[0]) * 111.32 * Math.cos((bbox[1]+bbox[3])/2*Math.PI/180)).toFixed(1)} × ${(Math.abs(bbox[3]-bbox[1]) * 110.54).toFixed(1)} كم)`
-          : 'ارسم منطقة على الخريطة (زر رسم)'
-        }
+        {bbox ? `✓ منطقة محددة` : 'ارسم منطقة على الخريطة (زر رسم)'}
       </div>
 
-      {/* Parameters */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-slate-400 block mb-1">مضاعف الدقة</label>
-          <div className="flex gap-1">
-            {([2, 4] as const).map(s => (
-              <button key={s} onClick={() => setSrScale(s)}
-                className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors ${
-                  srScale === s
-                    ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
-                }`}>
-                {s}×
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="text-[10px] text-slate-400 block mb-1">حجم المربع (px)</label>
-          <select value={srSize} onChange={e => setSrSize(Number(e.target.value) as any)}
-            className="w-full bg-slate-800 border border-slate-700 rounded text-xs text-slate-200 px-2 py-1.5 focus:outline-none focus:border-slate-500">
-            <option value={128}>128 (سريع)</option>
-            <option value={256}>256 (موصى)</option>
-            <option value={512}>512 (دقيق)</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Specs */}
-      <div className="flex gap-2 text-[10px]">
-        <div className="flex-1 bg-slate-800/60 rounded-lg p-2 text-center border border-slate-700/40">
-          <div className="text-slate-400">دقة الإدخال</div>
-          <div className="text-slate-200 font-bold">10م</div>
-        </div>
-        <div className="flex items-center text-slate-500">→</div>
-        <div className="flex-1 bg-slate-800/60 rounded-lg p-2 text-center border border-yellow-500/30">
-          <div className="text-yellow-400/70">دقة الإخراج</div>
-          <div className="text-yellow-300 font-bold">{10 / srScale}م</div>
-        </div>
-      </div>
-
-      {/* Run button */}
-      <button
-        onClick={handleRun}
-        disabled={srRunning || !bbox}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-yellow-500/20 border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/30"
-      >
-        {srRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-        {srRunning ? 'جاري التحسين...' : 'تشغيل تحسين الدقة بالذكاء الاصطناعي'}
-      </button>
-
-      {/* Error */}
-      {srError && (
-        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5">
-          <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-red-300">{srError}</p>
-        </div>
-      )}
-
-      {/* Result */}
-      {srResult && (
+      {/* ── SAR Fusion Tab ── */}
+      {activeTab === 'fusion' && (
         <div className="flex flex-col gap-2">
-          {/* Metadata */}
-          <div className={`text-[10px] px-2.5 py-2 rounded-lg border ${
-            srResult.sr_applied
-              ? 'bg-green-500/10 border-green-500/30 text-green-300'
-              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-          }`}>
-            {srResult.sr_applied
-              ? `✅ تم التحسين — النموذج: ${srResult.model.split(' ')[0]}`
-              : `⚠️ ${srResult.hint}`
-            }
+          <div className="flex items-start gap-2 bg-orange-500/10 border border-orange-500/20 rounded-lg p-2.5">
+            <Info className="w-3.5 h-3.5 text-orange-400 shrink-0 mt-0.5" />
+            <p className="text-[10px] text-orange-300 leading-relaxed">
+              يدمج <strong>3 مصادر</strong>: S2 RGB + S2 SWIR + S1 SAR<br/>
+              SAR يكشف المباني والمعادن · SWIR يميّز المواد · النتيجة 5م/pixel
+            </p>
           </div>
 
-          {/* Stats row */}
-          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+          <div className="grid grid-cols-3 gap-1 text-[9px]">
             {[
-              { label: 'الدقة', value: `${srResult.output_res_m}م`, color: 'text-yellow-300' },
-              { label: 'الحجم', value: `${srResult.output_size_px}px`, color: 'text-blue-300' },
-              { label: 'الوقت', value: `${(srResult.elapsed_ms/1000).toFixed(1)}ث`, color: 'text-slate-300' },
+              { label: 'الإدخال', value: '10م RGB', color: 'text-slate-400' },
+              { label: '+ SAR/SWIR', value: 'دمج AI', color: 'text-orange-400' },
+              { label: 'الإخراج', value: '5م مُعزَّز', color: 'text-green-400' },
             ].map(({ label, value, color }) => (
-              <div key={label} className="bg-slate-800/60 rounded-lg p-1.5 text-center border border-slate-700/40">
+              <div key={label} className="bg-slate-800/60 rounded p-1.5 text-center border border-slate-700/40">
                 <div className="text-slate-500">{label}</div>
                 <div className={`font-bold ${color}`}>{value}</div>
               </div>
             ))}
           </div>
 
-          {/* View toggle */}
-          <div className="flex gap-1">
-            {(['enhanced', 'original'] as const).map(v => (
-              <button key={v} onClick={() => setSrView(v)}
-                className={`flex-1 py-1 rounded text-[10px] font-semibold border transition-colors ${
-                  srView === v
-                    ? 'bg-slate-700 border-slate-500 text-white'
-                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600'
-                }`}>
-                {v === 'enhanced' ? '🔬 محسّن' : '📷 أصلي'}
-              </button>
-            ))}
-          </div>
-
-          {/* Image display */}
-          <div className="relative rounded-xl overflow-hidden border border-slate-700/60">
-            <img
-              src={`data:image/png;base64,${srView === 'enhanced' ? srResult.enhanced_b64 : srResult.original_b64}`}
-              alt={srView === 'enhanced' ? 'Enhanced SR image' : 'Original Sentinel-2'}
-              className="w-full block"
-              style={{ imageRendering: 'pixelated' }}
-            />
-            <div className="absolute bottom-1 right-1 bg-slate-900/80 text-[9px] text-slate-300 px-1.5 py-0.5 rounded-full backdrop-blur-sm">
-              {srView === 'enhanced' ? `${srResult.output_res_m}م/px` : '10م/px'}
-            </div>
-          </div>
-
-          {/* Download */}
-          <button
-            onClick={() => {
-              const a = document.createElement('a');
-              a.href = `data:image/png;base64,${srResult.enhanced_b64}`;
-              a.download = `SR_${srResult.scale_factor}x_${srResult.output_res_m}m_${new Date().toISOString().slice(0,10)}.png`;
-              a.click();
-            }}
-            className="flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            تحميل الصورة المحسّنة
+          <button onClick={handleFusion} disabled={fusionRunning || !bbox}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500/20 border-orange-500/40 text-orange-200 hover:bg-orange-500/30`}>
+            {fusionRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري الدمج (~45 ثانية)...</> : <><Zap className="w-4 h-4" /> تشغيل SAR+Optical Fusion</>}
           </button>
+
+          {fusionError && (
+            <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-red-300">{fusionError}</p>
+            </div>
+          )}
+
+          {fusionResult && (
+            <div className="flex flex-col gap-2">
+              <div className="text-[10px] px-2.5 py-2 rounded-lg border bg-green-500/10 border-green-500/30 text-green-300">
+                ✅ {fusionResult.method?.split('+')[0] ?? 'SAR Fusion'} — {fusionResult.output_px}px
+              </div>
+              <img src={`data:image/png;base64,${fusionResult.image_b64}`} alt="SAR Fusion" className="w-full rounded-xl border border-slate-700/60 block" />
+              <div className="text-[9px] text-slate-500 text-center">{fusionResult.elapsed_ms ? `${(fusionResult.elapsed_ms/1000).toFixed(1)}ث` : ''} · {fusionResult.area_km2} كم²</div>
+              <button onClick={() => {
+                const a = document.createElement('a'); a.href = `data:image/png;base64,${fusionResult.image_b64}`;
+                a.download = `fusion_${new Date().toISOString().slice(0,10)}.png`; a.click();
+              }} className="flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border bg-slate-800 border-slate-700 text-slate-300 hover:text-white transition-colors">
+                <Download className="w-3.5 h-3.5" /> تحميل صورة الدمج
+              </button>
+            </div>
+          )}
         </div>
       )}
+
+      {/* ── Super-Resolution Tab ── */}
+      {activeTab === 'sr' && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5">
+            <Info className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-[10px] text-blue-300 leading-relaxed">
+              يُحسّن دقة Sentinel-2 من <strong>10م → 2.5م</strong> باستخدام نموذج <strong>Swin2SR</strong> عبر HuggingFace.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">مضاعف الدقة</label>
+              <div className="flex gap-1">
+                {([2, 4] as const).map(s => (
+                  <button key={s} onClick={() => setSrScale(s)}
+                    className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors ${srScale===s ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                    {s}×
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">حجم المربع</label>
+              <select value={srSize} onChange={e => setSrSize(Number(e.target.value) as any)}
+                className="w-full bg-slate-800 border border-slate-700 rounded text-xs text-slate-200 px-2 py-1.5 focus:outline-none">
+                <option value={128}>128 (سريع)</option>
+                <option value={256}>256 (موصى)</option>
+              </select>
+            </div>
+          </div>
+          <button onClick={handleRun} disabled={srRunning || !bbox}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm border transition-all disabled:opacity-40 bg-yellow-500/20 border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/30`}>
+            {srRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التحسين...</> : <><Zap className="w-4 h-4" /> رفع الدقة بالذكاء الاصطناعي</>}
+          </button>
+          {srError && <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2"><AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" /><p className="text-[11px] text-red-300">{srError}</p></div>}
+          {srResult && (
+            <div className="flex flex-col gap-2">
+              <img src={`data:image/png;base64,${srView==='enhanced' ? srResult.enhanced_b64 : srResult.original_b64}`} alt="SR" className="w-full rounded-xl border border-slate-700/60 block" />
+              <div className="flex gap-1">
+                {(['enhanced','original'] as const).map(v => <button key={v} onClick={() => setSrView(v)} className={`flex-1 py-1 rounded text-[10px] font-semibold border transition-colors ${srView===v ? 'bg-slate-700 border-slate-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'}`}>{v==='enhanced'?'🔬 محسّن':'📷 أصلي'}</button>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

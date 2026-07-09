@@ -8,7 +8,7 @@
  * التفضيل يحفظ في localStorage: map_pref_[deptCode]
  */
 import React from 'react';
-import { useEffect, useLayoutEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Compass } from 'lucide-react';
 import FloatingSidePanel from '@/components/FloatingSidePanel';
@@ -49,9 +49,7 @@ export default function AdminGatewayLayout({ children }: { children: React.React
   }, [pathname]);
 
   // Sync dept preference whenever the route's dept changes.
-  // useLayoutEffect runs synchronously before the browser paints,
-  // preventing the mapHidden=true flash on first render for map-visible depts.
-  useLayoutEffect(() => {
+  useEffect(() => {
     initDept(deptCode);
   }, [deptCode, initDept]);
   // ───────────────────────────────────────────────────────────────

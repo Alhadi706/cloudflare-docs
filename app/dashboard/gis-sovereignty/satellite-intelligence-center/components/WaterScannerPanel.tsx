@@ -17,6 +17,7 @@ interface DBAsset {
   name: string;
   asset_type?: string;
   geom_type?: string;
+  _geometry?: any; // raw GeoJSON geometry for direct use
 }
 
 interface ScanResult {
@@ -78,17 +79,18 @@ export default function WaterScannerPanel({
     const TENANT_ID = typeof window !== 'undefined'
       ? (window.localStorage.getItem('tenant_id') || 'aaaaaaaa-0000-4000-a000-000000000001')
       : 'aaaaaaaa-0000-4000-a000-000000000001';
-    fetch('/api/engineering/workspace/principal-assets?limit=200', {
+    fetch(`/api/v1/satellite/registered-assets?limit=200&tenant_id=${TENANT_ID}`, {
       headers: { 'X-Tenant-ID': TENANT_ID },
     })
       .then(r => r.json())
       .then(d => {
-        const list: DBAsset[] = (d.assets ?? d.data ?? []).map((a: any) => ({
-          id:         a.id ?? a.asset_id,
-          name:       a.name ?? a.asset_name ?? 'أصل بلا اسم',
-          asset_type: a.asset_type ?? a.classification ?? '',
-          geom_type:  a.geometry?.type ?? '',
-        }));
+        const list: DBAsset[] = (d.assets ?? []).map((a: any) => ({
+          id:         a.id ?? '',
+          name:       a.name ?? 'أصل',
+          asset_type: a.asset_type ?? '',
+          geom_type:  a.geom_type ?? a.geometry?.type ?? '',
+          _geometry:  a.geometry ?? null,
+        })).filter((a: DBAsset) => a.id);
         setAssets(list);
       })
       .catch(() => setAssets([]))
@@ -116,7 +118,12 @@ export default function WaterScannerPanel({
       };
       if (scanMode === 'polygon'  && drawnPolygon) body.polygon   = drawnPolygon;
       if (scanMode === 'corridor' && drawnPolygon) body.waypoints = drawnPolygon;
-      if (scanMode === 'asset' && selectedAsset)   { body.asset_id = selectedAsset.id; body.name = selectedAsset.name; }
+      if (scanMode === 'asset' && selectedAsset)   {
+        body.asset_id = selectedAsset.id;
+        body.name     = selectedAsset.name;
+        // Pass geometry directly — avoids backend single-asset fetch (405)
+        if (selectedAsset.geom_type) body.asset_geometry = selectedAsset._geometry;
+      }
 
       const res  = await fetch('/api/v1/satellite/water-anomaly-scanner', {
         method: 'POST',

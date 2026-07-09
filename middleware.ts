@@ -37,8 +37,11 @@ const PUBLIC_API_PATHS = [
   '/api/geo/',                // public geographic reference data
   '/api/gis/',                // GIS analysis APIs (optimal path, change detection, alerts, etc.)
   '/api/tiles/',              // map tile proxies
+  '/api/terrain3d',           // terrain elevation analysis (SRTM/Copernicus DEM)
   '/api/onboarding/tenant-request', // new org registration form (POST)
   '/api/v1/satellite/',       // satellite intelligence APIs (fire, thermal, scenes, etc.)
+  '/api/v1/gis/',             // GIS data APIs (buildings, parcels, etc.)
+  '/api/minerva/',            // MINERVA Spatial Intelligence Engine
 ];
 
 function isPublicApiPath(pathname: string): boolean {

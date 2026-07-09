@@ -1,0 +1,82 @@
+{
+  "phase": "Phase 1 — Spatial Diagnostic Reasoning",
+  "date": "2026-07-08",
+  "tests": {
+    "TEST 1: تشخيص التسرب": true,
+    "TEST 2: لا خلط بين الري والتسرب": true,
+    "TEST 3: Generic Framework": true,
+    "TEST 4: Unknown Pattern": true,
+    "TEST 5: Ground Truth Ready": true
+  },
+  "verdict": "PHASE_1_PASSED",
+  "peak_leak_diagnosis": {
+    "asset_id": "PIPE-WTR-TEST-001",
+    "obs_date": "2025-06-10",
+    "anomaly": {
+      "score": 1.0,
+      "severity": "SEVERE"
+    },
+    "diagnosis": {
+      "event": "WATER_LEAK",
+      "probability": 0.6124,
+      "confidence": "MEDIUM",
+      "evidence_completeness": 1.0,
+      "is_unknown": false,
+      "causal_alignment": 1.0
+    },
+    "explanation": {
+      "supporting": [
+        "SOIL_MOISTURE INCREASE بـ +11.2σ (متوقع لـ confirming: تسرب الماء يرفع رطوبة التربة تدريجيًا)",
+        "SURFACE_TEMP DECREASE بـ -2.7σ (متوقع لـ confirming: التبخر يُبرِّد السطح — ميزة حصرية في المناطق الجافة)",
+        "SAR_BACKSCATTER DECREASE بـ -2.8σ (متوقع لـ confirming: التربة الرطبة تمتص الإشارة الرادارية)",
+        "VEGETATION_INDEX INCREASE بـ +4.1σ (متوقع لـ confirming: النبات الانتهازي يستجيب للرطوبة بعد 2-4 أسابيع)"
+      ],
+      "refuting": [
+        "PRECIPITATION_30D=19.0mm: MODERATE_PENALTY → غياب المطر يُثبت أن الرطوبة مصدرها اصطناعي"
+      ],
+      "missing": [],
+      "rejected": []
+    },
+    "all_hypotheses": [
+      {
+        "event": "WATER_LEAK",
+        "probability": 0.6124
+      },
+      {
+        "event": "IRRIGATION_EFFECT",
+        "probability": 0.1969
+      },
+      {
+        "event": "MAINTENANCE_SPILLAGE",
+        "probability": 0.0593
+      },
+      {
+        "event": "DATA_ERROR",
+        "probability": 0.0593
+      },
+      {
+        "event": "SUBSIDENCE",
+        "probability": 0.0295
+      },
+      {
+        "event": "EXCAVATION_DAMAGE",
+        "probability": 0.0135
+      },
+      {
+        "event": "ENCROACHMENT",
+        "probability": 0.0135
+      },
+      {
+        "event": "CONSTRUCTION_NEARBY",
+        "probability": 0.0135
+      },
+      {
+        "event": "NATURAL_RAIN_EFFECT",
+        "probability": 0.002
+      }
+    ],
+    "counterfactual": "سيتغير التشخيص إذا:\n• تبيّن وجود هطول مطري غير مسجل في آخر 7 أيام (> 20mm)\n• أكد ERP وجود صيانة غير مسجلة في المنطقة\n• أظهر الفحص الميداني أن الشذوذ يبعد > 20m عن محور الأنبوب\n• تبيّن أن قراءات الضغط في خط الأنابيب طبيعية تمامًا",
+    "recommendation": "مراقبة مكثفة + تحقق ميداني خلال أسبوع — WATER_LEAK محتمل",
+    "field_priority": "HIGH"
+  }
+}

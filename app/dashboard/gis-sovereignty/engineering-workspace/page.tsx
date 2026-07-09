@@ -1035,6 +1035,7 @@ function EngineeringWorkspaceInner() {
           {selectedAssetId ? (
             <AssetCenterPanel
               assetId={selectedAssetId}
+              panelWidth={panelWidth}
               onClose={() => handleSelectAsset(null)}
               onSelectChild={(childId) => handleSelectAsset(childId)}
               onRedrawGeometry={(geometryType) => {
@@ -1051,6 +1052,15 @@ function EngineeringWorkspaceInner() {
               onCreatePrincipal={() => { setPendingGeometry(null); setPendingGeometryType(null); setShowCreateModal(true); }}
               refreshKey={leftPanelRefreshKey}
               mode={panelMode}
+            />
+          )}
+
+          {/* Resize handle — drag to widen/narrow the detail panel */}
+          {selectedAssetId && (
+            <div
+              onMouseDown={startResize}
+              className="w-1.5 shrink-0 cursor-col-resize bg-slate-800 hover:bg-cyan-500/50 active:bg-cyan-400 transition-colors z-20 select-none"
+              title="اسحب لتغيير عرض اللوحة"
             />
           )}
 

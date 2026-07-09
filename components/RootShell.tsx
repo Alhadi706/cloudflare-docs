@@ -30,16 +30,18 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
           {!pathname.startsWith('/dashboard/gis-sovereignty') &&
            !pathname.startsWith('/dashboard/admin-gateway/maintenance') &&
            <GlobalMapBackground />}
-          {/* شريط أدوات الخريطة — يظهر فقط على الصفحات المرتبطة بالخرائط */}
+          {/* شريط أدوات الخريطة — يظهر فقط على صفحات GIS الفرعية التي تحتاجه */}
         {(pathname.startsWith('/dashboard/gis-sovereignty') ||
           pathname.startsWith('/dashboard/map-shell') ||
           pathname.startsWith('/dashboard/spatial-analytics')) &&
+          pathname !== '/dashboard/gis-sovereignty' &&
+          !pathname.startsWith('/dashboard/gis-sovereignty/manager') &&
           !pathname.startsWith('/dashboard/gis-sovereignty/engineering-workspace') &&
           !pathname.startsWith('/dashboard/gis-sovereignty/satellite-intelligence-center') &&
           !pathname.startsWith('/dashboard/admin-gateway/maintenance') &&
           <FloatingMapToolbar />}
         {/* المحتوى فوق الخريطة — z-10 وما فوق */}
-        <div className={`${(passThroughToMap || isAdminGateway) ? 'pointer-events-none' : 'pointer-events-auto'} flex flex-col h-screen w-full overflow-hidden relative`} style={{ zIndex: 10 }}>
+        <div className={`${(passThroughToMap || isAdminGateway) ? 'pointer-events-none' : 'pointer-events-auto'} flex flex-col h-screen w-full overflow-y-auto relative`} style={{ zIndex: 10 }}>
           {children}
         </div>
       </ToastProvider>

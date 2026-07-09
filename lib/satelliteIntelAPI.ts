@@ -563,7 +563,29 @@ export async function listScenes(): Promise<SceneListItem[]> {
     }
   } catch { /* تابع للمحاولة التالية */ }
 
-  // المحاولة الثانية: Copernicus الحقيقي (مجاني دائماً)
+  // المحاولة الثانية: أرشيف Planet (مشاهد 3م محلية — تعمل بعد انتهاء الاشتراك)
+  try {
+    const baseUrl = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000');
+    const res = await fetch(`${baseUrl}/api/v1/satellite/planet-archive?area=tripoli`);
+    if (res.ok) {
+      const data = await res.json();
+      const scenes: any[] = data.scenes ?? [];
+      if (scenes.length > 0) {
+        return scenes.slice(0, 30).map((s: any): SceneListItem => ({
+          scene_uid:        s.scene_uid,
+          acquisition_date: s.acquisition_date,
+          data_is_real:     true,
+          pixel_type:       'PSScene',
+          cloud_max_pct:    s.cloud_cover_pct,
+          created_at:       s.archived_at,
+          thumbnail_url:    s.thumbnail_local,
+          source:           'PlanetScope 3م (أرشيف)',
+        } as any));
+      }
+    }
+  } catch { /* تابع */ }
+
+  // المحاولة الثالثة: Copernicus
   try {
     const baseUrl = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000');
     const res = await fetch(`${baseUrl}/api/gis/satellite-scenes?region=tripoli&days=90&max_cloud=30&limit=20`);

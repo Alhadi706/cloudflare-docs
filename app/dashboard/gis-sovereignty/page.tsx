@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw, Crown, ArrowRight } from 'lucide-react';
+import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { ReviewModal } from '../admin-gateway/components/ReviewModal';
 import { resolveTenantContext, tenantHeaders, withTenantQuery } from '@/lib/gis/tenantContext';
@@ -79,10 +79,21 @@ export default function GISHub() {
   // Primary modules — prominently displayed
   const primaryModules = [
     {
+      id: 'minerva-center',
+      title: 'MINERVA Spatial Intelligence',
+      titleAr: 'مركز MINERVA للذكاء المكاني',
+      description: 'مختبر استدلال مكاني تجريبي — كشف شذوذات الأصول، التشخيص بالأدلة الفيزيائية، تحليل الأسباب الجذرية، وقرارات التحقق الاقتصادية',
+      icon: <Brain className="w-12 h-12 text-violet-400" />,
+      color: 'border-violet-500/50 hover:border-violet-400',
+      badge: 'EXPERIMENTAL',
+      badgeColor: 'bg-violet-600 text-white',
+      href: '/dashboard/gis-sovereignty/minerva-center',
+    },
+    {
       id: 'satellite-intelligence-center',
-      title: 'Satellite Intelligence Center',
-      titleAr: 'مركز قيادة الاستخبارات الفضائية',
-      description: 'مركز موحد للاستخبارات الفضائية: مؤشرات طيفية، مخرجات ذكاء موثوقة، مقارنة زمنية، بصمات مشاهد تفاعلية، تحديث تلقائي، وتصدير بيانات (S7)',
+      title: 'Satellite Remote Sensing',
+      titleAr: 'الرصد والاستشعار عن بُعد',
+      description: 'رصد الحرائق، التسريبات، والتعديات عبر الأقمار الاصطناعية — مؤشرات طيفية NDVI/InSAR، كشف التغيرات، ومقارنة المشاهد الزمنية',
       icon: <Brain className="w-12 h-12 text-blue-400" />,
       color: 'border-blue-500/50 hover:border-blue-400',
       badge: 'S7 · LIVE',
@@ -91,9 +102,9 @@ export default function GISHub() {
     },
     {
       id: 'engineering-workspace',
-      title: 'Engineering Workspace',
-      titleAr: 'مساحة العمل الهندسية',
-      description: 'بيئة رسم وتعديل احترافية للخرائط، إدارة الطبقات، وتحديث قواعد البيانات المكانية',
+      title: 'Surveying & Mapping',
+      titleAr: 'وحدة المساحة والرسم الجغرافي',
+      description: 'رسم وتعديل الخرائط الهندسية، إدارة الطبقات المكانية، وتحديث قواعد البيانات الجغرافية',
       icon: <MapIcon className="w-12 h-12 text-emerald-500" />,
       color: 'border-emerald-500/30 hover:border-emerald-500',
       badge: null,
@@ -101,9 +112,9 @@ export default function GISHub() {
     },
     {
       id: 'command-center',
-      title: 'Command Center',
-      titleAr: 'مركز القيادة التنفيذي',
-      description: 'مراقبة حية، لوحات تحكم للمؤشرات الجغرافية الحيوية، ورصد التحركات — ملخص تنفيذي',
+      title: 'Field Operations Control',
+      titleAr: 'مركز الرقابة والمتابعة الميدانية',
+      description: 'متابعة حية للفرق والأصول والأحداث الميدانية — مؤشرات جغرافية حيوية وتنبيهات تشغيلية',
       icon: <MonitorPlay className="w-12 h-12 text-blue-500" />,
       color: 'border-blue-500/30 hover:border-blue-500',
       badge: null,
@@ -115,34 +126,34 @@ export default function GISHub() {
   const secondaryModules = [
     {
       id: 'erp-dashboard',
-      title: 'ERP GIS Dashboard',
-      titleAr: 'لوحة المشاريع الجغرافية',
-      description: 'خريطة تفاعلية لجميع المشاريع مع بيانات الموظفين والأصول وأوامر العمل',
+      title: 'Projects & Assets Map',
+      titleAr: 'متابعة المشاريع والأصول الجغرافية',
+      description: 'خريطة تفاعلية لجميع مشاريع المنظومة مع الأصول والفرق وأوامر العمل',
       icon: <MapIcon className="w-6 h-6 text-emerald-400" />,
       href: '/dashboard/gis-sovereignty/erp-dashboard',
     },
     {
       id: 'maintenance-workspace',
-      title: 'Maintenance Workspace',
-      titleAr: 'مساحة الصيانة الجغرافية',
-      description: 'أوامر العمل والفرق والأصول ضمن طبقات تشغيل الصيانة',
+      title: 'Field Maintenance',
+      titleAr: 'الصيانة الميدانية والأصول',
+      description: 'أوامر العمل الميدانية، الفرق النشطة، والأصول المجدولة للصيانة على خريطة موحدة',
       icon: <Layers className="w-6 h-6 text-amber-400" />,
       href: '/dashboard/gis-sovereignty/maintenance-workspace',
     },
     {
       id: 'spatial-analytics',
-      title: 'Spatial Analytics',
-      titleAr: 'التحليل المكاني',
-      description: 'تحليل التضاريس والمخاطر المكانية (أداة متقدمة)',
+      title: 'Urban Planning & Site Studies',
+      titleAr: 'التخطيط العمراني ودراسات المواقع',
+      description: 'تحليل التضاريس، دراسة ملاءمة المواقع، والمسار الأمثل للبنية التحتية (طرق، أنابيب، شبكات)',
       icon: <Activity className="w-6 h-6 text-purple-400" />,
       href: '/dashboard/gis-sovereignty/spatial-analytics',
     },
     {
       id: 'satellite-monitor',
-      title: 'Satellite Raw Monitor',
-      titleAr: 'مراقبة الأقمار الأولية',
-      description: 'عرض خام لبيانات Sentinel/Landsat (موجود في مركز الاستخبارات الفضائية)',
-      icon: <Satellite className="w-6 h-6 text-slate-400" />,
+      title: 'Satellite Image Viewer',
+      titleAr: 'عرض صور الأقمار الاصطناعية',
+      description: 'مشاهدة صور فضائية Esri، Sentinel-2 NDVI، نماذج التضاريس DEM، وخرائط الطرق',
+      icon: <Satellite className="w-6 h-6 text-purple-400" />,
       href: '/dashboard/gis-sovereignty/satellite-monitor',
     },
   ];
@@ -150,16 +161,7 @@ export default function GISHub() {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8 bg-[url('/grid-bg.svg')] bg-fixed relative">
       
-      {/* Back to dashboard button — top left */}
-      <div className="absolute top-4 right-4 z-20">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-slate-400 text-xs font-medium hover:text-slate-200 hover:border-slate-500 hover:bg-slate-800 transition-all backdrop-blur-sm"
-        >
-          <ArrowRight className="w-3.5 h-3.5" />
-          الرئيسية
-        </Link>
-      </div>
+      {/* Background glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-blue-900/20 blur-[120px] rounded-full pointer-events-none"></div>
 
       {/* Header */}
@@ -168,10 +170,10 @@ export default function GISHub() {
           <ShieldAlert className="w-10 h-10 text-slate-300" />
         </div>
         <h1 className="text-5xl font-bold text-white drop-shadow-lg">
-          السيادة الجغرافية
+          نظم المعلومات الجغرافية
         </h1>
         <p className="text-slate-400 text-lg font-light tracking-wide uppercase">
-          Geospatial Sovereignty Subsystem
+          Geospatial Information Systems — GIS
         </p>
         <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
           <GisWorkspaceSwitcher />

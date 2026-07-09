@@ -6,7 +6,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   ScanSearch, Loader2, AlertTriangle, Car, Building2,
-  Flame, Droplets, Layers, RefreshCw, CheckCircle2,
+  Flame, Droplets, Layers, RefreshCw, CheckCircle2, Download, Zap,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,11 +25,19 @@ interface DetectionResult {
   ok: boolean;
   date: string;
   image_real: boolean;
+  cdse_active: boolean;
+  viirs_active: boolean;
+  data_source: string;
+  ndwi: number | null;
+  ndvi: number | null;
+  bsi:  number | null;
   total_objects: number;
   stats: Record<string, number>;
+  class_status: Record<string, { available: boolean; note: string }>;
   summary_ar: string;
   detections: Detection[];
   bbox: [number, number, number, number];
+  area_ha: number;
 }
 
 interface Props {
@@ -111,6 +119,33 @@ export default function ObjectDetectionPanel({ polygon }: Props) {
   const [result, setResult] = useState<DetectionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filterClass, setFilterClass] = useState<string | null>(null);
+  // Buildings footprints from OSM
+  const [buildingsGeo, setBuildingsGeo] = useState<any | null>(null);
+  const [buildingsLoading, setBuildingsLoading] = useState(false);
+
+  // DOTA tile detection (YOLOv8 on Esri imagery)
+  const [tileResult,  setTileResult]  = useState<any | null>(null);
+  const [tileLoading, setTileLoading] = useState(false);
+  const [tileError,   setTileError]   = useState<string | null>(null);
+
+  const runTileDetect = useCallback(async () => {
+    if (!polygon || polygon.length < 3) return;
+    const lons = polygon.map(p => p[0]);
+    const lats = polygon.map(p => p[1]);
+    const bbox = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+    setTileLoading(true); setTileError(null); setTileResult(null);
+    try {
+      const r = await fetch('/api/v1/satellite/tile-detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bbox, zoom: 18, conf: 0.12, grid: 4 }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setTileError(d.hint ?? d.error ?? 'خطأ'); return; }
+      setTileResult(d);
+    } catch (e: any) { setTileError(e.message); }
+    finally { setTileLoading(false); }
+  }, [polygon]);
 
   const toggleClass = (cls: string) => {
     setClasses(prev =>
@@ -129,7 +164,14 @@ export default function ObjectDetectionPanel({ polygon }: Props) {
     }
     setLoading(true);
     setError(null);
+
+    // Compute bbox from polygon
+    const lons = polygon.map(p => p[0]);
+    const lats = polygon.map(p => p[1]);
+    const bbox = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+
     try {
+      // Run spectral + VIIRS detection
       const res = await fetch('/api/gis/object-detection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,6 +189,21 @@ export default function ObjectDetectionPanel({ polygon }: Props) {
       setError(e.message ?? 'خطأ غير معروف');
     } finally {
       setLoading(false);
+    }
+
+    // Fetch buildings footprints if buildings class selected
+    if (classes.includes('buildings') || classes.includes('all')) {
+      setBuildingsLoading(true);
+      try {
+        const bRes = await fetch(
+          `/api/v1/gis/buildings?bbox=${bbox.join(',')}&limit=1000`
+        );
+        if (bRes.ok) {
+          const bg = await bRes.json();
+          setBuildingsGeo(bg);
+        }
+      } catch { /* silent */ }
+      finally { setBuildingsLoading(false); }
     }
   }, [polygon, classes]);
 
@@ -178,45 +235,72 @@ export default function ObjectDetectionPanel({ polygon }: Props) {
               const cfg = CLASS_CFG[cls];
               const Icon = cfg.Icon;
               const checked = classes.includes(cls);
+              // Show availability based on known capabilities
+              const nativeSupport = ['water_pools','bare_ground','hotspots'].includes(cls);
+              const resultStatus = result?.class_status?.[cls];
               return (
                 <label key={cls} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border cursor-pointer transition-all ${
                   checked ? cfg.bg : 'border-slate-700/30 bg-transparent'
                 }`}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleClass(cls)}
-                    className="sr-only"
-                  />
+                  <input type="checkbox" checked={checked} onChange={() => toggleClass(cls)} className="sr-only" />
                   <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${
                     checked ? 'border-transparent' : 'border-slate-600'
                   }`} style={{ background: checked ? cfg.color : 'transparent' }}>
                     {checked && <span className="text-white text-[8px] leading-none">✓</span>}
                   </span>
                   <Icon size={11} style={{ color: cfg.color }} className="shrink-0" />
-                  <span className="text-[10px] text-slate-300">{cfg.labelAr}</span>
+                  <span className="text-[10px] text-slate-300 flex-1">{cfg.labelAr}</span>
+                  {/* Availability badge */}
+                  {nativeSupport
+                    ? <span className="text-[8px] bg-green-500/20 text-green-400 px-1 rounded border border-green-500/30">10م ✓</span>
+                    : <span className="text-[8px] bg-red-500/10 text-red-400 px-1 rounded border border-red-500/20">≤50سم</span>
+                  }
                 </label>
               );
             })}
           </div>
+          <p className="text-[9px] text-slate-600 mt-1.5">
+            <span className="text-green-400">10م ✓</span> = يعمل مع Sentinel-2 &nbsp;
+            <span className="text-red-400">≤50سم</span> = يحتاج Planet/Maxar
+          </p>
         </div>
 
-        {/* Run button */}
-        <button
-          onClick={runDetection}
-          disabled={loading || !polygon || polygon.length < 3}
-          className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${
-            loading || !polygon || polygon.length < 3
-              ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-              : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30'
-          }`}
-        >
-          {loading ? (
-            <><Loader2 size={13} className="animate-spin" /> جاري التحليل...</>
-          ) : (
-            <><ScanSearch size={13} /> تشغيل الكشف</>
-          )}
-        </button>
+        {/* Run buttons */}
+        <div className="space-y-2">
+          {/* Spectral + VIIRS detection */}
+          <button
+            onClick={runDetection}
+            disabled={loading || !polygon || polygon.length < 3}
+            className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${
+              loading || !polygon || polygon.length < 3
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30'
+            }`}
+          >
+            {loading ? (
+              <><Loader2 size={13} className="animate-spin" /> جاري التحليل...</>
+            ) : (
+              <><ScanSearch size={13} /> تحليل طيفي + VIIRS (Sentinel-2)</>
+            )}
+          </button>
+
+          {/* DOTA tile detection — YOLOv8 on Esri imagery */}
+          <button
+            onClick={runTileDetect}
+            disabled={tileLoading || !polygon || polygon.length < 3}
+            className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all border ${
+              tileLoading || !polygon || polygon.length < 3
+                ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                : 'bg-amber-500/15 border-amber-500/40 text-amber-200 hover:bg-amber-500/25'
+            }`}
+          >
+            {tileLoading ? (
+              <><Loader2 size={13} className="animate-spin" /> يعمل نموذج YOLO...</>
+            ) : (
+              <><Zap size={13} /> كشف بالذكاء الاصطناعي — Esri 0.5م (DOTA)</>
+            )}
+          </button>
+        </div>
 
         {!polygon || polygon.length < 3 ? (
           <p className="text-[10px] text-amber-400 text-center">
@@ -253,9 +337,17 @@ export default function ObjectDetectionPanel({ polygon }: Props) {
             }`}>
               <CheckCircle2 size={11} className="shrink-0" />
               {result.image_real
-                ? `صورة Sentinel-2 حقيقية (${result.date})`
-                : `بيانات اصطناعية — الصورة الحقيقية غير متاحة`}
+                ? `✅ بيانات Sentinel-2 حقيقية (${result.date})`
+                : `⚠️ تقديري — أضف CDSE للتحليل الكامل`}
             </div>
+
+            {/* Data source detail */}
+            {result.data_source && (
+              <div className="text-[9px] text-slate-600 bg-slate-800/30 rounded px-2 py-1 border border-slate-700/30">
+                {result.data_source}
+                {result.area_ha > 0 && ` · ${result.area_ha} هكتار`}
+              </div>
+            )}
 
             {/* Summary */}
             <div className="bg-purple-900/10 border border-purple-800/20 rounded-xl p-3 text-center">
@@ -354,6 +446,133 @@ export default function ObjectDetectionPanel({ polygon }: Props) {
               Computer Vision · Sentinel-2 L2A 10م · OpenCV morphological analysis
             </p>
           </>
+        )}
+
+        {/* ── DOTA AI Tile Detection Results ────────────────── */}
+        {(tileLoading || tileResult || tileError) && (
+          <div className="border-t border-slate-800 pt-3 mt-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap size={12} className="text-amber-400 shrink-0" />
+              <span className="text-[11px] font-bold text-white">كشف بالذكاء الاصطناعي — DOTA/Esri</span>
+              <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 rounded border border-amber-500/30 mr-auto">0.5م/pixel</span>
+            </div>
+
+            {tileLoading && (
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Loader2 size={11} className="animate-spin" />
+                <span>يعمل النموذج YOLO على صور Esri... (~30-60 ثانية)</span>
+              </div>
+            )}
+
+            {tileError && (
+              <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                <AlertTriangle size={11} className="text-red-400 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-red-300">{tileError}</p>
+              </div>
+            )}
+
+            {tileResult && !tileLoading && (
+              <>
+                <div className="bg-slate-800/60 rounded-lg p-2.5 mb-2 text-[10px] space-y-1">
+                  <div className="flex justify-between text-slate-400">
+                    <span>النموذج:</span><span className="text-slate-300">{tileResult.model}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>الدقة:</span><span className="text-amber-300">{tileResult.res_m}م/pixel</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>الصورة:</span><span className="text-slate-300">{tileResult.img_size_px}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>الوقت:</span><span className="text-slate-300">{((tileResult.elapsed_ms??0)/1000).toFixed(1)}ث</span>
+                  </div>
+                </div>
+
+                {tileResult.total > 0 ? (
+                  <div className="space-y-1">
+                    {Object.entries(tileResult.stats as Record<string,number>).map(([cls, cnt]) => (
+                      <div key={cls} className="flex items-center justify-between px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                        <span className="text-[11px] text-amber-200 font-semibold">
+                          {tileResult.detections?.find((d: any) => d.class === cls)?.class_ar ?? cls}
+                        </span>
+                        <span className="text-sm font-bold text-amber-300">{cnt}</span>
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-slate-500 text-center mt-1">
+                      مصدر البيانات: DOTA dataset · YOLOv8-OBB · Esri World Imagery
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-3">
+                    <p className="text-[11px] text-slate-400">لم يُكتشف شيء بثقة &gt;12%</p>
+                    <p className="text-[10px] text-slate-600 mt-1">
+                      جرب: تصغير المنطقة · تكبير الخريطة للـ zoom 19 · أو المنطقة لا تحتوي أهدافاً مرئية
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Buildings footprints from OSM ────────────────────── */}
+        {(buildingsLoading || buildingsGeo) && (
+          <div className="border-t border-slate-800 pt-3 mt-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Building2 size={12} className="text-blue-400 shrink-0" />
+              <span className="text-[11px] font-bold text-white">بصمات المباني (OpenStreetMap)</span>
+              <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 rounded border border-green-500/30 mr-auto">مجاني ✓</span>
+            </div>
+
+            {buildingsLoading && (
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Loader2 size={11} className="animate-spin" />
+                <span>جاري تحميل بصمات المباني...</span>
+              </div>
+            )}
+
+            {buildingsGeo && !buildingsLoading && (
+              <>
+                <div className={`px-2.5 py-2 rounded-lg border text-xs mb-2 ${
+                  buildingsGeo.metadata?.count > 0
+                    ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                    : 'bg-slate-800/60 border-slate-700 text-slate-400'
+                }`}>
+                  <span className="font-bold text-lg text-white mr-1">
+                    {buildingsGeo.metadata?.count ?? 0}
+                  </span>
+                  مبنى مُرصود في المنطقة
+                  {buildingsGeo.metadata?.area_km2 && (
+                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                      المصدر: {buildingsGeo.metadata.source} · {buildingsGeo.metadata.area_km2} كم²
+                    </span>
+                  )}
+                </div>
+
+                {buildingsGeo.metadata?.count > 0 && (
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([JSON.stringify(buildingsGeo, null, 2)], { type: 'application/geo+json' });
+                      const a = document.createElement('a');
+                      a.href = URL.createObjectURL(blob);
+                      a.download = `buildings_osm_${new Date().toISOString().slice(0,10)}.geojson`;
+                      a.click();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-[11px] font-semibold border bg-slate-800 border-slate-700 text-slate-300 hover:border-blue-500/50 hover:text-blue-300 transition-colors"
+                  >
+                    <Download size={11} />
+                    تحميل GeoJSON المباني ({buildingsGeo.metadata?.count})
+                  </button>
+                )}
+
+                {(!buildingsGeo.metadata?.count || buildingsGeo.metadata.count === 0) && (
+                  <p className="text-[10px] text-slate-500">
+                    {buildingsGeo.metadata?.note ?? 'لم تُعثر على مباني في OpenStreetMap لهذه المنطقة'}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {!result && !loading && !error && (

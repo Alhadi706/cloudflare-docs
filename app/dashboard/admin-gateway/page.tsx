@@ -54,6 +54,7 @@ const DEPARTMENTS_BASE = [
       { title: 'الاتصالات الإدارية',  icon: <FileText className="w-5 h-5 text-sky-400" />,         iconBg: 'bg-sky-900/40 border-sky-500/30',         description: 'الصادر — الوارد — الداخلية — الأرشيف',            href: '/dashboard/admin-gateway/correspondence/incoming' },
       { title: 'الاعتماد والموافقات', icon: <CheckSquare className="w-5 h-5 text-violet-400" />,   iconBg: 'bg-violet-900/40 border-violet-500/30',   description: 'سير العمل — موافقات متعددة المستويات',            href: '/dashboard/admin-gateway/workflow', badge: 'حوكمة' },
       { title: 'العقود والمقاولون',   icon: <FileSignature className="w-5 h-5 text-green-400" />,  iconBg: 'bg-green-900/40 border-green-500/30',     description: 'سجل المقاولين — إدارة العقود',                    href: '/dashboard/admin-gateway/contracts' },
+      { title: 'إدارة الأقسام والتسمية', icon: <Building2 className="w-5 h-5 text-indigo-400" />, iconBg: 'bg-indigo-900/40 border-indigo-500/30', description: 'تسمية الإدارات والأقسام، تعيين رؤساء الأقسام والمدراء', href: '/dashboard/admin-gateway/system', badge: 'إعداد' },
       { title: 'موافقات الانضمام',   icon: <Shield className="w-5 h-5 text-emerald-400" />,       iconBg: 'bg-emerald-900/40 border-emerald-500/30', description: 'اعتماد/رفض إضافة إدارة جديدة لنفس المؤسسة',      href: '/dashboard/admin-gateway/security/join-requests', badge: 'أمني' },
     ],
   },

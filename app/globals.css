@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TYPOGRAPHY FIX LIVE — v3
-   Base: 16px | Hierarchy: clear | No text smaller than 13px anywhere
+   TYPOGRAPHY FIX LIVE — v6
+   Base: 24px | Maximum readability
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -12,18 +12,18 @@
   --background-start-rgb: 15, 23, 42;
   --background-end-rgb: 15, 23, 42;
 
-  /* ── مقياس الخطوط المرجعي (rem على أساس 16px) ── */
-  --text-badge:   0.8125rem; /* 13px — الشارات الصغيرة كحد أدنى */
-  --text-meta:    0.875rem;  /* 14px — نصوص مساعدة ثانوية */
-  --text-body:    1rem;      /* 16px — جسم النص والجداول */
-  --text-label:   1.0625rem; /* 17px — التسميات */
-  --text-card:    1.125rem;  /* 18px — عناوين البطاقات */
-  --text-section: 1.25rem;   /* 20px — عناوين الأقسام */
-  --text-page:    1.875rem;  /* 30px — عناوين الصفحات */
+  /* ── مقياس الخطوط المرجعي (rem على أساس 18px) ── */
+  --text-badge:   0.8125rem; /* 14.6px — الشارات الصغيرة */
+  --text-meta:    0.875rem;  /* 15.75px — نصوص مساعدة ثانوية */
+  --text-body:    1rem;      /* 18px — جسم النص والجداول */
+  --text-label:   1.0625rem; /* 19px — التسميات */
+  --text-card:    1.125rem;  /* 20px — عناوين البطاقات */
+  --text-section: 1.25rem;   /* 22.5px — عناوين الأقسام */
+  --text-page:    1.875rem;  /* 33.75px — عناوين الصفحات */
 }
 
 html {
-  font-size: 16px;
+  font-size: 24px;
 }
 
 body {
@@ -34,20 +34,40 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
-  font-size: 16px;
+  font-size: 24px;
   line-height: 1.6;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   READABILITY: scale up hardcoded tiny pixel font sizes everywhere
+   text-[8px] → 13px | text-[10px] → 13px | text-[11px] → 14px | etc.
+   ══════════════════════════════════════════════════════════════════════════ */
+[class*="text-[8px"],
+[class*="text-[9px"] {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+[class*="text-[10px"],
+[class*="text-[11px"] {
+  font-size: 17px !important;
+  line-height: 1.5 !important;
+}
+[class*="text-[12px"],
+[class*="text-[13px"] {
+  font-size: 18px !important;
+  line-height: 1.5 !important;
 }
 
 /* ── Tables — minimum readable size ───────────────────────────────────────── */
 table {
-  font-size: 0.9375rem; /* 15px */
+  font-size: 1rem; /* 18px */
 }
 th {
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 td {
-  font-size: 0.9375rem;
+  font-size: 1rem;
   line-height: 1.55;
 }
 

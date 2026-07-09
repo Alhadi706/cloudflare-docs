@@ -1535,7 +1535,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
       const source = layersRef.current['principal_assets']?.getSource?.();
       if (!source) return;
       try {
-        console.log('DEBUG MAP FETCH PA'); const res = await fetch('/api/v1/workspace/principal-assets', {
+        console.log('DEBUG MAP FETCH PA'); const res = await fetch('/api/engineering/workspace/principal-assets', {
           headers: getTenantHeader(),
         });
         if (!res.ok || cancelled) return;
@@ -1578,7 +1578,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
       const source = layersRef.current['child_assets']?.getSource?.();
       if (!source) return;
       try {
-        console.log('DEBUG MAP FETCH AC'); const res = await fetch('/api/v1/workspace/principal-assets/all-children', {
+        console.log('DEBUG MAP FETCH AC'); const res = await fetch('/api/engineering/workspace/principal-assets/all-children', {
           headers: getTenantHeader(),
         });
         if (!res.ok || cancelled) return;
