@@ -70,18 +70,18 @@ def _fetch_real_eo(lat: float, lon: float, start: str, end: str) -> dict:
         result['status']['SAR_BACKSCATTER'] = f'ERROR:{str(e)[:60]}'
 
     try:
-        from minerva.signals.adapters.landsat_thermal import LandsatThermalAdapter
-        lst_adp = LandsatThermalAdapter()
-        ts_lst = lst_adp.time_series(lat, lon, start, end, max_scenes=6)
+        from minerva.signals.adapters.modis_lst import ModisLSTAdapter
+        lst_adp = ModisLSTAdapter()
+        ts_lst = lst_adp.time_series(lat, lon, start, end, max_scenes=8)
         if ts_lst:
             lst_vals = [r['LST_C'] for r in ts_lst if r.get('LST_C') is not None]
-            result['landsat_lst'] = {
+            result['modis_lst'] = {
                 'latest':     ts_lst[0],
                 'scene_count': len(ts_lst),
                 'period_mean_C': round(sum(lst_vals)/len(lst_vals), 2) if lst_vals else None,
-                'time_series': ts_lst[:4],
+                'time_series': ts_lst[:6],
             }
-            result['status']['SURFACE_TEMP'] = 'REAL_LS9'
+            result['status']['SURFACE_TEMP'] = 'REAL_MODIS'
         else:
             result['status']['SURFACE_TEMP'] = 'MISSING'
     except Exception as e:
@@ -274,7 +274,7 @@ def run_analysis(params: dict) -> dict:
     eo_status = real_eo.get('status', {})
     s2_info   = real_eo.get('sentinel2')
     s1_info   = real_eo.get('sentinel1')
-    lst_info  = real_eo.get('landsat_lst')
+    lst_info  = real_eo.get('modis_lst') or real_eo.get('landsat_lst')
 
     real_count  = sum(1 for v in eo_status.values() if v.startswith('REAL_'))
     total_sigs  = len(eo_status)
@@ -300,7 +300,7 @@ def run_analysis(params: dict) -> dict:
             'signal_status': eo_status,
             'sentinel2': s2_info,
             'sentinel1': s1_info,
-            'landsat_lst': lst_info,
+            'modis_lst': lst_info,
         },
         'asset_id': ASSET_ID,
         'asset_type': ASSET_TYPE,
