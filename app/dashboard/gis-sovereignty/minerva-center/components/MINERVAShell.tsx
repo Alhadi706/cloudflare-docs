@@ -12,9 +12,10 @@ import {
   TrendingUp, Clock, Download, Activity, Target, HelpCircle, ChevronRight,
   ChevronLeft, Layers, Crosshair, Square, Circle, Minus, MousePointer,
   Upload, Database, Map, Building2, Edit3, X, Sliders, Shield, Droplets,
-  Flame, Bolt, Anchor, TreePine, Factory, Radio
+  Flame, Bolt, Anchor, TreePine, Factory, Radio, Satellite
 } from 'lucide-react';
 import type { MINERVAMapHandle, DrawMode, LayerVisibility, AnomalyPoint } from './MINERVAMap';
+const MINERVAImageryPanel = dynamic(() => import('./MINERVAImageryPanel'), { ssr: false });
 
 const MINERVAMap = dynamic(() => import('./MINERVAMap'), {
   ssr: false,
@@ -87,7 +88,7 @@ interface MINERVAResult {
 
 interface Params { lat:number; lon:number; asset_type:string; asset_id:string; buffer_m:number; }
 
-type ViewMode = 'executive' | 'expert' | 'timeline' | 'decision';
+type ViewMode = 'executive' | 'expert' | 'timeline' | 'decision' | 'imagery';
 
 const EVENT_AR: Record<string,string> = {
   WATER_LEAK:'تسرب مياه محتمل', IRRIGATION_EFFECT:'تأثير ري زراعي',
@@ -659,6 +660,7 @@ export default function MINERVAShell() {
     {id:'expert',   label:'خبير',   icon:Eye},
     {id:'timeline', label:'زمني',   icon:BarChart2},
     {id:'decision', label:'قرار',   icon:DollarSign},
+    {id:'imagery',  label:'صور',    icon:Satellite},
   ];
 
   if (step === 'setup') return (
@@ -804,6 +806,15 @@ export default function MINERVAShell() {
                   {viewMode==='expert'    && <ExpertView r={result}/>}
                   {viewMode==='timeline'  && <TimelineView r={result} idx={timelineIdx} onIdx={i=>{setTLIdx(i);mapRef.current?.flyToAnomaly(params.lat,params.lon);}}/>}
                   {viewMode==='decision'  && <DecisionView r={result}/>}
+                  {viewMode==='imagery'   && (
+                    <MINERVAImageryPanel
+                      lat={params.lat} lon={params.lon}
+                      currentConfidence={result.diagnosis.winner_probability}
+                      anomalyScore={result.peak.anomaly_score}
+                      assetCriticality={0.85}
+                      evidenceCompleteness={result.diagnosis.evidence_completeness}
+                    />
+                  )}
                 </div>
               </>
             ) : (

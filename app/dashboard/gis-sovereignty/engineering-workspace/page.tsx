@@ -5,6 +5,7 @@ import { useGisEngine } from '@/store/gisEngine';
 import { GisErrorBoundary } from '../components/GisErrorBoundary';
 import { workspaceApi } from '@/store/apiService';
 import { useSearchParams, usePathname } from 'next/navigation';
+import { useToast } from '@/components/ToastProvider';
 import AssetTopBar from './components/AssetTopBar';
 import AssetLeftPanel, { type PrincipalAsset } from './components/AssetLeftPanel';
 import CreatePrincipalAssetModal from './components/CreatePrincipalAssetModal';
@@ -322,6 +323,7 @@ function EngineeringWorkspaceInner() {
   const setDrawingMode = useGisEngine(s => s.setDrawingMode);
   const selectedEntityType = useGisEngine(s => s.selectedEntityType);
   const selectedEntityId   = useGisEngine(s => s.selectedEntityId);
+  const { showToast }  = useToast();
 
   const currentUser   = useUserStore(s => s.current);
   const storedDept    = typeof window !== 'undefined' ? localStorage.getItem('user_department') : null;
