@@ -1,0 +1,448 @@
+{
+  "version": "1.0",
+  "date": "2026-07-09",
+  "results": [
+    {
+      "id": "LY-TRP-001",
+      "name_ar": "مطار معيتيقة الدولي — الرصيف الجديد",
+      "category": "airport",
+      "governorate": "طرابلس",
+      "bbox": [
+        13.264,
+        32.885,
+        13.295,
+        32.905
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 0,
+        "urban_pct": 100,
+        "veg_pct": 0,
+        "edge_density": 0,
+        "crop_size": "22x23"
+      },
+      "issues": [
+        "low_structural_edges:0%"
+      ],
+      "geometry_score": 90,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-TRP-002",
+      "name_ar": "ميناء طرابلس — توسعة الرصيف البحري",
+      "category": "port",
+      "governorate": "طرابلس",
+      "bbox": [
+        13.168,
+        32.895,
+        13.199,
+        32.912
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 0,
+        "urban_pct": 100,
+        "veg_pct": 0,
+        "edge_density": 0,
+        "crop_size": "22x20"
+      },
+      "issues": [
+        "missing_water_for_port:0%",
+        "low_structural_edges:0%"
+      ],
+      "geometry_score": 75,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-TRP-003",
+      "name_ar": "محطة معالجة المياه الغربية — زاوية",
+      "category": "water_infrastructure",
+      "governorate": "الزاوية",
+      "bbox": [
+        12.35,
+        32.745,
+        12.42,
+        32.805
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 0,
+        "urban_pct": 100,
+        "veg_pct": 0,
+        "edge_density": 0,
+        "crop_size": "14x8"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-TRP-004",
+      "name_ar": "طريق الساحل الغربي — مقطع سرمان",
+      "category": "road",
+      "governorate": "صبراتة",
+      "bbox": [
+        12.25,
+        32.66,
+        13.12,
+        32.76
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 10,
+        "urban_pct": 90,
+        "veg_pct": 0,
+        "edge_density": 12,
+        "crop_size": "254x96"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-MSR-001",
+      "name_ar": "مطار مصراتة الدولي — توسعة المبنى",
+      "category": "airport",
+      "governorate": "مصراتة",
+      "bbox": [
+        15.045,
+        32.31,
+        15.09,
+        32.345
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 56,
+        "urban_pct": 44,
+        "veg_pct": 0,
+        "edge_density": 4,
+        "crop_size": "31x39"
+      },
+      "issues": [
+        "low_structural_edges:4%"
+      ],
+      "geometry_score": 90,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-MSR-002",
+      "name_ar": "ميناء مصراتة الصناعي — منطقة المخازن",
+      "category": "port",
+      "governorate": "مصراتة",
+      "bbox": [
+        15.18,
+        32.36,
+        15.26,
+        32.41
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 59,
+        "urban_pct": 41,
+        "veg_pct": 0,
+        "edge_density": 11,
+        "crop_size": "54x55"
+      },
+      "issues": [
+        "missing_water_for_port:0%"
+      ],
+      "geometry_score": 85,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-MSR-003",
+      "name_ar": "مجمع مصراتة الصناعي الحديدي",
+      "category": "industrial",
+      "governorate": "مصراتة",
+      "bbox": [
+        15.16,
+        32.38,
+        15.22,
+        32.43
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 28,
+        "urban_pct": 72,
+        "veg_pct": 0,
+        "edge_density": 10,
+        "crop_size": "41x56"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-BNG-001",
+      "name_ar": "مطار بنينا الدولي — مدرج جديد",
+      "category": "airport",
+      "governorate": "بنغازي",
+      "bbox": [
+        20.24,
+        32.08,
+        20.32,
+        32.13
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 3,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 2,
+        "urban_pct": 98,
+        "veg_pct": 0,
+        "edge_density": 9,
+        "crop_size": "21x56"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-BNG-002",
+      "name_ar": "ميناء بنغازي التجاري",
+      "category": "port",
+      "governorate": "بنغازي",
+      "bbox": [
+        20.05,
+        32.1,
+        20.12,
+        32.16
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 2,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 0,
+        "urban_pct": 100,
+        "veg_pct": 0,
+        "edge_density": 0,
+        "crop_size": "47x16"
+      },
+      "issues": [
+        "missing_water_for_port:0%",
+        "low_structural_edges:0%"
+      ],
+      "geometry_score": 75,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-KHM-001",
+      "name_ar": "ميناء الخمس الصيادي والتجاري",
+      "category": "port",
+      "governorate": "الخمس",
+      "bbox": [
+        14.49,
+        32.91,
+        14.56,
+        32.97
+      ],
+      "scene_date": "2026-07-02",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 0,
+        "urban_pct": 100,
+        "veg_pct": 0,
+        "edge_density": 0,
+        "crop_size": "9x59"
+      },
+      "issues": [
+        "missing_water_for_port:0%",
+        "low_structural_edges:0%"
+      ],
+      "geometry_score": 75,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-SRT-001",
+      "name_ar": "طريق سرت — رأس لانوف السريع",
+      "category": "road",
+      "governorate": "سرت",
+      "bbox": [
+        16.28,
+        30.98,
+        16.55,
+        31.1
+      ],
+      "scene_date": "2026-07-09",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 7,
+        "urban_pct": 93,
+        "veg_pct": 0,
+        "edge_density": 11,
+        "crop_size": "153x122"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-DRN-001",
+      "name_ar": "إعادة إعمار درنة — منطقة الوادي",
+      "category": "urban_reconstruction",
+      "governorate": "درنة",
+      "bbox": [
+        22.62,
+        32.74,
+        22.7,
+        32.82
+      ],
+      "scene_date": "2026-07-06",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 49,
+        "urban_pct": 51,
+        "veg_pct": 0,
+        "edge_density": 12,
+        "crop_size": "50x88"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-DRN-002",
+      "name_ar": "خزان درنة — أثر الكارثة",
+      "category": "dam",
+      "governorate": "درنة",
+      "bbox": [
+        22.58,
+        32.73,
+        22.66,
+        32.79
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 4,
+        "urban_pct": 96,
+        "veg_pct": 0,
+        "edge_density": 3,
+        "crop_size": "17x63"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-TBK-001",
+      "name_ar": "ميناء طبرق الحاويات",
+      "category": "port",
+      "governorate": "طبرق",
+      "bbox": [
+        23.96,
+        31.79,
+        24.04,
+        31.86
+      ],
+      "scene_date": "2026-07-07",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 51,
+        "urban_pct": 49,
+        "veg_pct": 0,
+        "edge_density": 12,
+        "crop_size": "40x78"
+      },
+      "issues": [
+        "missing_water_for_port:0%"
+      ],
+      "geometry_score": 85,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-BRG-001",
+      "name_ar": "مجمع بريقة للنفط والغاز",
+      "category": "industrial",
+      "governorate": "أجدابيا",
+      "bbox": [
+        19.58,
+        30.82,
+        19.75,
+        30.96
+      ],
+      "scene_date": "2026-07-09",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 2,
+        "urban_pct": 98,
+        "veg_pct": 0,
+        "edge_density": 5,
+        "crop_size": "43x84"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-GMR-001",
+      "name_ar": "النهر الصناعي العظيم — محطة الضخ المركزية",
+      "category": "water_infrastructure",
+      "governorate": "الجفرة",
+      "bbox": [
+        14.16,
+        29.48,
+        14.44,
+        29.65
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 8,
+        "urban_pct": 92,
+        "veg_pct": 0,
+        "edge_density": 9,
+        "crop_size": "138x57"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    },
+    {
+      "id": "LY-GMR-002",
+      "name_ar": "النهر الصناعي — محطة الجنوب (سبها)",
+      "category": "water_infrastructure",
+      "governorate": "سبها",
+      "bbox": [
+        14.78,
+        27.62,
+        15.03,
+        27.76
+      ],
+      "scene_date": "2026-07-08",
+      "cloud_pct": 0,
+      "pixel_classification": {
+        "water_pct": 0,
+        "sand_pct": 0,
+        "urban_pct": 100,
+        "veg_pct": 0,
+        "edge_density": 0,
+        "crop_size": "16x42"
+      },
+      "issues": [],
+      "geometry_score": 100,
+      "validation_status": "VALID"
+    }
+  ]
+}

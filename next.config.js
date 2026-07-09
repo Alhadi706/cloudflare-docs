@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // sharp is a native Node.js module — must not be bundled by webpack
+  experimental: {
+    serverComponentsExternalPackages: ['sharp'],
+  },
   typescript: {
     // Pre-existing OL import type errors — does not affect runtime behavior
     ignoreBuildErrors: true,

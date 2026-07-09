@@ -7,6 +7,7 @@ import './globals.css';
 import RootShell from '@/components/RootShell';
 import TenantFetchGuard from '@/components/TenantFetchGuard';
 import ChunkLoadGuard from '@/components/ChunkLoadGuard';
+import ToastProvider from '@/components/ToastProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -177,7 +178,9 @@ export default function RootLayout({
       <body className={`${inter.className} bg-slate-900 text-white min-h-screen flex flex-row bg-gradient-radial from-slate-900 via-slate-950 to-black`}>
         <ChunkLoadGuard />
         <TenantFetchGuard />
-        <RootShell>{children}</RootShell>
+        <ToastProvider>
+          <RootShell>{children}</RootShell>
+        </ToastProvider>
         <Script id="sw-register" strategy="afterInteractive">{`
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {

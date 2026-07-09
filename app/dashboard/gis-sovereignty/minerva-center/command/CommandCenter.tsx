@@ -21,24 +21,27 @@ import {
   TrendingUp, Bell, BellOff, Lock, Unlock, Crosshair as CrosshairIcon,
 } from 'lucide-react';
 
-// ─── Map (reuse MINERVA OpenLayers engine) ────────────────────────────────────
-const MINERVAMap = dynamic(() => import('../components/MINERVAMap'), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-[#050c14]">
-      <div className="flex flex-col items-center gap-3">
-        <div className="relative w-12 h-12">
-          <div className="absolute inset-0 rounded-full border border-cyan-500/30 animate-ping" />
-          <div className="absolute inset-2 rounded-full border border-cyan-500/50 animate-ping [animation-delay:150ms]" />
-          <Brain className="absolute inset-3 w-6 h-6 text-cyan-400" />
+// ─── Map (reuse MapCenterCanvas — self-contained OL engine) ──────────────────
+const MapCenterCanvas = dynamic(
+  () => import('@/app/dashboard/gis-sovereignty/components/MapCenterCanvas'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-full flex items-center justify-center bg-[#050c14]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative w-12 h-12">
+            <div className="absolute inset-0 rounded-full border border-cyan-500/30 animate-ping" />
+            <div className="absolute inset-2 rounded-full border border-cyan-500/50 animate-ping [animation-delay:150ms]" />
+            <Brain className="absolute inset-3 w-6 h-6 text-cyan-400" />
+          </div>
+          <span className="text-cyan-500/70 text-xs font-mono tracking-widest uppercase">
+            MINERVA ONLINE...
+          </span>
         </div>
-        <span className="text-cyan-500/70 text-xs font-mono tracking-widest uppercase">
-          MINERVA ONLINE...
-        </span>
       </div>
-    </div>
-  ),
-});
+    ),
+  }
+);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -480,7 +483,7 @@ export default function MINERVACommandCenter() {
         {/* ── MAP AREA ──────────────────────────────────────────────────── */}
         <div className="flex-1 relative overflow-hidden">
           {/* Map */}
-          <MINERVAMap />
+          <MapCenterCanvas />
 
           {/* Alert pulse overlays (CSS-based, no map library needed) */}
           {MOCK_ALERTS.filter(a => a.severity === 'CRITICAL').map(a => (

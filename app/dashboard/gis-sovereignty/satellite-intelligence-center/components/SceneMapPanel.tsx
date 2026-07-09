@@ -79,6 +79,8 @@ interface SceneMapPanelProps {
   riskGeojson?: any | null;
   /** Auto-generated network GeoJSON to render on the map */
   autoNetworkGeojson?: any | null;
+  /** Historical satellite image overlay (PNG georeferenced to bbox) */
+  staticImageOverlay?: { url: string; extent: [number, number, number, number]; opacity?: number } | null;
 }
 
 export interface ServiceLayerMapEntry {
@@ -129,6 +131,7 @@ export function SceneMapPanel({
   changeDetectionGeojson,
   riskGeojson,
   autoNetworkGeojson,
+  staticImageOverlay,
 }: SceneMapPanelProps) {
   const mapRef           = useRef<HTMLDivElement>(null);
   const mapInstanceRef   = useRef<any>(null);
@@ -1046,6 +1049,46 @@ export function SceneMapPanel({
       }
     })();
   }, [autoNetworkGeojson, olLoaded]);
+
+  // ── Historical satellite image overlay (PNG georeferenced) ───────────────
+  const imageOverlayLayerRef = useRef<any>(null);
+  useEffect(() => {
+    if (!olLoaded || !mapInstanceRef.current || !olCache.current) return;
+    const map = mapInstanceRef.current;
+    const { fromLonLat } = olCache.current;
+
+    if (imageOverlayLayerRef.current) {
+      map.removeLayer(imageOverlayLayerRef.current);
+      imageOverlayLayerRef.current = null;
+    }
+    if (!staticImageOverlay) return;
+
+    (async () => {
+      const [{ default: ImageLayer }, { default: ImageStatic }] = await Promise.all([
+        import('ol/layer/Image') as any,
+        import('ol/source/ImageStatic') as any,
+      ]);
+      const [minLon, minLat, maxLon, maxLat] = staticImageOverlay.extent;
+      const extent = [
+        ...fromLonLat([minLon, minLat]),
+        ...fromLonLat([maxLon, maxLat]),
+      ] as [number, number, number, number];
+      const source = new ImageStatic({
+        url: staticImageOverlay.url,
+        imageExtent: extent,
+        crossOrigin: 'anonymous',
+      });
+      const layer = new ImageLayer({
+        source,
+        opacity: staticImageOverlay.opacity ?? 0.88,
+        zIndex: 6,
+      });
+      map.addLayer(layer);
+      imageOverlayLayerRef.current = layer;
+      // Fit view to image extent
+      map.getView().fit(extent, { padding: [40, 40, 40, 40], duration: 600, maxZoom: 16 });
+    })();
+  }, [staticImageOverlay, olLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Highlight municipality/polygon boundary ───────────────────────────────
   useEffect(() => {    if (!olLoaded || !mapInstanceRef.current || !olCache.current) return;

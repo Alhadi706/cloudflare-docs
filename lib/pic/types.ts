@@ -8,7 +8,7 @@ export type ProjectType =
   | 'utility' | 'airport' | 'port' | 'dam'
   | 'public_facility' | 'other';
 
-export type ProjectStatus = 'active' | 'slow' | 'stopped' | 'completed' | 'cancelled' | 'unknown';
+export type ProjectStatus = 'active' | 'slow' | 'stopped' | 'completed' | 'cancelled' | 'delayed' | 'unknown';
 export type ActivityState = 'active' | 'slow' | 'stopped' | 'unknown';
 export type AlertSeverity  = 'info' | 'warning' | 'critical';
 export type EventType =
@@ -35,6 +35,7 @@ export const PROJECT_STATUS_AR: Record<ProjectStatus, { label: string; color: st
   active:    { label: '🟢 نشط',       color: 'text-green-300',  bg: 'bg-green-500/20 border-green-500/40'  },
   slow:      { label: '🟡 بطيء',      color: 'text-amber-300',  bg: 'bg-amber-500/20 border-amber-500/40'  },
   stopped:   { label: '🔴 متوقف',     color: 'text-red-300',    bg: 'bg-red-500/20 border-red-500/40'      },
+  delayed:   { label: '🟠 متأخر',     color: 'text-orange-300', bg: 'bg-orange-500/20 border-orange-500/40'},
   completed: { label: '✅ مكتمل',     color: 'text-teal-300',   bg: 'bg-teal-500/20 border-teal-500/40'   },
   cancelled: { label: '⛔ ملغي',      color: 'text-slate-400',  bg: 'bg-slate-500/20 border-slate-500/40' },
   unknown:   { label: '⚪ غير محدد',  color: 'text-slate-400',  bg: 'bg-slate-500/20 border-slate-500/30' },
@@ -43,6 +44,7 @@ export const PROJECT_STATUS_AR: Record<ProjectStatus, { label: string; color: st
 export const STATUS_MAP_COLOR: Record<ProjectStatus, string> = {
   active:    '#22c55e',
   slow:      '#f59e0b',
+  delayed:   '#f97316',
   stopped:   '#ef4444',
   completed: '#14b8a6',
   cancelled: '#64748b',

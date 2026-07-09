@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw, Crown } from 'lucide-react';
+import { Satellite, Map as MapIcon, ShieldAlert, MonitorPlay, Activity, Bell, Brain, Layers, Database, Globe, Radio, CheckCircle2, RefreshCw, Crown, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
 import { ReviewModal } from '../admin-gateway/components/ReviewModal';
 import { resolveTenantContext, tenantHeaders, withTenantQuery } from '@/lib/gis/tenantContext';
@@ -109,6 +109,17 @@ export default function GISHub() {
       color: 'border-emerald-500/30 hover:border-emerald-500',
       badge: null,
       href: '/dashboard/gis-sovereignty/engineering-workspace',
+    },
+    {
+      id: 'project-intelligence-center',
+      title: 'Project Intelligence Center',
+      titleAr: 'مركز استخبارات المشاريع',
+      description: 'مراقبة تقدم مشاريع البنية التحتية بالأقمار الاصطناعية — كشف التوقفات، تقدير الإنجاز، تنبيهات فورية، وتقارير تنفيذية',
+      icon: <BarChart2 className="w-12 h-12 text-indigo-400" />,
+      color: 'border-indigo-500/50 hover:border-indigo-400',
+      badge: 'PIC · NEW',
+      badgeColor: 'bg-indigo-600 text-white',
+      href: '/dashboard/gis-sovereignty/project-intelligence-center',
     },
     {
       id: 'command-center',

@@ -41,7 +41,7 @@ const PUBLIC_API_PATHS = [
   '/api/onboarding/tenant-request', // new org registration form (POST)
   '/api/v1/satellite/',       // satellite intelligence APIs (fire, thermal, scenes, etc.)
   '/api/v1/gis/',             // GIS data APIs (buildings, parcels, etc.)
-  '/api/minerva/',            // MINERVA Spatial Intelligence Engine (analysis + imagery)
+  '/api/v1/pic/',             // Project Intelligence Center APIs
 ];
 
 function isPublicApiPath(pathname: string): boolean {

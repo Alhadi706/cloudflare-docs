@@ -36,6 +36,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
           pathname.startsWith('/dashboard/spatial-analytics')) &&
           pathname !== '/dashboard/gis-sovereignty' &&
           !pathname.startsWith('/dashboard/gis-sovereignty/manager') &&
+          !pathname.startsWith('/dashboard/gis-sovereignty/minerva-center') &&
           !pathname.startsWith('/dashboard/gis-sovereignty/engineering-workspace') &&
           !pathname.startsWith('/dashboard/gis-sovereignty/satellite-intelligence-center') &&
           !pathname.startsWith('/dashboard/admin-gateway/maintenance') &&

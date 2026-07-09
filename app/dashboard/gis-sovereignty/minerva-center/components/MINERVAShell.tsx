@@ -711,9 +711,24 @@ export default function MINERVAShell() {
                 timelineIndex={timelineIdx}
                 showAllAnomalies={showAll}
                 layers={layers}
+                selectedAssetId={params.asset_id}
+                initialBaseMap="satellite"
                 onMapClick={(lat,lon)=>setParams(p=>({...p,lat,lon}))}
                 onDrawComplete={(g)=>console.log('drawn',g)}
                 onAnomalyClick={(pt)=>{const i=timelinePoints.findIndex(t=>t.date===pt.date);if(i>=0)setTLIdx(i);}}
+                onAssetSelect={(asset)=>{
+                  // Auto-populate params from selected asset
+                  if(asset.geometry){
+                    const geom=asset.geometry;
+                    let lat=params.lat,lon=params.lon;
+                    if(geom.type==='Point'){lat=geom.coordinates[1];lon=geom.coordinates[0];}
+                    else if(geom.type==='LineString'&&geom.coordinates.length>0){const mid=geom.coordinates[Math.floor(geom.coordinates.length/2)];lat=mid[1];lon=mid[0];}
+                    else if(geom.type==='Polygon'&&geom.coordinates[0]?.length>0){const pts=geom.coordinates[0];lat=pts.reduce((s:number,c:number[])=>s+c[1],0)/pts.length;lon=pts.reduce((s:number,c:number[])=>s+c[0],0)/pts.length;}
+                    const typeVal=ASSET_TYPES.find(t=>t.label===asset.classification||t.value===asset.classification)?.value??params.asset_type;
+                    const meta=ASSET_TYPES.find(t=>t.value===typeVal)??assetMeta;
+                    setParams(p=>({...p,lat,lon,asset_id:String(asset.id),asset_type:typeVal,buffer_m:meta.buffer}));
+                  }
+                }}
               />
 
               {/* Empty/Loading overlays */}

@@ -1,146 +1,186 @@
 'use client';
-import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+// MINERVAMapOL — OpenLayers (same DSP engine) + registered assets + basemap switcher
+import React,{useEffect,useRef,useImperativeHandle,forwardRef,useState,useCallback}from'react';
 
-export interface AnomalyPoint { lat:number; lon:number; score:number; date:string; severity:string; is_event:boolean; }
-export type DrawMode = 'none'|'point'|'rectangle'|'polygon'|'circle'|'line';
-export interface LayerVisibility { pipeline:boolean; buffer:boolean; anomalies:boolean; labels:boolean; }
-export interface MINERVAMapHandle {
-  flyToAnomaly:(lat:number,lon:number,zoom?:number)=>void;
-  flyToAsset:()=>void;
-  setDrawMode:(mode:DrawMode)=>void;
-  clearDraw:()=>void;
-  loadGeoJSON:(g:any)=>void;
-  getDrawnGeometry:()=>any;
+// Dynamic CSS import — guarded to avoid SSR issues
+if (typeof window !== 'undefined') {
+  try { require('ol/ol.css'); } catch { /* ignore if ol not available */ }
 }
-interface Props {
-  lat:number; lon:number; bufferMeters?:number; assetColor?:string; assetLabel?:string;
-  timeline:AnomalyPoint[]; timelineIndex:number; showAllAnomalies:boolean;
-  layers:LayerVisibility; onMapClick?:(lat:number,lon:number)=>void;
-  onDrawComplete?:(g:any)=>void; onAnomalyClick?:(p:AnomalyPoint)=>void;
-}
+export type DrawMode='none'|'point'|'rectangle'|'polygon'|'circle'|'line';
+export type BaseMapType='satellite'|'osm'|'terrain'|'dark';
+export interface AnomalyPoint{lat:number;lon:number;score:number;date:string;severity:string;is_event:boolean;}
+export interface LayerVisibility{pipeline:boolean;buffer:boolean;anomalies:boolean;labels:boolean;}
+export interface PrincipalAsset{id:string|number;name:string;classification:string|null;geometry_type:string|null;geometry:any;health_score:number|null;status:string|null;}
+export interface MINERVAMapHandle{flyToAnomaly:(l:number,o:number,z?:number)=>void;flyToAsset:()=>void;setDrawMode:(m:DrawMode)=>void;clearDraw:()=>void;loadGeoJSON:(g:any)=>void;getDrawnGeometry:()=>any;setBaseMap:(t:BaseMapType)=>void;reloadAssets:()=>void;}
+interface Props{lat:number;lon:number;bufferMeters?:number;assetColor?:string;assetLabel?:string;timeline:AnomalyPoint[];timelineIndex:number;showAllAnomalies:boolean;layers:LayerVisibility;onMapClick?:(a:number,b:number)=>void;onDrawComplete?:(g:any)=>void;onAnomalyClick?:(p:AnomalyPoint)=>void;onAssetSelect?:(a:PrincipalAsset)=>void;selectedAssetId?:string|number|null;initialBaseMap?:BaseMapType;}
 
-function mToDeg(m:number,lat:number){const r=(lat*Math.PI)/180;return Math.max(m/(111320*Math.cos(r)),m/110540);}
-function buildPipe(lon:number,lat:number):number[][]{return[[lon-.06,lat+.002],[lon-.03,lat+.005],[lon,lat],[lon+.03,lat-.003],[lon+.06,lat+.001]];}
-function bufferPoly(coords:number[][],d:number):number[][][]{const u=coords.map(([x,y])=>[x,y+d]);const l=[...coords].reverse().map(([x,y])=>[x,y-d]);return[[...u,...l,u[0]]];}
 const SEV:Record<string,string>={SEVERE:'#ef4444',ANOMALY:'#f97316',WATCH:'#eab308',NORMAL:'#22c55e'};
+function classColor(c:string|null):string{const s=(c??'').toLowerCase();if(s.includes('water'))return'#3b82f6';if(s.includes('oil'))return'#f97316';if(s.includes('gas'))return'#a855f7';if(s.includes('power'))return'#eab308';if(s.includes('road'))return'#64748b';return'#94a3b8';}
+function buildPipe(lon:number,lat:number):[number,number][]{return[[lon-.06,lat+.002],[lon-.03,lat+.005],[lon,lat],[lon+.03,lat-.003],[lon+.06,lat+.001]];}
+function mToDeg(m:number,lat:number):number{return Math.max(m/(111320*Math.cos((lat*Math.PI)/180)),m/110540);}
+function makeSrc(t:BaseMapType){
+  try{
+    const{XYZ,OSM}=require('ol/source');
+    return t==='satellite'?new XYZ({url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxZoom:19}):t==='terrain'?new XYZ({url:'https://tile.opentopomap.org/{z}/{x}/{y}.png',maxZoom:17}):t==='dark'?new XYZ({url:'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'}):new OSM();
+  }catch{return null;}
+}
 
-const MINERVAMap=forwardRef<MINERVAMapHandle,Props>(function MINERVAMap(p,ref){
-  const cRef=useRef<HTMLDivElement>(null);
-  const mRef=useRef<any>(null);
-  const mkRef=useRef<any[]>([]);
-  const dsRef=useRef<{mode:DrawMode;pts:[number,number][]}>({mode:'none',pts:[]});
-  const dlRef=useRef(false);
-  const drRef=useRef<any>(null);
-  const startPt=useRef<[number,number]|null>(null);
+const MINERVAMapOL=forwardRef<MINERVAMapHandle,Props>(function MINERVAMapOL(p,ref){
+  const cr=useRef<HTMLDivElement>(null),mr=useRef<any>(null),br=useRef<any>(null);
+  const dr=useRef<any>(null),di=useRef<any>(null),dg=useRef<any>(null);
+  const[bm,setBm]=useState<BaseMapType>(p.initialBaseMap??'satellite');
+  const[assets,setAssets]=useState<PrincipalAsset[]>([]);
+  const[loadA,setLoadA]=useState(false);
+
+  const loadAssets=useCallback(async()=>{
+    setLoadA(true);
+    try{
+      const tk=typeof window!=='undefined'?(localStorage.getItem('auth_token')||''):'';
+      const ti=typeof window!=='undefined'?(localStorage.getItem('tenant_id')||localStorage.getItem('active_tenant_id')||''):'';
+      const h:Record<string,string>={};
+      if(tk)h.Authorization='Bearer '+tk;
+      if(ti)h['X-Tenant-ID']=ti;
+      const res=await fetch('/api/engineering/workspace/principal-assets?limit=300',{headers:h});
+      if(!res.ok)return;
+      const d=await res.json();
+      setAssets((Array.isArray(d)?d:(d?.data??d?.assets??[])).filter((a:PrincipalAsset)=>a.geometry));
+    }catch{}finally{setLoadA(false);}
+  },[]);
+
+  useEffect(()=>{loadAssets();},[]);
 
   useImperativeHandle(ref,()=>({
-    flyToAnomaly(lat,lon,zoom=14.5){mRef.current?.flyTo({center:[lon,lat],zoom,duration:900});},
-    flyToAsset(){mRef.current?.flyTo({center:[p.lon,p.lat],zoom:13,duration:900});},
-    setDrawMode(mode){dsRef.current={mode,pts:[]};if(mRef.current)mRef.current.getCanvas().style.cursor=mode!=='none'?'crosshair':'grab';},
-    clearDraw(){
-      dsRef.current={mode:'none',pts:[]};drRef.current=null;
-      if(mRef.current){mRef.current.getCanvas().style.cursor='grab';
-        mRef.current.getSource('draw')?.setData({type:'FeatureCollection',features:[]});}
+    flyToAnomaly(lt,ln,z=14.5){const{fromLonLat:f}=require('ol/proj');mr.current?.getView().animate({center:f([ln,lt]),zoom:z,duration:900});},
+    flyToAsset(){const{fromLonLat:f}=require('ol/proj');mr.current?.getView().animate({center:f([p.lon,p.lat]),zoom:13,duration:900});},
+    setDrawMode(mode){
+      const m=mr.current;if(!m)return;
+      if(di.current){m.removeInteraction(di.current);di.current=null;}
+      if(mode==='none'){m.getTargetElement().style.cursor='';return;}
+      const{Draw}=require('ol/interaction');
+      const tm:Record<string,string>={point:'Point',line:'LineString',polygon:'Polygon',rectangle:'Circle',circle:'Circle'};
+      const draw=new Draw({source:dr.current,type:tm[mode]??'Point',geometryFunction:mode==='rectangle'?require('ol/interaction/Draw').createBox():undefined});
+      draw.on('drawend',(e:any)=>{
+        dg.current=e.feature.getGeometry();
+        const fmt=new(require('ol/format').GeoJSON)();
+        const gj=JSON.parse(fmt.writeFeature(e.feature,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'}));
+        p.onDrawComplete?.(gj);m.removeInteraction(draw);di.current=null;
+        m.getTargetElement().style.cursor='';
+      });
+      m.addInteraction(draw);m.getTargetElement().style.cursor='crosshair';di.current=draw;
     },
+    clearDraw(){dr.current?.clear();dg.current=null;},
     loadGeoJSON(gj){
-      const m=mRef.current;if(!m)return;
-      if(m.getSource('ext'))m.getSource('ext').setData(gj);
-      else{m.addSource('ext',{type:'geojson',data:gj});
-        m.addLayer({id:'ext-fill',type:'fill',source:'ext',paint:{'fill-color':'#f59e0b','fill-opacity':.25},filter:['==','$type','Polygon']});
-        m.addLayer({id:'ext-line',type:'line',source:'ext',paint:{'line-color':'#f59e0b','line-width':2.5}});}
-      try{const coords:number[][]=[];
-        const col=(g:any)=>{if(g.type==='Point')coords.push(g.coordinates);else if(g.type==='LineString')coords.push(...g.coordinates);else if(g.type==='Polygon')coords.push(...g.coordinates[0]);else if(g.type==='FeatureCollection')g.features.forEach((f:any)=>col(f.geometry));else if(g.type==='Feature')col(g.geometry);};
-        col(gj);if(coords.length>0){const lo=coords.map(c=>c[0]),la=coords.map(c=>c[1]);m.fitBounds([[Math.min(...lo),Math.min(...la)],[Math.max(...lo),Math.max(...la)]],{padding:60});}
-      }catch{}
+      const m=mr.current;if(!m)return;
+      const{GeoJSON}=require('ol/format'),{Vector:VS}=require('ol/source'),{Vector:VL}=require('ol/layer'),{Style,Fill,Stroke}=require('ol/style');
+      const feats=new GeoJSON().readFeatures(gj,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});
+      let lyr=m.getLayers().getArray().find((l:any)=>l.get('n')==='ext');
+      if(!lyr){const s=new VS();lyr=new VL({source:s,zIndex:90,style:new Style({fill:new Fill({color:'rgba(245,158,11,.22)'}),stroke:new Stroke({color:'#f59e0b',width:2.5})})});lyr.set('n','ext');m.addLayer(lyr);}
+      lyr.getSource().clear();lyr.getSource().addFeatures(feats);
+      if(feats.length)m.getView().fit(lyr.getSource().getExtent(),{padding:[60,60,60,60],maxZoom:16,duration:700});
     },
-    getDrawnGeometry(){return drRef.current;},
-  }),[p.lat,p.lon]);
+    getDrawnGeometry(){return dg.current;},
+    setBaseMap(t){setBm(t);br.current?.setSource(makeSrc(t));},
+    reloadAssets(){loadAssets();},
+  }),[p.lat,p.lon,loadAssets]);
 
+  // ── Init map ────────────────────────────────────────────────────────────────
   useEffect(()=>{
-    if(!cRef.current||mRef.current)return;
-    let ml:any;try{ml=require('maplibre-gl');}catch{return;}
-    const m=new ml.Map({container:cRef.current,
-      style:{version:8,sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© OpenStreetMap'}},layers:[{id:'osm',type:'raster',source:'osm'}],glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'},
-      center:[p.lon,p.lat],zoom:12.5});
+    if(!cr.current||mr.current)return;
+    try{
+      const{Map}=require('ol'),{View}=require('ol'),{TileLayer,Vector:VL}=require('ol/layer'),{Vector:VS}=require('ol/source'),{fromLonLat}=require('ol/proj'),{ScaleLine,Attribution}=require('ol/control'),{Style,Fill,Stroke}=require('ol/style');
+      const src=makeSrc(bm);if(!src)return;
+      const bt=new TileLayer({source:src,zIndex:0});br.current=bt;
+      const ds=new VS();dr.current=ds;
+      const dl=new VL({source:ds,zIndex:99,style:new Style({fill:new Fill({color:'rgba(245,158,11,.18)'}),stroke:new Stroke({color:'#f59e0b',width:2.5,lineDash:[5,4]})})});dl.set('n','draw');
+      const map=new Map({target:cr.current,layers:[bt,dl],view:new View({center:fromLonLat([p.lon,p.lat]),zoom:12.5}),controls:[new ScaleLine({units:'metric'}),new Attribution({collapsible:true})]});
+      map.on('click',(e:any)=>{
+        const{toLonLat}=require('ol/proj');const[ln,lt]=toLonLat(e.coordinate);
+        let hit=false;
+        map.forEachFeatureAtPixel(e.pixel,(f:any,l:any)=>{if(hit)return;if(l?.get('n')==='assets'){const a=f.get('a');if(a){hit=true;p.onAssetSelect?.(a);}}},{hitTolerance:6});
+        p.onMapClick?.(lt,ln);
+      });
+      map.on('pointermove',(e:any)=>{
+        let ov=false;
+        map.forEachFeatureAtPixel(e.pixel,(_:any,l:any)=>{if(l?.get('n')==='assets')ov=true;},{hitTolerance:4});
+        if(!di.current)map.getTargetElement().style.cursor=ov?'pointer':'';
+      });
+      mr.current=map;
+      return()=>{map.setTarget(undefined);mr.current=null;};
+    }catch(err){console.error('[MINERVAMap] OL init error:',err);}
+  },[]);
 
-    m.on('load',()=>{
-      const pipe=buildPipe(p.lon,p.lat);
-      const bd=mToDeg(p.bufferMeters??50,p.lat);
-      const bp=bufferPoly(pipe,bd);
-      const ac=p.assetColor??'#3b82f6';
-
-      m.addSource('buf',{type:'geojson',data:{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:bp}}});
-      m.addLayer({id:'buf-fill',type:'fill',source:'buf',paint:{'fill-color':ac,'fill-opacity':.08}});
-      m.addLayer({id:'buf-line',type:'line',source:'buf',paint:{'line-color':ac,'line-width':1.5,'line-opacity':.4,'line-dasharray':[4,3]}});
-
-      m.addSource('pipe',{type:'geojson',data:{type:'Feature',properties:{name:p.assetLabel??'الأصل محل الدراسة'},geometry:{type:'LineString',coordinates:pipe}}});
-      m.addLayer({id:'pipe-glow',type:'line',source:'pipe',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':ac,'line-width':14,'line-opacity':.1,'line-blur':6}});
-      m.addLayer({id:'pipe-line',type:'line',source:'pipe',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':ac,'line-width':3.5,'line-opacity':.95}});
-      m.addLayer({id:'pipe-dash',type:'line',source:'pipe',layout:{'line-join':'round','line-cap':'butt'},paint:{'line-color':'#fff','line-width':1,'line-opacity':.25,'line-dasharray':[2,8]}});
-      m.addLayer({id:'pipe-lbl',type:'symbol',source:'pipe',layout:{'symbol-placement':'line-center','text-field':['get','name'],'text-size':11,'text-offset':[0,-1.5]},paint:{'text-color':'#93c5fd','text-halo-color':'#000','text-halo-width':1.5}});
-
-      m.addSource('draw',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-      m.addLayer({id:'draw-fill',type:'fill',source:'draw',paint:{'fill-color':'#f59e0b','fill-opacity':.2},filter:['==','$type','Polygon']});
-      m.addLayer({id:'draw-line',type:'line',source:'draw',paint:{'line-color':'#f59e0b','line-width':2,'line-dasharray':[2,2]}});
-      dlRef.current=true;
-    });
-
-    m.on('mousedown',(e:any)=>{if(dsRef.current.mode!=='none')startPt.current=[e.lngLat.lng,e.lngLat.lat];});
-    m.on('mouseup',(e:any)=>{
-      const ds=dsRef.current;if(ds.mode==='none')return;
-      const end:[number,number]=[e.lngLat.lng,e.lngLat.lat];let geom:any=null;
-      if(ds.mode==='point'){geom={type:'Point',coordinates:end};p.onMapClick?.(end[1],end[0]);}
-      else if(ds.mode==='rectangle'&&startPt.current){const[x1,y1]=startPt.current,[x2,y2]=end;geom={type:'Polygon',coordinates:[[[x1,y1],[x2,y1],[x2,y2],[x1,y2],[x1,y1]]]};}
-      else if(ds.mode==='circle'&&startPt.current){const dx=end[0]-startPt.current[0],dy=end[1]-startPt.current[1],r=Math.sqrt(dx*dx+dy*dy),pts:number[][]=[];for(let i=0;i<=64;i++){const a=(i/64)*2*Math.PI;pts.push([startPt.current[0]+r*Math.cos(a),startPt.current[1]+r*Math.sin(a)]);}geom={type:'Polygon',coordinates:[pts]};}
-      if(geom&&dlRef.current){drRef.current=geom;m.getSource('draw')?.setData({type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:geom}]});p.onDrawComplete?.({type:'Feature',properties:{},geometry:geom});}
-      startPt.current=null;
-      if(['rectangle','circle'].includes(ds.mode)){dsRef.current={mode:'none',pts:[]};m.getCanvas().style.cursor='grab';}
-    });
-    m.on('click',(e:any)=>{if(dsRef.current.mode==='none')p.onMapClick?.(e.lngLat.lat,e.lngLat.lng);});
-    m.addControl(new ml.NavigationControl({showCompass:true}),'top-right');
-    m.addControl(new ml.ScaleControl({maxWidth:100,unit:'metric'}),'bottom-left');
-    mRef.current=m;
-    return()=>{m.remove();mRef.current=null;dlRef.current=false;};
-  },[p.lat,p.lon]);
-
+  // ── Assets layer ────────────────────────────────────────────────────────────
   useEffect(()=>{
-    const m=mRef.current;if(!m||!m.loaded())return;
-    let ml:any;try{ml=require('maplibre-gl');}catch{return;}
-    mkRef.current.forEach(mk=>mk.remove());mkRef.current=[];
-    if(!p.timeline||p.timeline.length===0)return;
-    const pipe=buildPipe(p.lon,p.lat);const tLen=pipe.length-1;
-    const pts=p.showAllAnomalies?p.timeline.filter(x=>x.score>.15):p.timeline.slice(0,p.timelineIndex+1).filter(x=>x.score>.15);
-    const peak=Math.max(...p.timeline.map(x=>x.score));
+    const m=mr.current;if(!m||!assets.length)return;
+    const{Vector:VS}=require('ol/source'),{Vector:VL}=require('ol/layer'),{GeoJSON}=require('ol/format'),{Style,Fill,Stroke,Circle:CS}=require('ol/style');
+    const old=m.getLayers().getArray().find((l:any)=>l.get('n')==='assets');if(old)m.removeLayer(old);
+    const src=new VS(),fmt=new GeoJSON(),sid=p.selectedAssetId?.toString();
+    assets.forEach(a=>{
+      if(!a.geometry)return;
+      try{const fs=fmt.readFeatures({type:'Feature',geometry:a.geometry,properties:{}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});fs.forEach((f:any)=>f.set('a',a));src.addFeatures(fs);}catch{}
+    });
+    const lyr=new VL({source:src,zIndex:10,style:(f:any)=>{
+      const a=f.get('a');const isSel=a?.id?.toString()===sid;
+      const c=isSel?'#f59e0b':classColor(a?.classification??null);
+      const gt=f.getGeometry()?.getType()??'';
+      if(gt==='LineString'||gt==='MultiLineString')return[new Style({stroke:new Stroke({color:c+'30',width:isSel?20:14})}),new Style({stroke:new Stroke({color:c,width:isSel?4.5:3})})];
+      if(gt.includes('Polygon'))return new Style({fill:new Fill({color:c+'22'}),stroke:new Stroke({color:c,width:isSel?3:2})});
+      return new Style({image:new CS({radius:isSel?10:7,fill:new Fill({color:c}),stroke:new Stroke({color:'#fff',width:isSel?2.5:1.5})})});
+    }});
+    lyr.set('n','assets');m.addLayer(lyr);
+  },[assets,p.selectedAssetId]);
+
+  // ── Buffer ──────────────────────────────────────────────────────────────────
+  useEffect(()=>{
+    const m=mr.current;if(!m)return;
+    const old=m.getLayers().getArray().find((l:any)=>l.get('n')==='buf');if(old)m.removeLayer(old);
+    if(!p.layers.buffer)return;
+    const{Vector:VS}=require('ol/source'),{Vector:VL}=require('ol/layer'),{GeoJSON}=require('ol/format'),{Style,Fill,Stroke}=require('ol/style');
+    const bd=mToDeg(p.bufferMeters??50,p.lat),pipe=buildPipe(p.lon,p.lat);
+    const u=pipe.map(([x,y])=>[x,y+bd]),lo=[...pipe].reverse().map(([x,y])=>[x,y-bd]);
+    const src=new VS();
+    src.addFeatures(new GeoJSON().readFeatures({type:'Feature',geometry:{type:'Polygon',coordinates:[[...u,...lo,u[0]]]},properties:{}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'}));
+    const c=p.assetColor??'#3b82f6';
+    const lyr=new VL({source:src,zIndex:8,style:new Style({fill:new Fill({color:c+'15'}),stroke:new Stroke({color:c,width:1.5,lineDash:[6,4]})})});
+    lyr.set('n','buf');m.addLayer(lyr);
+  },[p.lat,p.lon,p.bufferMeters,p.assetColor,p.layers.buffer]);
+
+  // ── Anomaly markers ─────────────────────────────────────────────────────────
+  useEffect(()=>{
+    const m=mr.current;if(!m)return;
+    const old=m.getLayers().getArray().find((l:any)=>l.get('n')==='anm');if(old)m.removeLayer(old);
+    if(!p.layers.anomalies||!p.timeline?.length)return;
+    const{Vector:VS}=require('ol/source'),{Vector:VL}=require('ol/layer'),{Style,Fill,Stroke,Circle:CS}=require('ol/style'),{Feature}=require('ol'),{Point}=require('ol/geom'),{fromLonLat}=require('ol/proj');
+    const pts=p.showAllAnomalies?p.timeline.filter(t=>t.score>.15):p.timeline.slice(0,p.timelineIndex+1).filter(t=>t.score>.15);
+    const pipe=buildPipe(p.lon,p.lat),tLen=pipe.length-1,pk=Math.max(...p.timeline.map(t=>t.score));
+    const src=new VS();
     pts.forEach((pt,i)=>{
       const t=pts.length>1?i/(pts.length-1):.5,ri=t*tLen;
-      const s0=pipe[Math.floor(ri)],s1=pipe[Math.min(Math.ceil(ri),tLen)];
-      const f=ri-Math.floor(ri);
-      const mLon=s0[0]+(s1[0]-s0[0])*f,mLat=s0[1]+(s1[1]-s0[1])*f;
-      const jit=(Math.random()-.5)*.0008;
-      const col=SEV[pt.severity]??'#94a3b8';const isPk=Math.abs(pt.score-peak)<.001;const sz=isPk?22:pt.score>=.6?16:12;
-      const el=document.createElement('div');
-      el.style.cssText=`width:${sz}px;height:${sz}px;border-radius:50%;background:${col};border:2.5px solid rgba(255,255,255,.9);cursor:pointer;box-shadow:0 2px 8px ${col}80;transition:transform .15s;z-index:${isPk?10:5};${isPk?'animation:mvp 1.4s infinite;':''}`;
-      el.addEventListener('mouseenter',()=>{el.style.transform='scale(1.3)';});
-      el.addEventListener('mouseleave',()=>{el.style.transform='scale(1)';});
-      el.addEventListener('click',(e)=>{e.stopPropagation();p.onAnomalyClick?.(pt);});
-      const mk=new ml.Marker({element:el}).setLngLat([mLon+jit,mLat+jit]).setPopup(
-        new ml.Popup({offset:16,closeButton:true,maxWidth:'200px'}).setHTML(`<div dir="rtl" style="font-family:system-ui,sans-serif;padding:4px"><div style="font-weight:700;color:${col};font-size:13px">${pt.severity}</div><div style="font-size:12px;color:#cbd5e1">Score: <b>${pt.score.toFixed(3)}</b></div><div style="font-size:11px;color:#64748b">${pt.date}</div>${pt.is_event?'<div style="color:#ef4444;font-size:11px;font-weight:700;margin-top:3px">◄ حدث مؤكد</div>':''}</div>`)
-      ).addTo(m);
-      mkRef.current.push(mk);if(isPk){mk.togglePopup();}
+      const s0=pipe[Math.floor(ri)],s1=pipe[Math.min(Math.ceil(ri),tLen)],f=ri-Math.floor(ri);
+      const mLon=s0[0]+(s1[0]-s0[0])*f+(Math.random()-.5)*.0008;
+      const mLat=s0[1]+(s1[1]-s0[1])*f+(Math.random()-.5)*.0004;
+      const c=SEV[pt.severity]??'#94a3b8';const ip=Math.abs(pt.score-pk)<.001;const r=ip?11:pt.score>=.6?8:6;
+      const feat=new Feature({geometry:new Point(fromLonLat([mLon,mLat])),anm:pt});
+      feat.setStyle(new Style({image:new CS({radius:r,fill:new Fill({color:c}),stroke:new Stroke({color:'#fff',width:ip?2.5:1.5})})}));
+      src.addFeature(feat);
     });
-  },[p.timeline,p.timelineIndex,p.showAllAnomalies,p.lat,p.lon]);
+    const lyr=new VL({source:src,zIndex:20});lyr.set('n','anm');m.addLayer(lyr);
+  },[p.timeline,p.timelineIndex,p.showAllAnomalies,p.lat,p.lon,p.layers.anomalies]);
 
-  useEffect(()=>{
-    const m=mRef.current;if(!m||!m.loaded())return;
-    const tog=(id:string,v:boolean)=>{if(m.getLayer(id))m.setLayoutProperty(id,'visibility',v?'visible':'none');};
-    tog('pipe-line',p.layers.pipeline);tog('pipe-glow',p.layers.pipeline);tog('pipe-dash',p.layers.pipeline);
-    tog('pipe-lbl',p.layers.labels);tog('buf-fill',p.layers.buffer);tog('buf-line',p.layers.buffer);
-    mkRef.current.forEach(mk=>{mk.getElement().style.display=p.layers.anomalies?'block':'none';});
-  },[p.layers]);
+  useEffect(()=>{br.current?.setSource(makeSrc(bm));},[bm]);
 
-  return(<>
-    <style>{`@keyframes mvp{0%,100%{box-shadow:0 0 6px 2px #ef444488;transform:scale(1)}50%{box-shadow:0 0 18px 8px #ef444433;transform:scale(1.2)}}.maplibregl-ctrl-attrib{font-size:9px!important}.maplibregl-popup-content{background:#1e293b!important;color:#e2e8f0!important;border:1px solid #334155!important;border-radius:10px!important;padding:10px!important}.maplibregl-popup-tip{border-top-color:#1e293b!important;border-bottom-color:#1e293b!important}`}</style>
-    <div ref={cRef} className="w-full h-full"/>
-  </>);
+  return(
+    <div className="relative w-full h-full">
+      <style>{`.ol-scale-line{background:rgba(15,23,42,.8)!important;border-radius:8px!important;padding:3px 8px!important}.ol-scale-line-inner{border-color:#475569!important;color:#94a3b8!important;font-size:10px!important}.ol-attribution{background:rgba(15,23,42,.75)!important;border-radius:8px!important}.ol-attribution ul{font-size:9px!important;color:#64748b!important;margin:0!important}`}</style>
+      <div ref={cr} className="w-full h-full rounded-xl overflow-hidden"/>
+      <div className="absolute bottom-10 right-3 flex flex-col gap-1 z-30">
+        {([{id:'satellite' as BaseMapType,l:'فضائي',e:'🛰️'},{id:'osm' as BaseMapType,l:'شوارع',e:'🗺️'},{id:'terrain' as BaseMapType,l:'تضاريس',e:'⛰️'},{id:'dark' as BaseMapType,l:'داكن',e:'🌑'}]).map(({id,l,e})=>(
+          <button key={id} onClick={()=>setBm(id)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shadow-lg backdrop-blur-sm border ${bm===id?'bg-blue-600/90 border-blue-400/60 text-white':'bg-slate-950/80 border-slate-700/50 text-slate-400 hover:text-slate-200'}`}><span>{e}</span>{l}</button>
+        ))}
+      </div>
+      {assets.length>0&&<div className="absolute bottom-3 right-3 bg-slate-950/80 border border-slate-700/50 rounded-lg px-2 py-1 text-xs text-slate-400 backdrop-blur-sm z-20">{assets.length} أصل مسجّل</div>}
+      {loadA&&<div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-slate-950/85 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-400 flex items-center gap-2 pointer-events-none backdrop-blur-sm"><svg className="w-3 h-3 animate-spin text-blue-400" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>جارٍ تحميل الأصول...</div>}
+    </div>
+  );
 });
-export default MINERVAMap;
+export default MINERVAMapOL;
