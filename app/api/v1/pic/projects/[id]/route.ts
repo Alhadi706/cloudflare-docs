@@ -45,7 +45,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         uid:           s.scene_uid,
         date:          s.acquisition_date,
         cloud:         s.cloud_cover_pct,
-        bbox:          s.bbox,
+        bbox:          s.scene_bbox,   // real scene footprint for correct map overlay
+        project_bbox:  s.bbox,         // project overlap bbox for context
         thumbnail_url: `/api/v1/satellite/planet-thumbnail?scene_id=${s.scene_uid}&use_cache=1`,
       }));
     }

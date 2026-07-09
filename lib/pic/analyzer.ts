@@ -488,7 +488,8 @@ export interface ArchivedScenePublic {
   scene_uid:          string;
   acquisition_date:   string;
   cloud_cover_pct:    number;
-  bbox:               number[];
+  bbox:               number[];       // project bbox (overlap area)
+  scene_bbox:         number[];       // actual scene footprint (full coverage)
   thumb_path:         string;
 }
 
@@ -505,7 +506,8 @@ export function findScenesForBbox(
     scene_uid:        s.scene_id,
     acquisition_date: s.scan_date,
     cloud_cover_pct:  s.cloud_cover,
-    bbox:             b,  // approximate — scene bbox not stored in ArchiveScene
+    bbox:             b,
+    scene_bbox:       s.scene_bbox,   // real footprint — used for correct overlay extent
     thumb_path:       s.thumb_path,
   }));
 }

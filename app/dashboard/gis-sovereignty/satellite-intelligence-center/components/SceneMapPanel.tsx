@@ -1085,8 +1085,8 @@ export function SceneMapPanel({
       });
       map.addLayer(layer);
       imageOverlayLayerRef.current = layer;
-      // Fit view to image extent
-      map.getView().fit(extent, { padding: [40, 40, 40, 40], duration: 600, maxZoom: 16 });
+      // Do NOT auto-fit — the project fly-to already handles centering.
+      // Fitting to the scene extent (25km+) would zoom out too far from the project.
     })();
   }, [staticImageOverlay, olLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 

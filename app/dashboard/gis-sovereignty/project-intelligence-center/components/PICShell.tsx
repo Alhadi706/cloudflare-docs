@@ -64,7 +64,8 @@ interface ArchiveScene {
   uid:           string;
   date:          string;
   cloud:         number;
-  bbox:          number[];
+  bbox:          number[];       // real scene footprint (used for map overlay extent)
+  project_bbox?: number[];      // project overlap area
   thumbnail_url: string;
 }
 
@@ -190,12 +191,14 @@ export default function PICShell() {
           setArchiveScenes(scenes);
           const lastIdx = scenes.length - 1;
           setActiveSceneIdx(lastIdx);
-          // Auto-show the most recent scene on the map
+          // Auto-show the most recent scene on the map.
+          // Use scene bbox (real footprint) as the overlay extent so the
+          // thumbnail covers the correct geographic area on the map.
           const latest = scenes[lastIdx];
           setImageOverlay({
             url:    latest.thumbnail_url,
             extent: latest.bbox as [number,number,number,number],
-            opacity: 0.85,
+            opacity: 0.75,
           });
         } else {
           setArchiveScenes([]);
@@ -208,6 +211,8 @@ export default function PICShell() {
   // ── Filtered list ─────────────────────────────────────────────
   const filtered = useMemo(() => {
     return projects.filter(p => {
+      // Always hide cancelled projects — they are archived, not operational
+      if (p.status === 'cancelled') return false;
       if (filterStatus !== 'all' && p.status !== filterStatus) return false;
       if (filterType !== 'all' && p.type !== filterType) return false;
       if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -422,7 +427,9 @@ export default function PICShell() {
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
           className="h-7 px-2 rounded bg-slate-800 border border-slate-700 text-xs text-slate-200 appearance-none">
           <option value="all">كل الحالات</option>
-          {Object.entries(STATUS_CONFIG).map(([v,c]) => <option key={v} value={v}>{c.label}</option>)}
+          {Object.entries(STATUS_CONFIG)
+            .filter(([v]) => v !== 'cancelled')
+            .map(([v,c]) => <option key={v} value={v}>{c.label}</option>)}
         </select>
 
         {/* Type filter */}
@@ -597,10 +604,14 @@ export default function PICShell() {
                   archiveScenes={archiveScenes}
                   activeSceneIdx={activeSceneIdx}
                   scenesLoading={scenesLoading}
-                  onSceneChange={idx => {
+                    onSceneChange={idx => {
                     setActiveSceneIdx(idx);
                     const sc = archiveScenes[idx];
-                    if (sc) setImageOverlay({ url: sc.thumbnail_url, extent: sc.bbox as [number,number,number,number], opacity: 0.85 });
+                    if (sc) setImageOverlay({
+                      url:    sc.thumbnail_url,
+                      extent: sc.bbox as [number,number,number,number],
+                      opacity: 0.75,
+                    });
                   }}
                   onHideOverlay={() => setImageOverlay(null)}
                   onOpenLightbox={setLightboxUrl}
@@ -926,41 +937,44 @@ function ProjectDetailPanel({
             <p className="text-[10px] text-slate-600 py-1">لا توجد مشاهد أرشيفية لهذه المنطقة</p>
           ) : (
             <>
-              {/* Selected scene preview */}
+              {/* Selected scene preview — full width for clarity */}
               {archiveScenes[activeSceneIdx] && (
-                <div className="flex items-start gap-2.5 mb-3">
-                  <div className="relative shrink-0 cursor-pointer group"
+                <div className="mb-3">
+                  <div className="relative cursor-pointer group rounded-lg overflow-hidden border border-slate-700 hover:border-indigo-500 transition-colors"
                     onClick={() => onOpenLightbox(archiveScenes[activeSceneIdx].thumbnail_url)}>
                     <img
                       src={archiveScenes[activeSceneIdx].thumbnail_url}
                       alt={archiveScenes[activeSceneIdx].date}
-                      className="w-20 h-20 rounded-lg object-cover border border-slate-600 group-hover:border-indigo-500 transition-colors"
+                      className="w-full aspect-square object-cover"
+                      style={{ imageRendering: 'pixelated' }}
                       onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
                     />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-lg">
-                      <ZoomIn size={18} className="text-white" />
+                    {/* Overlay info */}
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2.5 pb-2 pt-4">
+                      <p className="text-xs font-bold text-white">{archiveScenes[activeSceneIdx].date}</p>
+                      <p className="text-[10px] text-slate-300">
+                        ☁ {archiveScenes[activeSceneIdx].cloud}% · {activeSceneIdx + 1}/{archiveScenes.length}
+                      </p>
+                    </div>
+                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded p-1">
+                      <ZoomIn size={14} className="text-white" />
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-bold text-white">{archiveScenes[activeSceneIdx].date}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      سحابة: {archiveScenes[activeSceneIdx].cloud}%
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                      {activeSceneIdx + 1} / {archiveScenes.length}
-                    </p>
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <button onClick={() => onSceneChange(Math.max(0, activeSceneIdx - 1))}
-                        disabled={activeSceneIdx === 0}
-                        className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                        <ChevronRight size={10} />
-                      </button>
-                      <button onClick={() => onSceneChange(Math.min(archiveScenes.length - 1, activeSceneIdx + 1))}
-                        disabled={activeSceneIdx === archiveScenes.length - 1}
-                        className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                        <ChevronLeft size={10} />
-                      </button>
-                    </div>
+                  {/* Nav buttons */}
+                  <div className="flex items-center justify-between mt-1.5">
+                    <button onClick={() => onSceneChange(Math.max(0, activeSceneIdx - 1))}
+                      disabled={activeSceneIdx === 0}
+                      className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors text-[10px]">
+                      <ChevronRight size={10} />السابق
+                    </button>
+                    <span className="text-[9px] text-slate-600 font-mono">
+                      {archiveScenes[activeSceneIdx].date}
+                    </span>
+                    <button onClick={() => onSceneChange(Math.min(archiveScenes.length - 1, activeSceneIdx + 1))}
+                      disabled={activeSceneIdx === archiveScenes.length - 1}
+                      className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors text-[10px]">
+                      التالي<ChevronLeft size={10} />
+                    </button>
                   </div>
                 </div>
               )}
