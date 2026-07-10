@@ -131,6 +131,8 @@ export default function PICShell() {
   const [imageOverlay,   setImageOverlay]   = useState<{ url: string; extent: [number,number,number,number]; opacity?: number } | null>(null);
   const [lightboxUrl,    setLightboxUrl]    = useState<string | null>(null);
   const [scenesLoading,  setScenesLoading]  = useState(false);
+  const [isPlaying,      setIsPlaying]      = useState(false);
+  const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── New project form ─────────────────────────────────────────
   const [newProject, setNewProject] = useState({
@@ -161,6 +163,41 @@ export default function PICShell() {
   }, []);
 
   useEffect(() => { loadProjects(); loadDashboard(); }, [loadProjects, loadDashboard]);
+
+  // ── Scene change + overlay (shared by slider, panel, auto-play) ────────
+  const handleSceneChange = useCallback((idx: number) => {
+    const sc = archiveScenes[idx];
+    if (!sc) return;
+    setActiveSceneIdx(idx);
+    setImageOverlay({
+      url:    sc.thumbnail_url,
+      extent: sc.bbox as [number,number,number,number],
+      opacity: 0.78,
+    });
+  }, [archiveScenes]);
+
+  // ── Auto-play: advance one scene every 1.5s ────────────────────────────
+  useEffect(() => {
+    if (playIntervalRef.current) clearInterval(playIntervalRef.current);
+    if (!isPlaying || archiveScenes.length === 0) return;
+    playIntervalRef.current = setInterval(() => {
+      setActiveSceneIdx(prev => {
+        const next = prev + 1;
+        if (next >= archiveScenes.length) {
+          setIsPlaying(false);
+          return prev;
+        }
+        const sc = archiveScenes[next];
+        if (sc) setImageOverlay({
+          url:    sc.thumbnail_url,
+          extent: sc.bbox as [number,number,number,number],
+          opacity: 0.78,
+        });
+        return next;
+      });
+    }, 1500);
+    return () => { if (playIntervalRef.current) clearInterval(playIntervalRef.current); };
+  }, [isPlaying, archiveScenes]);
 
   // ── Load project detail ───────────────────────────────────────
   useEffect(() => {
@@ -293,11 +330,14 @@ export default function PICShell() {
         body: JSON.stringify({ ...newProject, geometry_json: geometry }),
       });
       if (res.ok) {
+        const created = await res.json();
         await loadProjects();
         setShowCreateForm(false);
         setDrawnPolygon(null);
         setDrawMode('off');
         setNewProject({ name:'', type:'road', contractor_name:'', department:'', start_date:'', expected_end_date:'', notes:'' });
+        // Auto-select and zoom to the newly created project
+        if (created?.project?.id) setSelectedId(created.project.id);
       }
     } catch { /* silent */ }
   }, [newProject, drawnPolygon, loadProjects]);
@@ -381,12 +421,9 @@ export default function PICShell() {
       {/* ══ Ribbon ══════════════════════════════════════════════════ */}
       <div className="shrink-0 flex items-center gap-2 px-3 h-10 bg-slate-900/70 border-b border-slate-800 overflow-x-auto scrollbar-none">
         {/* Draw + Create */}
-        {drawMode === 'off' && !showCreateForm ? (
+        {!showCreateForm && drawMode === 'off' && !drawnPolygon ? (
           <button
-            onClick={() => {
-              // Default draw mode — will be updated when user picks type in form
-              setDrawMode('polygon');
-            }}
+            onClick={() => setDrawMode('polygon')}
             className="flex items-center gap-1.5 px-3 h-7 rounded bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold transition-colors shrink-0"
           >
             <PlusCircle size={12} />مشروع جديد
@@ -396,17 +433,26 @@ export default function PICShell() {
             <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/30 rounded text-xs text-indigo-300 animate-pulse">
               <span className="w-2 h-2 bg-indigo-400 rounded-full" />
               ارسم حدود المشروع على الخريطة
-              {drawMode === 'line' ? ' (خط مسار — انقر لإضافة نقاط، انقر مرتين للإنهاء)' : ' (مضلع — ارسم الحدود، انقر مرتين للإنهاء)'}
+              {drawMode === 'line' ? ' (خط — انقر مرتين للإنهاء)' : ' (مضلع — انقر مرتين للإنهاء)'}
             </div>
-            {drawnPolygon && (
-              <button onClick={() => setShowCreateForm(true)}
-                className="px-3 h-7 rounded bg-green-700 hover:bg-green-600 text-white text-xs font-semibold">
-                ✓ التالي — بيانات المشروع
-              </button>
-            )}
             <button onClick={() => { setDrawMode('off'); setDrawnPolygon(null); }}
               className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600">
               <X size={12} />
+            </button>
+          </div>
+        ) : drawnPolygon && !showCreateForm ? (
+          // Polygon drawn but form closed — show quick re-open
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded text-xs text-green-300">
+              <CheckCircle2 size={11} />الحدود جاهزة
+            </span>
+            <button onClick={() => setShowCreateForm(true)}
+              className="px-3 h-7 rounded bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold">
+              تسجيل المشروع ←
+            </button>
+            <button onClick={() => { setDrawnPolygon(null); setDrawMode('polygon'); }}
+              className="px-2 h-7 rounded bg-slate-700 text-slate-400 hover:text-slate-200 text-xs">
+              إعادة الرسم
             </button>
           </div>
         ) : null}
@@ -560,7 +606,12 @@ export default function PICShell() {
               drawMode={drawMode}
               baseStyle={baseStyle}
               onBaseStyleChange={setBaseStyle}
-              onAreaDrawn={coords => { setDrawnPolygon(coords); setDrawMode('off'); }}
+              onAreaDrawn={coords => {
+                setDrawnPolygon(coords);
+                setDrawMode('off');
+                // Auto-open the form immediately after drawing — no extra click needed
+                setShowCreateForm(true);
+              }}
               onDrawEnd={() => setDrawMode('off')}
               flyToPin={flyToPin}
               extractionLayers={projectExtractionLayers.length > 0 ? projectExtractionLayers : undefined}
@@ -573,10 +624,102 @@ export default function PICShell() {
               }}
             />
 
+            {/* ── Google Earth-style map time slider ─────────────── */}
+            {selectedId && archiveScenes.length > 0 && (
+              <div className="absolute bottom-3 left-0 right-0 flex justify-center z-20 px-4 pointer-events-none">
+                <div className="pointer-events-auto w-full max-w-[600px] bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl px-5 pt-3 pb-3">
+
+                  {/* Top row: play controls + date + close */}
+                  <div className="flex items-center gap-3 mb-2">
+                    {/* Prev */}
+                    <button
+                      onClick={() => handleSceneChange(Math.max(0, activeSceneIdx - 1))}
+                      disabled={activeSceneIdx === 0}
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors shrink-0"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+
+                    {/* Play / Pause */}
+                    <button
+                      onClick={() => setIsPlaying(p => !p)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors shrink-0 ${
+                        isPlaying ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/40' : 'bg-white/15 hover:bg-white/25 text-white'
+                      }`}
+                    >
+                      {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                    </button>
+
+                    {/* Next */}
+                    <button
+                      onClick={() => handleSceneChange(Math.min(archiveScenes.length - 1, activeSceneIdx + 1))}
+                      disabled={activeSceneIdx === archiveScenes.length - 1}
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors shrink-0"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+
+                    {/* Date display */}
+                    <div className="flex-1 flex items-center gap-2">
+                      <span className="text-white font-mono font-bold text-sm">
+                        {archiveScenes[activeSceneIdx]?.date}
+                      </span>
+                      {archiveScenes[activeSceneIdx]?.cloud != null && (
+                        <span className="text-slate-400 text-xs">
+                          ☁ {archiveScenes[activeSceneIdx].cloud}%
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Scene count + hide */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-slate-500 text-xs font-mono">
+                        {activeSceneIdx + 1} / {archiveScenes.length}
+                      </span>
+                      <button
+                        onClick={() => { setImageOverlay(null); setIsPlaying(false); }}
+                        className="w-6 h-6 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-slate-400 hover:text-white transition-colors"
+                        title="إخفاء الصور"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Timeline range slider */}
+                  <input
+                    type="range"
+                    min={0}
+                    max={archiveScenes.length - 1}
+                    value={activeSceneIdx}
+                    onChange={e => { setIsPlaying(false); handleSceneChange(parseInt(e.target.value)); }}
+                    className="w-full h-1.5 cursor-pointer accent-cyan-400"
+                    style={{ direction: 'ltr' }}
+                  />
+
+                  {/* Date labels */}
+                  <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1" style={{ direction: 'ltr' }}>
+                    <span>{archiveScenes[0]?.date?.slice(0, 7)}</span>
+                    <span className="text-cyan-400/70">◆ {archiveScenes[activeSceneIdx]?.date}</span>
+                    <span>{archiveScenes[archiveScenes.length - 1]?.date?.slice(0, 7)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Loading indicator for scenes */}
+            {selectedId && scenesLoading && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-2 bg-black/70 rounded-full text-xs text-slate-400">
+                <RefreshCw size={11} className="animate-spin" />جاري تحميل المشاهد...
+              </div>
+            )}
+
             {/* Map legend */}
-            <div className="absolute bottom-8 right-3 bg-slate-950/80 border border-slate-700 rounded-lg px-3 py-2 text-[10px] space-y-1">
+            <div className="absolute top-3 right-3 bg-slate-950/80 border border-slate-700 rounded-lg px-3 py-2 text-[10px] space-y-1">
               <p className="text-slate-400 font-semibold mb-1">الحالة</p>
-              {Object.entries(STATUS_CONFIG).map(([k,v]) => (
+              {Object.entries(STATUS_CONFIG)
+                .filter(([k]) => k !== 'cancelled')
+                .map(([k,v]) => (
                 <div key={k} className="flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full ${v.dot}`} />
                   <span className="text-slate-400">{v.label}</span>
@@ -604,16 +747,8 @@ export default function PICShell() {
                   archiveScenes={archiveScenes}
                   activeSceneIdx={activeSceneIdx}
                   scenesLoading={scenesLoading}
-                    onSceneChange={idx => {
-                    setActiveSceneIdx(idx);
-                    const sc = archiveScenes[idx];
-                    if (sc) setImageOverlay({
-                      url:    sc.thumbnail_url,
-                      extent: sc.bbox as [number,number,number,number],
-                      opacity: 0.75,
-                    });
-                  }}
-                  onHideOverlay={() => setImageOverlay(null)}
+                  onSceneChange={handleSceneChange}
+                  onHideOverlay={() => { setImageOverlay(null); setIsPlaying(false); }}
                   onOpenLightbox={setLightboxUrl}
                 />
               ) : null}
@@ -630,8 +765,15 @@ export default function PICShell() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" dir="rtl">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-[480px] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 bg-slate-800 border-b border-slate-700">
-              <h3 className="font-bold text-sm text-white">إضافة مشروع جديد</h3>
-              <button onClick={() => setShowCreateForm(false)} className="text-slate-400 hover:text-slate-200"><X size={16} /></button>
+              <div>
+                <h3 className="font-bold text-sm text-white">تسجيل مشروع جديد</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {drawnPolygon
+                    ? `✅ الحدود مرسومة (${drawnPolygon.length} نقطة) — أدخل بيانات المشروع`
+                    : '⚠️ ارسم حدود المشروع على الخريطة أولاً'}
+                </p>
+              </div>
+              <button onClick={() => { setShowCreateForm(false); setDrawnPolygon(null); setDrawMode('off'); }} className="text-slate-400 hover:text-slate-200"><X size={16} /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -692,11 +834,11 @@ export default function PICShell() {
             </div>
             <div className="flex gap-2 px-5 pb-4">
               <button onClick={handleCreate} disabled={!newProject.name || !drawnPolygon}
-                className="flex-1 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors">
-                إنشاء المشروع
+                className="flex-1 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors">
+                {drawnPolygon ? '✓ حفظ وإضافة للمتابعة' : 'ارسم الحدود أولاً'}
               </button>
-              <button onClick={() => setShowCreateForm(false)}
-                className="px-4 h-9 rounded-lg bg-slate-800 text-slate-400 text-sm border border-slate-700 transition-colors">
+              <button onClick={() => { setShowCreateForm(false); setDrawnPolygon(null); setDrawMode('off'); }}
+                className="px-4 h-9 rounded-lg bg-slate-800 text-slate-400 text-sm border border-slate-700 hover:text-slate-200 transition-colors">
                 إلغاء
               </button>
             </div>
@@ -909,12 +1051,12 @@ function ProjectDetailPanel({
           </div>
         )}
 
-        {/* ── Historical Archive Time Slider ──────────────────── */}
+        {/* ── Archive filmstrip ─────────────────────────────────── */}
         <div className="px-4 py-3 border-b border-slate-800">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
               <Clock size={11} className="text-indigo-400" />
-              المشاهد التاريخية
+              المشاهد الأرشيفية
               {archiveScenes.length > 0 && (
                 <span className="text-[10px] bg-indigo-900/40 text-indigo-400 border border-indigo-700/40 rounded px-1.5 py-0.5 font-mono">
                   {archiveScenes.length}
@@ -922,10 +1064,7 @@ function ProjectDetailPanel({
               )}
             </p>
             {archiveScenes.length > 0 && (
-              <button onClick={onHideOverlay}
-                className="text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1">
-                <X size={9} />إخفاء
-              </button>
+              <span className="text-[9px] text-slate-600">المؤشر الزمني على الخريطة ↓</span>
             )}
           </div>
 
@@ -934,68 +1073,37 @@ function ProjectDetailPanel({
               <RefreshCw size={11} className="animate-spin" />تحميل المشاهد...
             </div>
           ) : archiveScenes.length === 0 ? (
-            <p className="text-[10px] text-slate-600 py-1">لا توجد مشاهد أرشيفية لهذه المنطقة</p>
+            <p className="text-[10px] text-slate-600 py-1">لا توجد مشاهد أرشيفية</p>
           ) : (
-            <>
-              {/* Selected scene preview — full width for clarity */}
-              {archiveScenes[activeSceneIdx] && (
-                <div className="mb-3">
-                  <div className="relative cursor-pointer group rounded-lg overflow-hidden border border-slate-700 hover:border-indigo-500 transition-colors"
-                    onClick={() => onOpenLightbox(archiveScenes[activeSceneIdx].thumbnail_url)}>
-                    <img
-                      src={archiveScenes[activeSceneIdx].thumbnail_url}
-                      alt={archiveScenes[activeSceneIdx].date}
-                      className="w-full aspect-square object-cover"
-                      style={{ imageRendering: 'pixelated' }}
-                      onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
-                    />
-                    {/* Overlay info */}
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2.5 pb-2 pt-4">
-                      <p className="text-xs font-bold text-white">{archiveScenes[activeSceneIdx].date}</p>
-                      <p className="text-[10px] text-slate-300">
-                        ☁ {archiveScenes[activeSceneIdx].cloud}% · {activeSceneIdx + 1}/{archiveScenes.length}
-                      </p>
-                    </div>
-                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded p-1">
-                      <ZoomIn size={14} className="text-white" />
-                    </div>
+            /* Horizontal filmstrip — click a thumbnail to jump to it */
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+              {archiveScenes.map((sc, i) => (
+                <button
+                  key={sc.uid}
+                  onClick={() => { onSceneChange(i); onOpenLightbox(sc.thumbnail_url); }}
+                  className={`shrink-0 relative rounded overflow-hidden border transition-all ${
+                    i === activeSceneIdx
+                      ? 'border-cyan-400 ring-1 ring-cyan-400/50'
+                      : 'border-slate-700 hover:border-slate-500'
+                  }`}
+                  style={{ width: 48, height: 48 }}
+                  title={`${sc.date} ☁${sc.cloud}%`}
+                >
+                  <img
+                    src={sc.thumbnail_url}
+                    alt={sc.date}
+                    className="w-full h-full object-cover"
+                    onError={e => { (e.target as any).style.opacity = '0.2'; }}
+                  />
+                  {i === activeSceneIdx && (
+                    <div className="absolute inset-0 bg-cyan-400/20" />
+                  )}
+                  <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[7px] text-center text-white font-mono leading-tight py-px">
+                    {sc.date.slice(2, 7)}
                   </div>
-                  {/* Nav buttons */}
-                  <div className="flex items-center justify-between mt-1.5">
-                    <button onClick={() => onSceneChange(Math.max(0, activeSceneIdx - 1))}
-                      disabled={activeSceneIdx === 0}
-                      className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors text-[10px]">
-                      <ChevronRight size={10} />السابق
-                    </button>
-                    <span className="text-[9px] text-slate-600 font-mono">
-                      {archiveScenes[activeSceneIdx].date}
-                    </span>
-                    <button onClick={() => onSceneChange(Math.min(archiveScenes.length - 1, activeSceneIdx + 1))}
-                      disabled={activeSceneIdx === archiveScenes.length - 1}
-                      className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 transition-colors text-[10px]">
-                      التالي<ChevronLeft size={10} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Time slider */}
-              <div className="space-y-1">
-                <input
-                  type="range"
-                  min={0}
-                  max={archiveScenes.length - 1}
-                  value={activeSceneIdx}
-                  onChange={e => onSceneChange(parseInt(e.target.value))}
-                  className="w-full h-1.5 accent-indigo-500 cursor-pointer"
-                />
-                <div className="flex justify-between text-[9px] text-slate-600">
-                  <span>{archiveScenes[0]?.date?.slice(0,7)}</span>
-                  <span className="text-indigo-400 font-bold">{archiveScenes[activeSceneIdx]?.date}</span>
-                  <span>{archiveScenes[archiveScenes.length-1]?.date?.slice(0,7)}</span>
-                </div>
-              </div>
-            </>
+                </button>
+              ))}
+            </div>
           )}
         </div>
 

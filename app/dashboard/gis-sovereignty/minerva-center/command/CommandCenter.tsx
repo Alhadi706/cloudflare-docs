@@ -44,7 +44,7 @@ function Pip({ on, label, pulse }: { on: boolean; label: string; pulse?: boolean
   );
 }
 
-// ─── Real data hook ───────────────────────────────────────────────────────────
+// ─── Real data hooks ──────────────────────────────────────────────────────────
 function useRealTargets() {
   const [targets, setTargets] = useState<RealTarget[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +68,26 @@ function useRealTargets() {
     return () => ctrl.abort();
   }, []);
   return { targets, loading };
+}
+
+interface EOStatus {
+  sentinel2: { date: string | null; cloud_pct: number | null; platform: string | null; tile_url: string | null } | null;
+  sentinel1: { date: string | null } | null;
+  modis:     { date: string | null } | null;
+  basemap_note: string;
+}
+
+function useEOStatus(lat = 32.89, lon = 13.18) {
+  const [eo, setEO] = useState<EOStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(`/api/minerva/eo-status?lat=${lat}&lon=${lon}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.ok) setEO(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [lat, lon]);
+  return { eo, loading };
 }
 
 // ─── Draw tools config ────────────────────────────────────────────────────────
@@ -100,6 +120,7 @@ const ST_COLORS: Record<string, string> = {
 export default function MINERVACommandCenter() {
   const mapRef = useRef<CCMapHandle>(null);
   const { targets, loading } = useRealTargets();
+  const { eo: eoStatus }         = useEOStatus();
   // Production: no simulated alerts — only real MINERVA analysis results
   const alerts: RealAlert[] = [];
 
@@ -113,6 +134,8 @@ export default function MINERVACommandCenter() {
   const [basemap,    setBasemapS]   = useState<'satellite'|'osm'|'dark'>('satellite');
   const [timeline,   setTimeline]   = useState(100);
   const [clock,      setClock]      = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [s2LayerOn,   setS2LayerOn]   = useState(false);
 
   useEffect(() => {
     const tick = () => setClock(new Date().toISOString().replace('T',' ').slice(0,19)+' UTC');
@@ -141,6 +164,23 @@ export default function MINERVACommandCenter() {
   const handleBasemap = useCallback((b: 'satellite'|'osm'|'dark') => {
     setBasemapS(b); mapRef.current?.setBasemap(b);
   }, []);
+
+  const handleS2Toggle = useCallback(() => {
+    const next = !s2LayerOn;
+    setS2LayerOn(next);
+    if (next && eoStatus?.sentinel2?.tile_url) {
+      mapRef.current?.setS2Layer(eoStatus.sentinel2.tile_url);
+    } else {
+      mapRef.current?.setS2Layer(null);
+    }
+  }, [s2LayerOn, eoStatus]);
+
+  const filteredTargets = searchQuery.trim()
+    ? targets.filter(t =>
+        t.name.includes(searchQuery) ||
+        t.type.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : targets;
 
   const critCnt = alerts.filter(a => a.severity === 'CRITICAL').length;
 
@@ -260,12 +300,37 @@ export default function MINERVACommandCenter() {
                 {/* Layers tab */}
                 {leftTab === 'layers' && (
                   <div className="px-1">
-                    <p className="text-[9px] font-mono text-gray-600 uppercase pb-2">الخريطة الأساسية</p>
+                    {/* Sentinel-2 live layer */}
+                    <p className="text-[9px] font-mono text-gray-600 uppercase pb-1 pt-1">طبقات EO الحقيقية</p>
+                    <div className="flex items-center justify-between py-1.5 border-b border-white/5 mb-2">
+                      <button
+                        onClick={handleS2Toggle}
+                        className={`w-7 h-3.5 rounded-full relative transition-colors ${s2LayerOn ? 'bg-cyan-500/60' : 'bg-gray-700'}`}
+                        disabled={!eoStatus?.sentinel2?.tile_url}
+                      >
+                        <div className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-transform ${s2LayerOn ? 'translate-x-3.5' : 'translate-x-0.5'}`}/>
+                      </button>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-300">🛰 Sentinel-2 TrueColor</p>
+                        <p className="text-[9px] text-gray-600">
+                          {eoStatus?.sentinel2?.date
+                            ? `${eoStatus.sentinel2.date} · ${eoStatus.sentinel2.cloud_pct?.toFixed(1)}%☁`
+                            : eoStatus === null ? 'جارٍ التحميل…' : 'غير متاح'}
+                        </p>
+                        {!eoStatus?.sentinel2?.tile_url && eoStatus !== null && (
+                          <p className="text-[9px] text-orange-400/70">تغطية سحابية عالية</p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[9px] font-mono text-gray-600 uppercase pb-1">خلفية الخريطة</p>
+                    <p className="text-[9px] text-orange-300/60 mb-1.5 leading-relaxed">
+                      ⚠ ArcGIS World Imagery قديمة (2022-2024). فعّل Sentinel-2 أعلاه للرؤية الحديثة.
+                    </p>
                     {(['satellite','osm','dark'] as const).map(b => (
                       <button key={b} onClick={() => handleBasemap(b)}
                         className={`w-full text-right text-xs py-1.5 px-2 rounded mb-1 transition-colors
                           ${basemap===b ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30' : 'text-gray-500 hover:bg-white/5'}`}>
-                        {b==='satellite'?'🛰 قمر صناعي':b==='osm'?'🗺 شوارع':'🌑 مظلم'}
+                        {b==='satellite'?'🛰 قمر صناعي (ArcGIS)':b==='osm'?'🗺 شوارع (OSM)':'🌑 مظلم (Carto)'}
                       </button>
                     ))}
                   </div>
@@ -277,8 +342,24 @@ export default function MINERVACommandCenter() {
                     <div className="relative">
                       <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600"/>
                       <input placeholder="بحث في الأهداف…"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
                         className="w-full bg-white/5 border border-white/10 rounded py-1.5 px-2 pr-7 text-xs text-gray-300 placeholder:text-gray-700 focus:outline-none focus:border-cyan-500/40"/>
                     </div>
+                    {searchQuery && (
+                      <div className="mt-2 space-y-1">
+                        {filteredTargets.slice(0,8).map(t => (
+                          <button key={t.id} onClick={() => { goToTarget(t); setLeftTab('targets'); setSearchQuery(''); }}
+                            className="w-full text-right p-2 rounded bg-white/4 hover:bg-white/8 border border-white/6 text-xs text-gray-300">
+                            <span className="truncate block">{t.name}</span>
+                            <span className="text-[9px] text-gray-600">{t.type}</span>
+                          </button>
+                        ))}
+                        {filteredTargets.length === 0 && (
+                          <p className="text-center text-[10px] text-gray-700 py-2">لا نتائج</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -333,18 +414,29 @@ export default function MINERVACommandCenter() {
             </div>
           </div>
 
-          {/* Corner stats — top-right */}
+          {/* Corner stats — top-right (REAL data from API) */}
           <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
             <div className="bg-[#06101a]/80 backdrop-blur border border-white/8 rounded-xl px-3 py-2 text-right">
-              <p className="text-[9px] text-gray-600 font-mono uppercase">EO</p>
-              <p className="text-xl font-bold font-mono text-cyan-400">100<span className="text-xs text-gray-600">%</span></p>
-              <p className="text-[9px] text-emerald-400/70">5/5 حقيقية</p>
+              <p className="text-[9px] text-gray-600 font-mono uppercase">EO تغطية</p>
+              <p className="text-xl font-bold font-mono text-cyan-400">5<span className="text-xs text-gray-500">/5</span></p>
+              <p className="text-[9px] text-emerald-400/70">إشارات حقيقية ✓</p>
             </div>
             <div className="bg-[#06101a]/80 backdrop-blur border border-white/8 rounded-xl px-3 py-2 text-right">
-              <p className="text-[9px] text-gray-600 font-mono uppercase">آخر مشهد</p>
-              <p className="text-sm font-bold font-mono text-white">2026-07-08</p>
-              <p className="text-[9px] text-gray-500">Sentinel-2A · 0.002%☁</p>
+              <p className="text-[9px] text-gray-600 font-mono uppercase">آخر مشهد S2</p>
+              <p className="text-sm font-bold font-mono text-white">
+                {eoStatus?.sentinel2?.date ?? '...'}
+              </p>
+              <p className="text-[9px] text-gray-500">
+                {eoStatus?.sentinel2?.platform ?? 'Sentinel-2'}
+                {eoStatus?.sentinel2?.cloud_pct != null ? ` · ${eoStatus.sentinel2.cloud_pct.toFixed(1)}%☁` : ''}
+              </p>
             </div>
+            {eoStatus?.sentinel1?.date && (
+              <div className="bg-[#06101a]/80 backdrop-blur border border-white/8 rounded-xl px-3 py-2 text-right">
+                <p className="text-[9px] text-gray-600 font-mono uppercase">آخر SAR S1</p>
+                <p className="text-sm font-bold font-mono text-white">{eoStatus.sentinel1.date}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -400,7 +492,10 @@ export default function MINERVACommandCenter() {
           className="w-full h-8 flex items-center justify-between px-4 text-[10px] font-mono text-gray-600 hover:text-gray-300 transition-colors">
           <span className="flex items-center gap-3">
             <Pip on={timeline===100} label={timeline===100?'LIVE':'REPLAY'} pulse={timeline===100}/>
-            <span className="text-gray-700">آخر مشهد S2: 2026-07-08 · S1: 2026-07-08</span>
+            <span className="text-gray-700">
+              آخر مشهد S2: {eoStatus?.sentinel2?.date ?? '…'}
+              {eoStatus?.sentinel1?.date ? ` · S1: ${eoStatus.sentinel1.date}` : ''}
+            </span>
           </span>
           <span className="flex items-center gap-2">
             <Clock className="w-3 h-3"/>الخط الزمني

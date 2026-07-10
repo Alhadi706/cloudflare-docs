@@ -47,6 +47,7 @@ export interface CCMapHandle {
   setAlerts: (alerts: AlertMarker[]) => void;
   setTargets: (targets: TargetFeature[]) => void;
   getDrawnGeoJSON: () => any;
+  setS2Layer: (tileUrl: string | null) => void;  // show/hide real Sentinel-2 tiles
 }
 
 // ─── Severity colours ─────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ const CommandCenterMap = forwardRef<CCMapHandle, {
   const mapRef       = useRef<any>(null);
   const viewRef      = useRef<any>(null);
   const basemapRef   = useRef<any>(null);
+  const s2LayerRef   = useRef<any>(null);
   const alertsLyr    = useRef<any>(null);
   const targetsLyr   = useRef<any>(null);
   const drawLyr      = useRef<any>(null);
@@ -211,10 +213,14 @@ const CommandCenterMap = forwardRef<CCMapHandle, {
         });
         viewRef.current = view;
 
+        // Sentinel-2 overlay layer (initially hidden, no source)
+        const s2Layer = new TileLayer({ source: undefined as any, zIndex: 5, opacity: 0.85 });
+        s2LayerRef.current = s2Layer;
+
         // Map
         map = new Map({
           target:  containerRef.current!,
-          layers:  [baseTile, targetsLayer, alertsLayer, drawLayer],
+          layers:  [baseTile, s2Layer, targetsLayer, alertsLayer, drawLayer],
           view,
           controls: [], // NO internal controls
         });
@@ -391,12 +397,28 @@ const CommandCenterMap = forwardRef<CCMapHandle, {
       if (!src) return null;
       const feats = src.getFeatures();
       if (!feats.length) return null;
-      // Return simple GeoJSON
       return { type: 'FeatureCollection', features: feats.map((f: any) => ({
         type: 'Feature',
         geometry: { type: f.getGeometry().getType(), coordinates: [] },
         properties: {},
       })) };
+    },
+
+    setS2Layer(tileUrl: string | null) {
+      const layer = s2LayerRef.current;
+      if (!layer) return;
+      if (!tileUrl) {
+        layer.setSource(undefined as any);
+        return;
+      }
+      // Build signed URL — PC tiles don't need signing for visual (RGB) tiles
+      import('ol/source/XYZ').then(({ default: XYZ }) => {
+        layer.setSource(new XYZ({
+          url: tileUrl,
+          crossOrigin: 'anonymous',
+          maxZoom: 14,
+        }));
+      });
     },
   }), []);
 

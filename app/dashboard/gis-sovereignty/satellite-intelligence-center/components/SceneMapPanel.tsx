@@ -1080,13 +1080,28 @@ export function SceneMapPanel({
       });
       const layer = new ImageLayer({
         source,
-        opacity: staticImageOverlay.opacity ?? 0.88,
+        opacity: 0,   // start transparent, fade in below
         zIndex: 6,
       });
       map.addLayer(layer);
       imageOverlayLayerRef.current = layer;
       // Do NOT auto-fit — the project fly-to already handles centering.
       // Fitting to the scene extent (25km+) would zoom out too far from the project.
+
+      // Smooth fade-in over 400ms
+      const targetOpacity = staticImageOverlay.opacity ?? 0.78;
+      const startTime = performance.now();
+      const fadeDuration = 400;
+      const tick = () => {
+        if (!imageOverlayLayerRef.current) return;
+        const elapsed = performance.now() - startTime;
+        const t = Math.min(elapsed / fadeDuration, 1);
+        // ease-out cubic
+        const eased = 1 - Math.pow(1 - t, 3);
+        imageOverlayLayerRef.current.setOpacity(eased * targetOpacity);
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
     })();
   }, [staticImageOverlay, olLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
