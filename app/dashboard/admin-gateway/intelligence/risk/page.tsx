@@ -59,7 +59,25 @@ export interface RiskItem {
 // ── Helper ─────────────────────────────────────────────────────────────────────
 const compact = (v: number): string => {
   if (!v) return '0';
-  if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+  if (v >= 1_000_000) 
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (v / 1_000_000).toFixed(1) + 'M';
   if (v >= 1_000)     return (v / 1_000).toFixed(0) + 'K';
   return v.toFixed(0);
 };

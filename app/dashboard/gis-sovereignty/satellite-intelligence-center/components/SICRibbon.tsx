@@ -260,7 +260,25 @@ function SubBarScenes({
   const sceneDropStyle = useDropdownPos(sceneBtnRef as React.RefObject<HTMLElement>, showScenePicker);
   const yearDropStyle  = useDropdownPos(yearBtnRef  as React.RefObject<HTMLElement>, showYearPicker);
 
-  return (
+  
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (
     <div className="flex items-center gap-2 flex-wrap">
       {/* Active scene */}
       <div className="relative">

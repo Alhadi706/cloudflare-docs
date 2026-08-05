@@ -1,7 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { Users, Plus, Search, ChevronLeft, X, Loader2, MapPin } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Users, Plus, Search, ChevronLeft, X, Loader2, MapPin, Upload } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import * as XLSX from 'xlsx';
 import { getUserAuthHeaders } from '@/store/useUserStore';
 import { useGisEngine } from '@/store/gisEngine';
 
@@ -19,10 +21,44 @@ interface Employee {
   grade_id: number; grade_name: string; grade_level: number;
   salary: number; base_salary_min: number; base_salary_max: number;
   employment_status: string; hire_date: string; created_at: string;
-  project_id: number; site_id: number; is_active: boolean;
+  project_id: number; site_id: string | number | null; is_active: boolean;
   annual_leave_balance: number; sick_leave_balance: number;
   latitude?: number | null; longitude?: number | null;
 }
+
+type ParsedEmployeeRow = {
+  employee_number: string;
+  first_name: string;
+  last_name: string;
+  first_name_ar: string;
+  last_name_ar: string;
+  email: string;
+  phone: string;
+  national_id: string;
+  gender: string;
+  position_id: number | null;
+  grade_id: number | null;
+  hire_date: string;
+  employment_status: string;
+  latitude: number | null;
+  longitude: number | null;
+  site_id: string | number | null;
+  mobile_role: string;
+};
+
+type ImportSummary = {
+  total: number;
+  success: number;
+  failed: number;
+  errors: string[];
+};
+
+type GeoAnchor = {
+  latitude: number;
+  longitude: number;
+  siteId: string | number | null;
+  source: 'map' | 'asset' | 'manual';
+};
 
 const EMPTY_FORM = {
   employee_number: '',
@@ -35,6 +71,7 @@ const EMPTY_FORM = {
 };
 
 export default function EmployeesPage() {
+  const searchParams = useSearchParams();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [grades, setGrades]       = useState<Grade[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -42,19 +79,373 @@ export default function EmployeesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving]       = useState(false);
   const [search, setSearch]       = useState('');
+  const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false);
   const [showForm, setShowForm]   = useState(false);
   const [editId, setEditId]       = useState<number|null>(null);
   const [form, setForm]           = useState({...EMPTY_FORM});
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [geoAnchor, setGeoAnchor] = useState<GeoAnchor | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const requestMapLocation = useGisEngine(s => s.requestMapLocation);
   const cancelLocationPick  = useGisEngine(s => s.cancelLocationPick);
   const drawingMode         = useGisEngine(s => s.drawingMode);
   const refreshAll          = useGisEngine(s => s.refreshAll);
+  const setLayerVisible     = useGisEngine(s => s.setLayerVisible);
+  const setEntityRenderMode = useGisEngine(s => s.setEntityRenderMode);
 
   const API_BASE = '/api/v1';
   const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
 
   useEffect(() => { fetchAll(); }, []);
+
+  useEffect(() => {
+    setLayerVisible('employees', true);
+    setEntityRenderMode('icons');
+    void refreshAll();
+  }, [refreshAll, setEntityRenderMode, setLayerVisible]);
+
+  useEffect(() => {
+    const latRaw = searchParams.get('geo_lat');
+    const lonRaw = searchParams.get('geo_lon');
+    if (!latRaw || !lonRaw) return;
+
+    const lat = Number(latRaw);
+    const lon = Number(lonRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    const sourceParam = (searchParams.get('geo_source') || '').toLowerCase();
+    const source: GeoAnchor['source'] = sourceParam === 'asset' ? 'asset' : sourceParam === 'manual' ? 'manual' : 'map';
+    const siteIdRaw = (searchParams.get('geo_asset_id') || searchParams.get('site_id') || '').trim();
+    const siteId = siteIdRaw || null;
+
+    setGeoAnchor({
+      latitude: Number(lat.toFixed(6)),
+      longitude: Number(lon.toFixed(6)),
+      siteId,
+      source,
+    });
+
+    const action = searchParams.get('open');
+    if (action === 'new') {
+      setForm({
+        ...EMPTY_FORM,
+        latitude: String(Number(lat.toFixed(6))),
+        longitude: String(Number(lon.toFixed(6))),
+      });
+      setEditId(null);
+      setShowForm(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const onGeoAnchor = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail ?? {};
+      const lat = Number(detail.latitude);
+      const lon = Number(detail.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+      const rawSiteId = String(detail.siteId ?? '').trim();
+      const siteId = rawSiteId || null;
+      const source: GeoAnchor['source'] = detail.source === 'asset' ? 'asset' : detail.source === 'manual' ? 'manual' : 'map';
+
+      setGeoAnchor({
+        latitude: Number(lat.toFixed(6)),
+        longitude: Number(lon.toFixed(6)),
+        siteId,
+        source,
+      });
+
+      if (String(detail.action || '').toLowerCase() === 'single') {
+        setForm({
+          ...EMPTY_FORM,
+          latitude: String(Number(lat.toFixed(6))),
+          longitude: String(Number(lon.toFixed(6))),
+        });
+        setEditId(null);
+        setShowForm(true);
+      }
+    };
+
+    window.addEventListener('hr:employees-geo-anchor', onGeoAnchor as EventListener);
+    return () => window.removeEventListener('hr:employees-geo-anchor', onGeoAnchor as EventListener);
+  }, []);
+
+  function normalizeHeader(value: string) {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_\-.()/\\]+/g, '');
+  }
+
+  function normalizeDate(value: unknown): string {
+    if (value == null || value === '') return '';
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (!parsed) return '';
+      const mm = String(parsed.m).padStart(2, '0');
+      const dd = String(parsed.d).padStart(2, '0');
+      return `${parsed.y}-${mm}-${dd}`;
+    }
+
+    const raw = String(value).trim();
+    if (!raw) return '';
+
+    const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (iso) {
+      const mm = iso[2].padStart(2, '0');
+      const dd = iso[3].padStart(2, '0');
+      return `${iso[1]}-${mm}-${dd}`;
+    }
+
+    const dmy = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmy) {
+      const mm = dmy[2].padStart(2, '0');
+      const dd = dmy[1].padStart(2, '0');
+      return `${dmy[3]}-${mm}-${dd}`;
+    }
+
+    const parsedDate = new Date(raw);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString().slice(0, 10);
+    }
+
+    return '';
+  }
+
+  function normalizeGender(value: string): string {
+    const v = value.trim().toLowerCase();
+    if (['female', 'f', 'أنثى', 'انثى'].includes(v)) return 'female';
+    return 'male';
+  }
+
+  function normalizeEmploymentStatus(value: string): string {
+    const v = value.trim().toLowerCase();
+    if (['inactive', 'غيرفعال', 'متوقف', 'موقوف'].includes(v)) return 'inactive';
+    if (['on_leave', 'onleave', 'leave', 'إجازة', 'اجازة'].includes(v)) return 'on_leave';
+    return 'active';
+  }
+
+  function firstNonEmpty(row: Record<string, unknown>, aliases: string[]): string {
+    for (const alias of aliases) {
+      const val = row[alias];
+      if (val != null && String(val).trim() !== '') return String(val).trim();
+    }
+    return '';
+  }
+
+  function normalizeOptionalNationalId(value: string): string | null {
+    const normalized = value
+      .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+      .trim();
+
+    if (!normalized || normalized === '0') return null;
+    return normalized;
+  }
+
+  function resolvePositionId(rawValue: string): number | null {
+    if (!rawValue) return null;
+    const asNumber = Number(rawValue);
+    if (!Number.isNaN(asNumber)) {
+      const foundById = positions.find(p => p.id === asNumber);
+      if (foundById) return foundById.id;
+    }
+    const normalized = rawValue.trim().toLowerCase();
+    const foundByName = positions.find(
+      p => (p.position_name_ar || '').trim().toLowerCase() === normalized
+        || (p.position_name || '').trim().toLowerCase() === normalized
+    );
+    return foundByName?.id ?? null;
+  }
+
+  function resolveGradeId(rawValue: string): number | null {
+    if (!rawValue) return null;
+    const asNumber = Number(rawValue);
+    if (!Number.isNaN(asNumber)) {
+      const foundById = grades.find(g => g.id === asNumber || g.grade_level === asNumber);
+      if (foundById) return foundById.id;
+    }
+    const normalized = rawValue.trim().toLowerCase();
+    const foundByName = grades.find(
+      g => (g.grade_name_ar || '').trim().toLowerCase() === normalized
+        || (g.grade_name || '').trim().toLowerCase() === normalized
+    );
+    return foundByName?.id ?? null;
+  }
+
+  function parseEmployeeSheet(file: File): Promise<ParsedEmployeeRow[]> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = reader.result;
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as Record<string, unknown>[];
+
+          const mapped = rows.map((raw) => {
+            const row = Object.fromEntries(
+              Object.entries(raw).map(([k, v]) => [normalizeHeader(String(k)), v])
+            ) as Record<string, unknown>;
+
+            const employeeNumber = firstNonEmpty(row, ['employeenumber', 'employeeno', 'employeecode', 'empno', 'employee_number', 'الرقمالوظيفي', 'رقموظيفي', 'رقم']);
+            const firstNameAr = firstNonEmpty(row, ['firstnamear', 'first_name_ar', 'الاسمالاول', 'الاسمالأول']);
+            const lastNameAr = firstNonEmpty(row, ['lastnamear', 'last_name_ar', 'اسمالعائلة', 'اللقب']);
+            const firstName = firstNonEmpty(row, ['firstname', 'first_name']);
+            const lastName = firstNonEmpty(row, ['lastname', 'last_name']);
+            const fullNameAr = firstNonEmpty(row, ['namear', 'fullnamear', 'الاسمالرباعي', 'الاسم']);
+            const fullNameEn = firstNonEmpty(row, ['name', 'fullname', 'full_name']);
+            const positionRaw = firstNonEmpty(row, ['positionid', 'position', 'positionnamear', 'positionname', 'الوظيفة']);
+            const gradeRaw = firstNonEmpty(row, ['gradeid', 'grade', 'gradenamear', 'gradename', 'الدرجة']);
+            const genderRaw = firstNonEmpty(row, ['gender', 'الجنس']);
+            const statusRaw = firstNonEmpty(row, ['employmentstatus', 'status', 'الحالة']);
+            const latRaw = firstNonEmpty(row, ['latitude', 'lat', 'خطالعرض']);
+            const lonRaw = firstNonEmpty(row, ['longitude', 'lng', 'lon', 'خطالطول']);
+
+            let resolvedFirstNameAr = firstNameAr;
+            let resolvedLastNameAr = lastNameAr;
+            if ((!resolvedFirstNameAr || !resolvedLastNameAr) && fullNameAr) {
+              const parts = fullNameAr.split(/\s+/).filter(Boolean);
+              resolvedFirstNameAr ||= parts[0] || '';
+              resolvedLastNameAr ||= parts.slice(1).join(' ') || '';
+            }
+
+            let resolvedFirstName = firstName;
+            let resolvedLastName = lastName;
+            if ((!resolvedFirstName || !resolvedLastName) && fullNameEn) {
+              const parts = fullNameEn.split(/\s+/).filter(Boolean);
+              resolvedFirstName ||= parts[0] || '';
+              resolvedLastName ||= parts.slice(1).join(' ') || '';
+            }
+
+            return {
+              employee_number: employeeNumber,
+              first_name: resolvedFirstName,
+              last_name: resolvedLastName,
+              first_name_ar: resolvedFirstNameAr,
+              last_name_ar: resolvedLastNameAr,
+              email: firstNonEmpty(row, ['email', 'البريدالالكتروني', 'البريد']),
+              phone: firstNonEmpty(row, ['phone', 'mobile', 'الهاتف', 'رقمالهاتف']),
+              national_id: firstNonEmpty(row, ['nationalid', 'national_id', 'الرقمالوطني']),
+              gender: normalizeGender(genderRaw),
+              position_id: resolvePositionId(positionRaw),
+              grade_id: resolveGradeId(gradeRaw),
+              hire_date: normalizeDate(firstNonEmpty(row, ['hiredate', 'hire_date', 'تاريخالتعيين'])),
+              employment_status: normalizeEmploymentStatus(statusRaw),
+              latitude: latRaw ? Number(latRaw) : null,
+              longitude: lonRaw ? Number(lonRaw) : null,
+              site_id: (() => {
+                const siteRaw = firstNonEmpty(row, ['siteid', 'site_id', 'assetid', 'asset_id', 'اصل', 'الأصل']);
+                if (!siteRaw.trim()) return null;
+                return /^\d+$/.test(siteRaw.trim()) ? Number(siteRaw.trim()) : siteRaw.trim();
+              })(),
+              mobile_role: firstNonEmpty(row, ['mobilerole', 'mobile_role', 'دورالتطبيق', 'role']),
+            };
+          });
+
+          resolve(mapped.filter(r => r.employee_number));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('فشل في قراءة الملف'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function handleImportFile(file: File) {
+    setImportSummary(null);
+    setImporting(true);
+
+    try {
+      const rows = await parseEmployeeSheet(file);
+      if (rows.length === 0) {
+        alert('لم يتم العثور على صفوف صالحة. تأكد من وجود عمود الرقم الوظيفي.');
+        return;
+      }
+
+      let success = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i];
+        const employeeNumber = row.employee_number.trim();
+        if (!employeeNumber) {
+          errors.push(`الصف ${i + 2}: الرقم الوظيفي مفقود`);
+          continue;
+        }
+
+        const userId = `emp-${employeeNumber}`;
+        const existing = employees.find(e => (e.employee_number || '').trim() === employeeNumber);
+        const url = existing ? `${API_BASE}/workspace/employees/${existing.id}` : `${API_BASE}/workspace/employees`;
+        const method = existing ? 'PUT' : 'POST';
+
+        const payload = {
+          ...row,
+          employee_number: employeeNumber,
+          employeeNumber,
+          employee_no: employeeNumber,
+          employeeNo: employeeNumber,
+          emp_no: employeeNumber,
+          employeeCode: employeeNumber,
+          user_id: userId,
+          userId,
+          national_id: normalizeOptionalNationalId(row.national_id),
+          latitude: row.latitude != null && !Number.isNaN(row.latitude) ? row.latitude : (geoAnchor?.latitude ?? null),
+          longitude: row.longitude != null && !Number.isNaN(row.longitude) ? row.longitude : (geoAnchor?.longitude ?? null),
+          site_id: row.site_id ?? geoAnchor?.siteId ?? null,
+        };
+
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          let message = 'خطأ غير معروف';
+          try {
+            const err = await res.json();
+            message = err?.detail || err?.message || message;
+          } catch {
+            // Ignore parse error
+          }
+          errors.push(`الصف ${i + 2} (${employeeNumber}): ${message}`);
+          continue;
+        }
+
+        if (row.mobile_role) {
+          try {
+            await fetch('/api/auth/mobile/set-role', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ employee_no: employeeNumber, mobile_role: row.mobile_role }),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+
+        success += 1;
+      }
+
+      setImportSummary({
+        total: rows.length,
+        success,
+        failed: rows.length - success,
+        errors: errors.slice(0, 10),
+      });
+
+      await fetchAll();
+      await refreshAll();
+    } catch {
+      alert('تعذر استيراد الملف. تأكد أن الملف بصيغة Excel/CSV وبأسماء أعمدة صحيحة.');
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   async function fetchAll() {
     setLoading(true);
@@ -132,10 +523,12 @@ export default function EmployeesPage() {
         employeeCode: employeeNumber,
         user_id: userId, // سيتم استخدامه للربط لاحقاً
         userId,
+        national_id: normalizeOptionalNationalId(form.national_id),
         position_id: form.position_id ? parseInt(form.position_id) : null,
         grade_id:    form.grade_id    ? parseInt(form.grade_id)    : null,
-        latitude:    form.latitude    ? parseFloat(form.latitude)  : null,
-        longitude:   form.longitude   ? parseFloat(form.longitude) : null,
+        latitude:    form.latitude    ? parseFloat(form.latitude)  : (geoAnchor?.latitude ?? null),
+        longitude:   form.longitude   ? parseFloat(form.longitude) : (geoAnchor?.longitude ?? null),
+        site_id: geoAnchor?.siteId ?? null,
       };
       
       const url    = editId ? `${API_BASE}/workspace/employees/${editId}` : `${API_BASE}/workspace/employees`;
@@ -162,10 +555,19 @@ export default function EmployeesPage() {
     } finally { setSaving(false); }
   }
 
+  function isSpatiallyLinked(employee: Employee): boolean {
+    const hasSiteLink = employee.site_id != null && String(employee.site_id).trim() !== '';
+    const hasCoords = employee.latitude != null && employee.longitude != null;
+    return hasSiteLink || hasCoords;
+  }
+
   const filtered = employees.filter(e =>
     [e.name, e.name_ar, e.role, e.department, e.employee_number, e.national_id, e.email]
       .some(f => f?.toLowerCase().includes(search.toLowerCase()))
+    && (!showUnlinkedOnly || !isSpatiallyLinked(e))
   );
+
+  const unlinkedCount = employees.filter(e => !isSpatiallyLinked(e)).length;
 
   const stats = {
     total:   employees.length,
@@ -198,10 +600,74 @@ export default function EmployeesPage() {
               <p className="text-xs text-slate-500">hr_core.employees — {employees.length} موظف</p>
             </div>
           </div>
-          <button onClick={openNew} className="flex items-center gap-2 rounded-xl border border-blue-300/30 bg-blue-500/60 px-4 py-2 text-sm text-white backdrop-blur-md transition-colors hover:bg-blue-500/80">
-            <Plus className="w-4 h-4" /><span>موظف جديد</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              id="hr-employees-import-input"
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                void handleImportFile(file);
+              }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/20 px-4 py-2 text-sm text-emerald-100 backdrop-blur-md transition-colors hover:bg-emerald-500/30 disabled:opacity-60"
+            >
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              <span>{importing ? 'جاري الاستيراد...' : 'استيراد من Excel/CSV'}</span>
+            </button>
+            <button onClick={openNew} className="flex items-center gap-2 rounded-xl border border-blue-300/30 bg-blue-500/60 px-4 py-2 text-sm text-white backdrop-blur-md transition-colors hover:bg-blue-500/80">
+              <Plus className="w-4 h-4" /><span>موظف جديد</span>
+            </button>
+          </div>
         </div>
+
+        {importSummary && (
+          <div className={`rounded-xl border p-3 text-sm ${importSummary.failed > 0 ? 'border-amber-400/30 bg-amber-500/10 text-amber-100' : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'}`}>
+            <div className="font-medium">
+              نتيجة الاستيراد: تم معالجة {importSummary.total} سجل | نجح {importSummary.success} | فشل {importSummary.failed}
+            </div>
+            {importSummary.errors.length > 0 && (
+              <ul className="mt-2 list-disc space-y-1 pr-5 text-xs text-amber-200">
+                {importSummary.errors.map((err, idx) => (
+                  <li key={`${idx}-${err}`}>{err}</li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs text-slate-300">
+              الأعمدة المدعومة تشمل: الرقم الوظيفي، الاسم، الاسم الأول/العائلة (عربي/إنجليزي)، البريد، الهاتف، الوظيفة، الدرجة، تاريخ التعيين، الحالة.
+            </p>
+          </div>
+        )}
+
+        {geoAnchor && (
+          <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">مرساة جغرافية مفعّلة (اختيارية)</p>
+                <p className="text-xs text-cyan-200/90 mt-1">
+                  {geoAnchor.source === 'asset' ? 'المصدر: أصل مكاني' : 'المصدر: نقطة من الخريطة'}
+                  {' • '}
+                  ({geoAnchor.latitude.toFixed(6)}, {geoAnchor.longitude.toFixed(6)})
+                  {geoAnchor.siteId != null ? ` • site_id: ${geoAnchor.siteId}` : ''}
+                </p>
+                <p className="text-xs text-cyan-200/80 mt-1">تُستخدم فقط عند عدم تحديد إحداثيات للموظف يدوياً.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGeoAnchor(null)}
+                className="rounded-lg border border-cyan-300/40 bg-cyan-500/20 px-3 py-1.5 text-xs text-cyan-50 hover:bg-cyan-500/30"
+              >
+                إلغاء الربط الجغرافي
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -232,6 +698,17 @@ export default function EmployeesPage() {
             placeholder="بحث بالاسم أو الرقم الوظيفي أو الإدارة..."
             className="w-full rounded-xl border border-white/10 bg-slate-900/30 px-4 py-2.5 pr-10 text-sm text-slate-200 placeholder-slate-500 backdrop-blur-xl focus:outline-none focus:border-blue-400/60"
           />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowUnlinkedOnly(v => !v)}
+            className={`rounded-xl border px-3 py-2 text-xs transition-colors ${showUnlinkedOnly ? 'border-amber-400/40 bg-amber-500/15 text-amber-100' : 'border-white/10 bg-slate-900/25 text-slate-300 hover:bg-slate-900/35'}`}
+          >
+            {showUnlinkedOnly ? 'عرض كل الموظفين' : `غير المرتبطين مكانياً (${unlinkedCount})`}
+          </button>
+          <span className="text-xs text-slate-500">غير مرتبط مكانياً = بلا `site_id` وبلا إحداثيات.</span>
         </div>
 
         {/* Table */}

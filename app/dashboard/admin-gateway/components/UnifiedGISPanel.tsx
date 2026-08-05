@@ -37,7 +37,25 @@ function SiteDetailPanel() {
     return 'text-slate-300';
   };
 
-  return (
+  
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (
     <div className="w-80 flex-shrink-0 bg-slate-900 border-r border-slate-700 flex flex-col h-full overflow-hidden" dir="rtl">
       {/* رأس اللوحة */}
       <div className="p-4 border-b border-slate-700 bg-slate-800/60 flex items-start justify-between">

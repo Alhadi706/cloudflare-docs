@@ -8,6 +8,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { searchSTAC, daysAgo, today } from '@/lib/stac';
+import fs from 'fs';
+import path from 'path';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +18,51 @@ export const dynamic = 'force-dynamic';
 const ED_USER = process.env.NASA_EARTHDATA_USER || '';
 const ED_PASS = process.env.NASA_EARTHDATA_PASS || '';
 const HYP3_API = 'https://hyp3-api.asf.alaska.edu';
+
+type BBox = [number, number, number, number];
+type InsarJobSpatialMeta = {
+  job_id: string;
+  name: string;
+  area_name: string;
+  bbox: BBox;
+  created_at: string;
+};
+
+const INSAR_META_FILE = path.join(process.cwd(), '.data', 'insar', 'job-spatial-meta.json');
+
+function readInsarJobMeta(): InsarJobSpatialMeta[] {
+  try {
+    if (!fs.existsSync(INSAR_META_FILE)) return [];
+    const parsed = JSON.parse(fs.readFileSync(INSAR_META_FILE, 'utf8')) as unknown;
+    return Array.isArray(parsed) ? (parsed as InsarJobSpatialMeta[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeInsarJobMeta(rows: InsarJobSpatialMeta[]) {
+  fs.mkdirSync(path.dirname(INSAR_META_FILE), { recursive: true });
+  fs.writeFileSync(INSAR_META_FILE, JSON.stringify(rows.slice(-1500), null, 2), 'utf8');
+}
+
+function upsertInsarJobMeta(entries: InsarJobSpatialMeta[]) {
+  if (!entries.length) return;
+  const existing = readInsarJobMeta();
+  const byId = new Map(existing.map((r) => [r.job_id, r]));
+  for (const e of entries) byId.set(e.job_id, e);
+  writeInsarJobMeta(Array.from(byId.values()));
+}
+
+function inferBboxFromName(name: string): BBox | null {
+  const n = String(name || '').toLowerCase();
+  if (!n) return null;
+  if (n.includes('tripoli') || n.includes('طرابلس')) return [12.95, 32.75, 13.45, 33.05];
+  if (n.includes('tajura') || n.includes('تاجوراء')) return [13.25, 32.78, 13.55, 32.98];
+  if (n.includes('benghazi') || n.includes('بنغازي')) return [19.85, 31.95, 20.30, 32.25];
+  if (n.includes('gharyan') || n.includes('غريان')) return [12.85, 32.05, 13.20, 32.32];
+  if (n.includes('sabha') || n.includes('سبها')) return [14.25, 26.88, 14.65, 27.22];
+  return null;
+}
 
 /** Get a fresh Earthdata token for ASF HyP3 */
 async function getEdToken(): Promise<string | null> {
@@ -179,7 +226,7 @@ export async function POST(req: NextRequest) {
         error: `لم يُعثر على مشاهد S1 كافية في الفترة ${dateFrom} → ${dateTo}. الحد الأدنى: 2 مشاهد.`,
         scenes_found: scenes.length,
         data_real: true,
-      }, { status: 422 });
+      }, { status: 200 });
     }
 
     // Group scenes by approximate overpass time to find same-path pairs
@@ -241,7 +288,7 @@ export async function POST(req: NextRequest) {
         scenes_found: scenes.length,
         scene_dates: scenes.slice(0, 8).map(s => s.time_start?.slice(0, 10)),
         data_real: true,
-      }, { status: 422 });
+      }, { status: 200 });
     }
 
     // Submit HyP3 INSAR_GAMMA jobs
@@ -277,6 +324,17 @@ export async function POST(req: NextRequest) {
       submitError = e.message?.slice(0, 100);
     }
 
+    const submittedMeta: InsarJobSpatialMeta[] = submitted
+      .map((j: any) => ({
+        job_id: String(j.job_id || ''),
+        name: String(j.name || areaName),
+        area_name: areaName,
+        bbox,
+        created_at: new Date().toISOString(),
+      }))
+      .filter((x) => x.job_id);
+    upsertInsarJobMeta(submittedMeta);
+
     return NextResponse.json({
       ok:              submitted.length > 0,
       data_real:       true,
@@ -295,6 +353,8 @@ export async function POST(req: NextRequest) {
         name:     j.name,
         status:   j.status_code,
         granules: j.job_parameters?.granules ?? [],
+        bbox,
+        area_name: areaName,
       })),
       pairs,
       message: submitted.length > 0
@@ -503,16 +563,25 @@ export async function GET(req: NextRequest) {
   const failed     = hyp3Jobs.filter(j => j.status_code === 'FAILED');
 
   // Parse displacement results from completed jobs
+  const metaRows = readInsarJobMeta();
+  const metaById = new Map(metaRows.map((m) => [m.job_id, m]));
+
   const results = succeeded.map(j => {
     const files = j.files || [];
     const dispFile = files.find((f: any) => f.filename?.includes('displacement') || f.filename?.includes('los'));
     const browseFile = files.find((f: any) => f.filename?.endsWith('.png') || f.filename?.endsWith('.browse.png'));
+    const meta = metaById.get(String(j.job_id || ''));
+    const inferredBbox = inferBboxFromName(String(j.name || ''));
+    const bbox = meta?.bbox || inferredBbox || null;
     return {
       job_id:        j.job_id,
       name:          j.name,
       status:        j.status_code,
       expiration:    j.expiration_time,
       files_count:   files.length,
+      area_name:     meta?.area_name || null,
+      bbox,
+      bbox_source: meta?.bbox ? 'submitted_aoi' : inferredBbox ? 'name_inference' : 'unknown',
       displacement_url: dispFile?.url || null,
       browse_url:    browseFile?.url || null,
       files: files.slice(0, 5).map((f: any) => ({ name: f.filename, url: f.url, size_mb: f.size ? (f.size/1048576).toFixed(1) : '?' })),
@@ -554,13 +623,20 @@ export async function GET(req: NextRequest) {
       failed:    failed.length,
     },
 
-    pending_jobs: pending.map(j => ({
-      job_id: j.job_id,
-      name:   j.name,
-      type:   j.job_type,
-      submitted: j.request_time,
-      granules: j.job_parameters?.granules || [],
-    })),
+    pending_jobs: pending.map(j => {
+      const meta = metaById.get(String(j.job_id || ''));
+      const inferredBbox = inferBboxFromName(String(j.name || ''));
+      return {
+        job_id: j.job_id,
+        name:   j.name,
+        type:   j.job_type,
+        submitted: j.request_time,
+        granules: j.job_parameters?.granules || [],
+        area_name: meta?.area_name || null,
+        bbox: meta?.bbox || inferredBbox || null,
+        bbox_source: meta?.bbox ? 'submitted_aoi' : inferredBbox ? 'name_inference' : 'unknown',
+      };
+    }),
 
     completed_results: results,
 

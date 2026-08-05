@@ -12,6 +12,7 @@ import { AlertTriangle, Loader2, RefreshCw, Edit2, MapPin } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useGisEngine, BASEMAPS, type GisWorkspace, type DrawingMode, type MapEmployee, type MapWarehouse } from '@/store/gisEngine';
 import { setSharedOlMap } from '@/store/gisEngine';
+import { useUserStore } from '@/store/useUserStore';
 import type { MapCorridor } from '@/store/gisEngine';
 import { usePreviewGeoJsonBridge } from './hooks/usePreviewGeoJsonBridge';
 
@@ -36,6 +37,7 @@ const WS_CENTER: Record<GisWorkspace, [number, number]> = {
   executive:   [17.00, 26.00],
   spatial:     [17.00, 26.00],
   monitor:     [13.19, 32.89],
+  remote_sensing: [13.19, 32.89],
 };
 const WS_ZOOM: Record<GisWorkspace, number> = {
   satellite:   12,
@@ -44,6 +46,7 @@ const WS_ZOOM: Record<GisWorkspace, number> = {
   executive:   5,
   spatial:     7,
   monitor:     10,
+  remote_sensing: 11,
 };
 
 function getTenantHeader(): Record<string, string> {
@@ -65,10 +68,87 @@ function resolveDepartmentFromPath(pathname: string): string {
   return 'engineering';
 }
 
+function normalizeRoleToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function canUseHrEmployeeGeoTools(currentUser: any): boolean {
+  const roles = new Set<string>();
+
+  const directRoles = Array.isArray(currentUser?.roles) ? currentUser.roles : [];
+  directRoles.forEach((r: string) => roles.add(normalizeRoleToken(String(r || ''))));
+  if (currentUser?.role) roles.add(normalizeRoleToken(String(currentUser.role)));
+
+  if (typeof window !== 'undefined') {
+    const localRole = localStorage.getItem('user_role') || localStorage.getItem('admin_role') || '';
+    if (localRole) roles.add(normalizeRoleToken(localRole));
+
+    const rawUser = localStorage.getItem('current_user');
+    if (rawUser) {
+      try {
+        const parsed = JSON.parse(rawUser);
+        const parsedRoles = Array.isArray(parsed?.roles) ? parsed.roles : [];
+        parsedRoles.forEach((r: string) => roles.add(normalizeRoleToken(String(r || ''))));
+        if (parsed?.role) roles.add(normalizeRoleToken(String(parsed.role)));
+      } catch {
+        // ignore malformed local user cache
+      }
+    }
+  }
+
+  const allowed = [
+    'hr_manager',
+    'hr_admin',
+    'hr_officer',
+    'gm',
+    'general_manager',
+    'super_admin',
+    'tenant_admin',
+    'founder',
+    'admin',
+  ];
+  return allowed.some((role) => roles.has(role));
+}
+
 function parseGeometry(g: any): any | null {
   if (!g) return null;
   if (typeof g === 'string') { try { return JSON.parse(g); } catch { return null; } }
   return g;
+}
+
+function geometryAnchorLonLat(geometry: any): [number, number] | null {
+  if (!geometry || typeof geometry !== 'object') return null;
+  const t = String(geometry.type || '');
+  if (t === 'Point' && Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2) {
+    return [Number(geometry.coordinates[0]), Number(geometry.coordinates[1])];
+  }
+  if (t === 'LineString' && Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0) {
+    const mid = geometry.coordinates[Math.floor(geometry.coordinates.length / 2)];
+    if (Array.isArray(mid) && mid.length >= 2) return [Number(mid[0]), Number(mid[1])];
+  }
+  if (t === 'Polygon' && Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0) {
+    const ring = geometry.coordinates[0] as number[][];
+    if (!Array.isArray(ring) || ring.length === 0) return null;
+    const pts = ring.filter((p) => Array.isArray(p) && p.length >= 2);
+    if (pts.length === 0) return null;
+    const sx = pts.reduce((s, p) => s + Number(p[0] || 0), 0);
+    const sy = pts.reduce((s, p) => s + Number(p[1] || 0), 0);
+    return [sx / pts.length, sy / pts.length];
+  }
+  if (t === 'MultiPolygon' && Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0) {
+    const first = geometry.coordinates[0];
+    if (Array.isArray(first)) return geometryAnchorLonLat({ type: 'Polygon', coordinates: first });
+  }
+  if (t === 'MultiLineString' && Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0) {
+    const first = geometry.coordinates[0] as number[][];
+    if (Array.isArray(first)) return geometryAnchorLonLat({ type: 'LineString', coordinates: first });
+  }
+  return null;
+}
+
+function nearPoint(aLat: number | null, aLon: number | null, bLat: number | null, bLon: number | null, tolerance = 0.0009): boolean {
+  if (aLat == null || aLon == null || bLat == null || bLon == null) return false;
+  return Math.abs(aLat - bLat) <= tolerance && Math.abs(aLon - bLon) <= tolerance;
 }
 
 function pointInRing(point: [number, number], ring: [number, number][]): boolean {
@@ -508,6 +588,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
   const mapRef    = useRef<HTMLDivElement>(null);
   const mapObjRef = useRef<any>(null);
   const layersRef = useRef<Record<string, any>>({});
+  const hrGeoMenuRef = useRef<HTMLDivElement | null>(null);
   const svyFocusRef = useRef<{ lat: number; lon: number; chainage: number | null; expiresAt: number } | null>(null);
   const svyPulseTickRef = useRef(0);
   const svyPulseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -519,8 +600,26 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
   const [coords,     setCoords]     = useState<{ lon: number; lat: number } | null>(null);
   const [tileStatus, setTileStatus] = useState<'loading' | 'ok' | 'fallback' | 'error'>('loading');
   const [activeBm,   setActiveBm]   = useState<BasemapKey>('satellite');
-  const [siteList, setSiteList] = useState<{ employees: MapEmployee[]; warehouses: MapWarehouse[] } | null>(null);
+  const [siteList, setSiteList] = useState<{
+    employees: MapEmployee[];
+    warehouses: MapWarehouse[];
+    asset: {
+      id: string | number;
+      name: string;
+      assetType?: string | null;
+      status?: string | null;
+      siteId?: string | number | null;
+    } | null;
+  } | null>(null);
   const [canViewCorrosionOverlay, setCanViewCorrosionOverlay] = useState(false);
+  const [hrGeoMenu, setHrGeoMenu] = useState<{
+    x: number;
+    y: number;
+    latitude: number;
+    longitude: number;
+    siteId: string | null;
+    assetName: string | null;
+  } | null>(null);
   const bmSwapIdRef                 = useRef(0);
 
   usePreviewGeoJsonBridge(layersRef, mapObjRef, ready);
@@ -554,7 +653,104 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
   const corridors    = useGisEngine(s => s.corridors);
   const loadCorridors = useGisEngine(s => s.loadCorridors);
   const svyCpOverlay  = useGisEngine(s => s.svyCpOverlay);
+  const currentUser   = useUserStore(s => s.current);
   const routeDepartment = useMemo(() => resolveDepartmentFromPath(pathname ?? ''), [pathname]);
+  const canUseHrEmployeeGeo = useMemo(() => canUseHrEmployeeGeoTools(currentUser), [currentUser]);
+  const canShowHrEmployeeToolsOnRoute = useMemo(() => {
+    const currentPath = pathname ?? '';
+    return currentPath.startsWith('/dashboard/admin-gateway/hr')
+      || currentPath.startsWith('/dashboard/admin-gateway/gm-office')
+      || currentPath.startsWith('/dashboard/gm-office');
+  }, [pathname]);
+  const canUseHrEmployeeGeoHere = canUseHrEmployeeGeo && canShowHrEmployeeToolsOnRoute;
+  const canUseHrGeoRef = useRef(false);
+  const employeesRef = useRef<MapEmployee[]>([]);
+  useEffect(() => {
+    canUseHrGeoRef.current = canUseHrEmployeeGeoHere;
+  }, [canUseHrEmployeeGeoHere]);
+  useEffect(() => {
+    employeesRef.current = employees;
+  }, [employees]);
+
+  function matchEmployeesToAsset(assetFeature: any, assetGeometry: any): MapEmployee[] {
+    const allEmployees = employeesRef.current;
+    if (!allEmployees.length) return [];
+
+    const featureSiteId = assetFeature?.get?.('site_id') ?? assetFeature?.get?.('entity_id') ?? assetFeature?.get?.('id');
+    const normalizedSiteId = featureSiteId != null ? String(featureSiteId) : '';
+
+    const bySiteId = normalizedSiteId
+      ? allEmployees.filter((emp) => emp.site_id != null && String(emp.site_id) === normalizedSiteId)
+      : [];
+    if (bySiteId.length > 0) return bySiteId;
+
+    if (assetGeometry?.type === 'Polygon' || assetGeometry?.type === 'MultiPolygon') {
+      return allEmployees.filter((emp) => {
+        if (emp.latitude == null || emp.longitude == null) return false;
+        return pointInAoiGeometry([emp.longitude, emp.latitude], assetGeometry);
+      });
+    }
+
+    const anchor = geometryAnchorLonLat(assetGeometry);
+    if (!anchor) return [];
+    const [anchorLon, anchorLat] = anchor;
+
+    return allEmployees.filter((emp) => {
+      if (emp.latitude == null || emp.longitude == null) return false;
+      return nearPoint(anchorLat, anchorLon, emp.latitude, emp.longitude, 0.0025);
+    });
+  }
+
+  useEffect(() => {
+    if (!hrGeoMenu) return;
+    const close = (ev: Event) => {
+      const target = ev.target;
+      if (target instanceof Node && hrGeoMenuRef.current?.contains(target)) return;
+      setHrGeoMenu(null);
+    };
+    const onEsc = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setHrGeoMenu(null);
+    };
+    window.addEventListener('click', close, true);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onEsc);
+    return () => {
+      window.removeEventListener('click', close, true);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onEsc);
+    };
+  }, [hrGeoMenu]);
+
+  function openHrEmployeesWithGeo(action: 'single' | 'bulk') {
+    if (!hrGeoMenu) return;
+    const detail = {
+      action,
+      latitude: hrGeoMenu.latitude,
+      longitude: hrGeoMenu.longitude,
+      siteId: hrGeoMenu.siteId,
+      source: hrGeoMenu.siteId ? 'asset' : 'map',
+    };
+
+    if (pathname?.startsWith('/dashboard/admin-gateway/hr/employees')) {
+      window.dispatchEvent(new CustomEvent('hr:employees-geo-anchor', { detail }));
+      if (action === 'bulk') {
+        const input = document.getElementById('hr-employees-import-input') as HTMLInputElement | null;
+        input?.click();
+      }
+      setHrGeoMenu(null);
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set('geo_lat', String(hrGeoMenu.latitude));
+    params.set('geo_lon', String(hrGeoMenu.longitude));
+    params.set('geo_source', hrGeoMenu.siteId ? 'asset' : 'map');
+    if (hrGeoMenu.siteId) params.set('geo_asset_id', hrGeoMenu.siteId);
+    if (action === 'single') params.set('open', 'new');
+    if (action === 'bulk') params.set('open', 'import');
+
+    window.location.assign(`/dashboard/admin-gateway/hr/employees?${params.toString()}`);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -731,7 +927,16 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
                 text: new Text({ text: String(size), fill: new Fill({ color: '#fff' }), font: 'bold 12px sans-serif' }),
               });
             }
-            return new Style({ image: new CircleStyle({ radius: 7, fill: new Fill({ color: '#8b5cf6' }), stroke: new Stroke({ color: '#fff', width: 1.5 }) }) });
+            return new Style({
+              image: new CircleStyle({ radius: 7, fill: new Fill({ color: '#8b5cf6' }), stroke: new Stroke({ color: '#fff', width: 1.5 }) }),
+              text: new Text({
+                text: '1',
+                offsetY: -13,
+                fill: new Fill({ color: '#f8fafc' }),
+                stroke: new Stroke({ color: '#0f172a', width: 3 }),
+                font: 'bold 11px sans-serif',
+              }),
+            });
           },
           zIndex: 25,
         });
@@ -882,7 +1087,11 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
             const zoom = mapObjRef.current?.getView().getZoom() ?? 10;
             const showLabel = zoom >= 9.5;
             const name: string = f.get('name') ?? '';
-            const label = showLabel ? (name.length > 18 ? name.slice(0, 18) + '…' : name) : '';
+            const baseLabel = showLabel ? (name.length > 18 ? name.slice(0, 18) + '…' : name) : '';
+            const docCount = Number(f.get('doc_count') || 0);
+            const label = baseLabel
+              ? (docCount > 0 ? `${baseLabel}\nD:${docCount}` : baseLabel)
+              : '';
             if (geomType === 'LineString' || geomType === 'MultiLineString') {
               return new Style({
                 stroke: new Stroke({ color: '#10b981', width: 3 }),
@@ -935,15 +1144,19 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
             const showLabel = zoom >= 10;
             const nameRaw: string = f.get('name') ?? '';
             const deptLabel = CHILD_DEPT_LABELS[f.get('owner_department') ?? ''] ?? '';
+            const docCount = Number(f.get('doc_count') || 0);
             const labelText = showLabel
               ? (nameRaw.length > 14 ? nameRaw.slice(0, 14) + '…' : nameRaw)
+              : '';
+            const withDocLabel = labelText
+              ? `${labelText}${deptLabel ? `\n${deptLabel}` : ''}${docCount > 0 ? `\nD:${docCount}` : ''}`
               : '';
             if (geomType === 'Polygon' || geomType === 'MultiPolygon') {
               return new Style({
                 fill: new Fill({ color: col + '28' }),
                 stroke: new Stroke({ color: col, width: 2.5 }),
                 text: showLabel ? new Text({
-                  text: labelText + (deptLabel ? '\n' + deptLabel : ''),
+                  text: withDocLabel,
                   font: 'bold 12px Cairo,sans-serif',
                   fill: new Fill({ color: col }),
                   stroke: new Stroke({ color: '#0f172a', width: 3 }),
@@ -956,7 +1169,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
               return new Style({
                 stroke: new Stroke({ color: col, width: 3, lineDash: [8, 4] }),
                 text: showLabel ? new Text({
-                  text: labelText,
+                  text: withDocLabel,
                   font: 'bold 12px Cairo,sans-serif',
                   fill: new Fill({ color: col }),
                   stroke: new Stroke({ color: '#0f172a', width: 3 }),
@@ -973,7 +1186,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
                 stroke: new Stroke({ color: '#fff', width: 2 }),
               }),
               text: showLabel ? new Text({
-                text: labelText + (deptLabel ? '\n' + deptLabel : ''),
+                text: withDocLabel,
                 offsetY: -(dotR + 10),
                 font: 'bold 12px Cairo,sans-serif',
                 fill: new Fill({ color: col }),
@@ -986,6 +1199,46 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
           zIndex: 35,
         });
         layersRef.current['child_assets'] = childAssetLayer;
+
+        // ── Asset documents overlay layer (clickable attachment markers) ───
+        const docOverlaySource = new VectorSource();
+        const docOverlayLayer = new VectorLayer({
+          source: docOverlaySource,
+          style: (f: any) => {
+            const geomType = f.getGeometry()?.getType();
+            const docType = String(f.get('doc_type') || 'other');
+            const color = docType === 'financial' ? '#22c55e'
+              : docType === 'admin' ? '#f59e0b'
+              : docType === 'technical' ? '#a78bfa'
+              : docType === 'drawing' ? '#38bdf8'
+              : docType === 'photo' ? '#06b6d4'
+              : '#94a3b8';
+
+            if (geomType === 'Point') {
+              return new Style({
+                image: new CircleStyle({
+                  radius: 7,
+                  fill: new Fill({ color }),
+                  stroke: new Stroke({ color: '#ffffff', width: 1.8 }),
+                }),
+                text: new Text({
+                  text: 'D',
+                  font: 'bold 10px sans-serif',
+                  fill: new Fill({ color: '#ffffff' }),
+                  offsetY: 0,
+                }),
+              });
+            }
+
+            return new Style({
+              stroke: new Stroke({ color, width: 2, lineDash: [6, 4] }),
+              fill: new Fill({ color: `${color}22` }),
+            });
+          },
+          zIndex: 72,
+        });
+        layersRef.current['asset_docs_overlay'] = docOverlayLayer;
+        layersRef.current['asset_docs_overlay_source'] = docOverlaySource;
 
         // ── Geo-SCADA layer (draw directly on geographic map) ──────────────
         const scadaGeoSource = new VectorSource();
@@ -1080,8 +1333,8 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
 
         const mapLayers = workspace === 'satellite'
           // Keep core asset registry visible in satellite mode across all screens.
-          ? [baseLayer, principalLayer, childAssetLayer, scadaGeoLayer, svyCpLayer, aoiMaskLayer, aoiFocusLayer]
-          : [baseLayer, principalLayer, projectLayer, assetLayer, childAssetLayer, densityHeatmapLayer, woLayer, empLayer, whLayer, densityChartLayer, corridorLayer, scadaGeoLayer, svyCpLayer, aoiMaskLayer, aoiFocusLayer];
+          ? [baseLayer, principalLayer, childAssetLayer, docOverlayLayer, scadaGeoLayer, svyCpLayer, aoiMaskLayer, aoiFocusLayer]
+          : [baseLayer, principalLayer, projectLayer, assetLayer, childAssetLayer, docOverlayLayer, densityHeatmapLayer, woLayer, empLayer, whLayer, densityChartLayer, corridorLayer, scadaGeoLayer, svyCpLayer, aoiMaskLayer, aoiFocusLayer];
         
         const map = new OlMap({
           target: mapRef.current!,
@@ -1166,6 +1419,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
           if (hoveredRiver) twinSource.addFeature(hoveredRiver.clone());
         });
         map.on('singleclick', (e: any) => {
+          setHrGeoMenu(null);
           // Pick mode: deliver coordinates to waiting form, or keep as live coordinate pick.
           if (drawingModeRef.current === 'pick-location') {
             const [lon, lat] = toLonLat(e.coordinate);
@@ -1246,7 +1500,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
                 }
               }
               if (emps.length || whs.length) {
-                setSiteList({ employees: emps, warehouses: whs });
+                setSiteList({ employees: emps, warehouses: whs, asset: null });
                 hit = true;
                 return;
               }
@@ -1255,6 +1509,47 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
             const feat = feats?.[0] ?? f;
             const etype = feat.get('entity_type');
             const eid   = feat.get('entity_id');
+            if (etype === 'asset' && canUseHrEmployeeGeoHere) {
+              const geojson = geojsonWriter.writeFeatureObject(feat, {
+                featureProjection: 'EPSG:3857',
+                dataProjection: 'EPSG:4326',
+              });
+              const assetGeometry = parseGeometry(geojson?.geometry);
+              const assetName = String(feat.get('name') ?? feat.get('asset_name') ?? 'أصل');
+              const assetType = feat.get('asset_type') != null ? String(feat.get('asset_type')) : null;
+              const assetStatus = feat.get('status') != null ? String(feat.get('status')) : null;
+              const assetSiteId = feat.get('site_id') ?? feat.get('entity_id') ?? feat.get('id') ?? null;
+              const linkedEmployees = matchEmployeesToAsset(feat, assetGeometry);
+
+              setSiteList({
+                employees: linkedEmployees,
+                warehouses: [],
+                asset: {
+                  id: feat.get('entity_id') ?? feat.get('id') ?? assetName,
+                  name: assetName,
+                  assetType,
+                  status: assetStatus,
+                  siteId: assetSiteId,
+                },
+              });
+              selectEntity('asset', feat.get('entity_id') ?? feat.get('id') ?? null);
+              hit = true;
+              return;
+            }
+            if (etype === 'asset_doc') {
+              const assetId = String(feat.get('asset_id') || '');
+              if (assetId) {
+                window.dispatchEvent(new CustomEvent('engineering:open-asset-doc-popup', {
+                  detail: {
+                    assetId,
+                    clientX: Number(e.originalEvent?.clientX || 80),
+                    clientY: Number(e.originalEvent?.clientY || 120),
+                  },
+                }));
+                hit = true;
+                return;
+              }
+            }
             if (etype && eid != null) { selectEntity(etype, eid); hit = true; }
           });
           if (!hit) {
@@ -1263,12 +1558,82 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
           }
         });
 
+        const viewportEl = map.getViewport();
+        const handleContextMenu = (ev: MouseEvent) => {
+          ev.preventDefault();
+          const pixel = map.getEventPixel(ev);
+          let targetAssetId: string | null = null;
+          let targetAssetName: string | null = null;
+          let pickedLon = 0;
+          let pickedLat = 0;
+
+          try {
+            const coord = map.getCoordinateFromPixel(pixel);
+            const lonLat = toLonLat(coord);
+            pickedLon = Number(Number(lonLat[0]).toFixed(6));
+            pickedLat = Number(Number(lonLat[1]).toFixed(6));
+          } catch {
+            // keep defaults
+          }
+
+          map.forEachFeatureAtPixel(
+            pixel,
+            (f: any, layer: any) => {
+              if (targetAssetId) return;
+              if (!layer) return;
+              const isAssetLayer =
+                layer === layersRef.current['principal_assets'] ||
+                layer === layersRef.current['child_assets'] ||
+                layer === layersRef.current['assets'];
+              if (!isAssetLayer) return;
+              const feat = f.get('features')?.[0] ?? f;
+              const id = feat.get('entity_id') ?? feat.get('id');
+              if (id == null) return;
+              targetAssetId = String(id);
+              const rawName = feat.get('name') ?? feat.get('asset_name') ?? feat.get('title');
+              targetAssetName = rawName != null ? String(rawName) : null;
+            },
+            { hitTolerance: 6 },
+          );
+
+          if (targetAssetId) {
+            window.dispatchEvent(new CustomEvent('engineering:asset-context-menu', {
+              detail: {
+                assetId: targetAssetId,
+                clientX: ev.clientX,
+                clientY: ev.clientY,
+              },
+            }));
+          }
+
+          if (canUseHrGeoRef.current && Number.isFinite(pickedLon) && Number.isFinite(pickedLat)) {
+            setHrGeoMenu({
+              x: ev.clientX,
+              y: ev.clientY,
+              latitude: pickedLat,
+              longitude: pickedLon,
+              siteId: targetAssetId,
+              assetName: targetAssetName,
+            });
+          }
+        };
+
+        viewportEl.addEventListener('contextmenu', handleContextMenu);
+
         setReady(true);
+
+        return () => {
+          viewportEl.removeEventListener('contextmenu', handleContextMenu);
+        };
       } catch (err: any) { setInitErr(err.message ?? 'خطأ في تهيئة الخريطة'); }
     }
-    init();
+    let cleanupFromInit: (() => void) | undefined;
+    init().then((cleanup) => {
+      cleanupFromInit = cleanup;
+    });
     return () => {
       cancelled = true;
+      cleanupFromInit?.();
       cancelAnimationFrame(scadaAnimFrameRef.current);
       clearTimeout(initWatchdog);
       setSharedOlMap(null);
@@ -1551,8 +1916,17 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
               { featureProjection: 'EPSG:3857' }
             );
             feats.forEach((f: any) => {
+              const anchor = geometryAnchorLonLat(a.geometry);
               f.set('name', a.name);
               f.set('id', a.id);
+              f.set('entity_type', 'asset');
+              f.set('entity_id', a.id);
+              f.set('site_id', a.site_id ?? a.id ?? null);
+              f.set('asset_type', a.asset_type ?? null);
+              f.set('status', a.status ?? null);
+              f.set('latitude', a.latitude ?? (anchor ? anchor[1] : null));
+              f.set('longitude', a.longitude ?? (anchor ? anchor[0] : null));
+              f.set('doc_count', Number(a.doc_count || a.documents_count || 0));
               source.addFeature(f);
             });
           } catch { /* skip bad geom */ }
@@ -1595,11 +1969,18 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
               { featureProjection: 'EPSG:3857' }
             );
             feats.forEach((f: any) => {
+              const anchor = geometryAnchorLonLat(c.geometry);
               f.set('name', c.name);
               f.set('asset_type', c.asset_type);
               f.set('owner_department', c.owner_department);
               f.set('status', c.status);
               f.set('id', c.id);
+              f.set('entity_type', 'asset');
+              f.set('entity_id', c.id);
+              f.set('site_id', c.site_id ?? c.id ?? null);
+              f.set('latitude', c.latitude ?? (anchor ? anchor[1] : null));
+              f.set('longitude', c.longitude ?? (anchor ? anchor[0] : null));
+              f.set('doc_count', Number(c.doc_count || c.documents_count || 0));
               source.addFeature(f);
             });
           } catch { /* skip bad geom */ }
@@ -1614,6 +1995,171 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
     return () => {
       cancelled = true;
       window.removeEventListener('engineering:refresh-child-layer', handler);
+    };
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    const updateFeatureDocCount = (assetId: string, count: number, delta = 0) => {
+      const sources = [
+        layersRef.current['principal_assets']?.getSource?.(),
+        layersRef.current['child_assets']?.getSource?.(),
+      ].filter(Boolean) as any[];
+
+      for (const src of sources) {
+        const feats = src.getFeatures?.() || [];
+        for (const f of feats) {
+          const id = String(f.get('entity_id') ?? f.get('id') ?? '');
+          if (id !== assetId) continue;
+          const fallback = Number(f.get('doc_count') || 0) + delta;
+          f.set('doc_count', Number.isFinite(count) ? count : Math.max(0, fallback));
+        }
+        src.changed?.();
+      }
+
+      layersRef.current['principal_assets']?.changed?.();
+      layersRef.current['child_assets']?.changed?.();
+    };
+
+    const handler = async (e: Event) => {
+      const ev = e as CustomEvent<{ assetId: string; delta?: number }>;
+      const assetId = String(ev.detail?.assetId || '').trim();
+      const delta = Number(ev.detail?.delta || 0);
+      if (!assetId) return;
+
+      try {
+        const res = await fetch(`/api/v1/workspace/assets/${assetId}/center`, {
+          headers: getTenantHeader(),
+          cache: 'no-store',
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        const center = await res.json();
+        const count = Number(center?.doc_counts?.total || 0);
+        updateFeatureDocCount(assetId, count, delta);
+      } catch {
+        updateFeatureDocCount(assetId, NaN, delta);
+      }
+    };
+
+    window.addEventListener('engineering:asset-doc-updated', handler as EventListener);
+    return () => {
+      window.removeEventListener('engineering:asset-doc-updated', handler as EventListener);
+    };
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    const renderOverlay = async (detail: {
+      assetId?: string;
+      assetName?: string;
+      geometry?: any;
+      docs?: Array<{ id: string; title?: string; file_url?: string; doc_type?: string }>;
+    }) => {
+      const src = layersRef.current['asset_docs_overlay_source'];
+      if (!src) return;
+
+      src.clear();
+      const assetId = String(detail?.assetId || '').trim();
+      const docs = Array.isArray(detail?.docs) ? detail.docs : [];
+      if (!assetId || docs.length === 0) {
+        layersRef.current['asset_docs_overlay']?.changed?.();
+        return;
+      }
+
+      const anchor = geometryAnchorLonLat(parseGeometry(detail.geometry));
+      if (!anchor) {
+        layersRef.current['asset_docs_overlay']?.changed?.();
+        return;
+      }
+
+      const [lon, lat] = anchor;
+      const { fromLonLat } = await import('ol/proj');
+      const GeoJSONFmt: any = (await import('ol/format/GeoJSON')).default;
+      const FeatureAny: any = (await import('ol/Feature')).default;
+      const PointAny: any = (await import('ol/geom/Point')).default;
+      const fmt = new GeoJSONFmt();
+      const visibleDocs = docs.slice(0, 24);
+
+      const spatialDocs = visibleDocs.filter((doc) => {
+        const url = String(doc.file_url || '');
+        return /^\/api\/engineering\/workspace\/files\//.test(url);
+      });
+
+      for (const doc of spatialDocs) {
+        const url = String(doc.file_url || '');
+        const match = url.match(/\/api\/engineering\/workspace\/files\/([^/?#]+)/);
+        const fileId = match?.[1] ? decodeURIComponent(match[1]) : '';
+        if (!fileId) continue;
+
+        try {
+          const res = await fetch(`/api/engineering/workspace/files/${encodeURIComponent(fileId)}/spatial`, {
+            cache: 'no-store',
+          });
+          if (!res.ok) continue;
+          const payload = await res.json();
+          const fc = payload?.feature_collection;
+          if (!fc?.features?.length) continue;
+
+          const features = fmt.readFeatures(fc, {
+            dataProjection: 'EPSG:4326',
+            featureProjection: 'EPSG:3857',
+          });
+
+          features.forEach((f: any) => {
+            f.set('entity_type', 'asset_doc');
+            f.set('entity_id', String(doc.id || fileId));
+            f.set('asset_id', assetId);
+            f.set('asset_name', String(detail?.assetName || ''));
+            f.set('doc_id', String(doc.id || fileId));
+            f.set('doc_type', String(doc.doc_type || 'drawing'));
+            f.set('doc_title', String(doc.title || 'وثيقة مكانية'));
+            f.set('file_url', String(doc.file_url || ''));
+            src.addFeature(f);
+          });
+        } catch {
+          // Keep markers even if spatial payload can't be loaded.
+        }
+      }
+
+      visibleDocs.forEach((doc, idx) => {
+        const a = (Math.PI * 2 * idx) / Math.max(1, visibleDocs.length);
+        const r = 0.00010 + (idx % 3) * 0.00005;
+        const px = lon + Math.cos(a) * r;
+        const py = lat + Math.sin(a) * r;
+        const f = new FeatureAny({ geometry: new PointAny(fromLonLat([px, py])) });
+        f.set('entity_type', 'asset_doc');
+        f.set('entity_id', String(doc.id || `${assetId}-${idx}`));
+        f.set('asset_id', assetId);
+        f.set('asset_name', String(detail?.assetName || '')); 
+        f.set('doc_id', String(doc.id || ''));
+        f.set('doc_type', String(doc.doc_type || 'other'));
+        f.set('doc_title', String(doc.title || 'وثيقة'));
+        f.set('file_url', String(doc.file_url || ''));
+        src.addFeature(f);
+      });
+
+      layersRef.current['asset_docs_overlay']?.changed?.();
+    };
+
+    const onShow = (e: Event) => {
+      const ev = e as CustomEvent<any>;
+      void renderOverlay(ev.detail || {});
+    };
+
+    const onClear = () => {
+      const src = layersRef.current['asset_docs_overlay_source'];
+      src?.clear?.();
+      layersRef.current['asset_docs_overlay']?.changed?.();
+    };
+
+    window.addEventListener('engineering:show-asset-doc-overlay', onShow as EventListener);
+    window.addEventListener('engineering:clear-asset-doc-overlay', onClear as EventListener);
+
+    return () => {
+      window.removeEventListener('engineering:show-asset-doc-overlay', onShow as EventListener);
+      window.removeEventListener('engineering:clear-asset-doc-overlay', onClear as EventListener);
     };
   }, [ready]);
 
@@ -1675,17 +2221,22 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
       const layer = layersRef.current[id];
       if (!layer) return;
       if (id === 'employees' || id === 'warehouses') {
-        layer.setVisible((layerVis as any)[id] && entityRenderMode === 'icons');
+        if (id === 'employees') {
+          layer.setVisible(canUseHrEmployeeGeoHere && (layerVis as any)[id] && entityRenderMode === 'icons');
+        } else {
+          layer.setVisible((layerVis as any)[id] && entityRenderMode === 'icons');
+        }
       } else {
         layer.setVisible((layerVis as any)[id]);
       }
       layer.setOpacity((layerOpacity as any)[id] ?? 1.0);
     });
 
-    const densityVisible = entityRenderMode === 'density' && (layerVis.heatmap || layerVis.employees || layerVis.warehouses || layerVis.contracts);
+    const densityVisible = entityRenderMode === 'density'
+      && (layerVis.heatmap || (canUseHrEmployeeGeoHere && layerVis.employees) || layerVis.warehouses || layerVis.contracts);
     layersRef.current['density_heatmap']?.setVisible(densityVisible);
     layersRef.current['density_chart']?.setVisible(densityVisible);
-  }, [layerVis, layerOpacity, entityRenderMode]);
+  }, [layerVis, layerOpacity, entityRenderMode, canUseHrEmployeeGeoHere]);
 
   // ── Smooth fly-to from store (no map remount/no flicker) ─────────────────
   useEffect(() => {
@@ -1780,7 +2331,15 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
         if (a.latitude == null || a.longitude == null) continue;
         if (!pointInAoiGeometry([a.longitude, a.latitude], aoiGeomWithBbox)) continue;
         const f = new FeatureAny({ geometry: new PointAny(fromLonLat([a.longitude, a.latitude])) });
-        f.set('entity_type', 'asset'); f.set('entity_id', a.id); f.set('health_score', a.health_score ?? 100);
+        f.set('entity_type', 'asset');
+        f.set('entity_id', a.id);
+        f.set('health_score', a.health_score ?? 100);
+        f.set('name', a.name);
+        f.set('asset_type', a.asset_type ?? null);
+        f.set('status', a.status ?? null);
+        f.set('site_id', a.site_id ?? a.id ?? null);
+        f.set('latitude', a.latitude);
+        f.set('longitude', a.longitude);
         inner.addFeature(f);
       }
     })();
@@ -1823,6 +2382,10 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
       
       const src = layersRef.current['employees']?.getSource()?.getSource?.();
       if (!src) return;
+      if (!canUseHrEmployeeGeoHere) {
+        src.clear();
+        return;
+      }
       const { fromLonLat } = await import('ol/proj');
       const FeatureAny: any = (await import('ol/Feature')).default;
       const PointAny: any = (await import('ol/geom/Point')).default;
@@ -1835,12 +2398,13 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
         f.set('entity_id', emp.id);
         f.set('name', emp.name);
         f.set('department', emp.department);
+        f.set('site_id', emp.site_id ?? null);
         f.set('latitude', emp.latitude);
         f.set('longitude', emp.longitude);
         src.addFeature(f);
       }
     })();
-  }, [workspace, employees, aoiGeomWithBbox]);
+  }, [workspace, employees, aoiGeomWithBbox, canUseHrEmployeeGeoHere]);
 
   // ── Render warehouses (clustered) ─────────────────────────────────────────
   useEffect(() => {
@@ -2011,18 +2575,21 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
       const PointAny: any = (await import('ol/geom/Point')).default;
       src.clear();
 
-      for (const emp of employees) {
-        if (emp.latitude == null || emp.longitude == null) continue;
-        if (!pointInAoiGeometry([emp.longitude, emp.latitude], aoiGeomWithBbox)) continue;
-        const f = new FeatureAny({ geometry: new PointAny(fromLonLat([emp.longitude, emp.latitude])) });
-        f.set('entity_type', 'employee');
-        f.set('entity_id', emp.id);
-        f.set('name', emp.name);
-        f.set('department', emp.department);
-        f.set('latitude', emp.latitude);
-        f.set('longitude', emp.longitude);
-        f.set('weight', 1.0);
-        src.addFeature(f);
+      if (canUseHrEmployeeGeoHere) {
+        for (const emp of employees) {
+          if (emp.latitude == null || emp.longitude == null) continue;
+          if (!pointInAoiGeometry([emp.longitude, emp.latitude], aoiGeomWithBbox)) continue;
+          const f = new FeatureAny({ geometry: new PointAny(fromLonLat([emp.longitude, emp.latitude])) });
+          f.set('entity_type', 'employee');
+          f.set('entity_id', emp.id);
+          f.set('name', emp.name);
+          f.set('department', emp.department);
+          f.set('site_id', emp.site_id ?? null);
+          f.set('latitude', emp.latitude);
+          f.set('longitude', emp.longitude);
+          f.set('weight', 1.0);
+          src.addFeature(f);
+        }
       }
 
       for (const wh of warehouses) {
@@ -2041,7 +2608,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
         src.addFeature(f);
       }
     })();
-  }, [employees, warehouses, aoiGeomWithBbox]);
+  }, [employees, warehouses, aoiGeomWithBbox, canUseHrEmployeeGeoHere]);
 
   // ── UI ────────────────────────────────────────────────────────────────────
   if (initErr) {
@@ -2169,18 +2736,65 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
         </button>}
       </div>
 
+      {hrGeoMenu && (
+        <div
+          ref={hrGeoMenuRef}
+          className="fixed z-[80] w-72 rounded-xl border border-white/15 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-xl"
+          style={{ left: hrGeoMenu.x + 8, top: hrGeoMenu.y + 8 }}
+          dir="rtl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2 pb-2 border-b border-white/10">
+            <p className="text-xs text-slate-200 font-medium">ربط موظفين بموقع جغرافي</p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              ({hrGeoMenu.latitude.toFixed(6)}, {hrGeoMenu.longitude.toFixed(6)})
+              {hrGeoMenu.siteId ? ` • أصل: ${hrGeoMenu.assetName || hrGeoMenu.siteId}` : ''}
+            </p>
+          </div>
+          <div className="pt-2 space-y-1">
+            <button
+              type="button"
+              className="w-full rounded-lg border border-blue-400/30 bg-blue-500/20 px-3 py-2 text-right text-xs text-blue-100 hover:bg-blue-500/30"
+              onClick={() => openHrEmployeesWithGeo('single')}
+            >
+              إضافة موظف في هذا الموقع
+            </button>
+            <button
+              type="button"
+              className="w-full rounded-lg border border-emerald-400/30 bg-emerald-500/20 px-3 py-2 text-right text-xs text-emerald-100 hover:bg-emerald-500/30"
+              onClick={() => openHrEmployeesWithGeo('bulk')}
+            >
+              إضافة ملف موظفين لهذا الموقع
+            </button>
+            <button
+              type="button"
+              className="w-full rounded-lg border border-white/15 bg-slate-800/70 px-3 py-1.5 text-right text-xs text-slate-300 hover:bg-slate-700/70"
+              onClick={() => setHrGeoMenu(null)}
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>
+      )}
+
       {siteList && (
         <aside className="absolute top-24 right-3 z-40 w-[340px] max-h-[70vh] overflow-hidden rounded-2xl border border-white/15 bg-slate-900/60 backdrop-blur-xl shadow-2xl" dir="rtl">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-white">بيانات الموقع</h3>
               <p className="text-[11px] text-white/70">
-                {siteList.employees.length} موظف • {siteList.warehouses.length} مخزن
+                {siteList.asset ? `أصل • ` : ''}{siteList.employees.length} موظف • {siteList.warehouses.length} مخزن
               </p>
             </div>
             <button type="button" onClick={() => setSiteList(null)} className="text-xs text-white/70 hover:text-white">إغلاق</button>
           </div>
           <div className="max-h-[58vh] overflow-auto px-3 py-3 space-y-3">
+            {siteList.asset && (
+              <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-2 text-[11px] text-cyan-100">
+                عدد الموظفين المرتبطين بهذا الأصل: {siteList.employees.length}
+              </div>
+            )}
+
             {siteList.employees.length > 0 && (
               <section>
                 <p className="text-[11px] text-violet-300 mb-2">الموظفون</p>
@@ -2191,6 +2805,14 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
                       <p className="text-[11px] text-white/70">{emp.department}</p>
                     </div>
                   ))}
+                </div>
+              </section>
+            )}
+
+            {siteList.asset && siteList.employees.length === 0 && (
+              <section>
+                <div className="rounded-lg border border-dashed border-white/10 bg-white/5 px-2.5 py-3 text-[11px] text-white/60">
+                  لا يوجد موظفون مرتبطون بهذا الأصل حالياً.
                 </div>
               </section>
             )}
@@ -2219,7 +2841,7 @@ export default function MapCenterCanvas({ hideControls = false }: { hideControls
           {layerVis.projects    && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />{projects.length} مشروع</span>}
           {layerVis.assets      && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />{assets.length} أصل</span>}
           {layerVis.work_orders && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{workOrders.length} أمر</span>}
-          {layerVis.employees   && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />{employees.length} موظف</span>}
+          {canUseHrEmployeeGeoHere && layerVis.employees && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />{employees.length} موظف</span>}
           {layerVis.warehouses  && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" />{warehouses.length} مخزن</span>}
           <span className="text-white/70">العرض: {entityRenderMode === 'density' ? 'كثافة' : 'أيقونات'}</span>
         </span>

@@ -246,7 +246,25 @@ export default function ExecutiveReportPage() {
       { domain: 'الأسطول',    key: 'تكلفة الوقود',             val: compactNum(data.fleet.total_fuel_cost)    + ' د.ل', status: 'active'     },
       { domain: 'المخزون',    key: 'قيمة ما تم استلامه',        val: compactNum(data.inventory.total_received_value) + ' د.ل', status: 'completed' },
     ];
-    return (
+    
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (
       <table className="w-full text-sm">
         <thead className="bg-slate-800/60">
           <tr>

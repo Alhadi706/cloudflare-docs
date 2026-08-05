@@ -137,7 +137,25 @@ export default function AssetMaintenancePage() {
     critical: assets.filter(a => a.health === 'critical').length,
   }), [assets]);
 
-  return (
+  
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-6" dir="rtl">
       <div className="max-w-screen-xl mx-auto space-y-4">
 

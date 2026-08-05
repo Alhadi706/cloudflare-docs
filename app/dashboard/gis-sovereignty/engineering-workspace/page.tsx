@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, Suspense, useRef } from 'react';
 import { useGisEngine } from '@/store/gisEngine';
 import { GisErrorBoundary } from '../components/GisErrorBoundary';
 import { workspaceApi } from '@/store/apiService';
@@ -68,6 +68,35 @@ type ExtractedLayer = {
 };
 
 type GeoScadaTool = 'idle' | 'path' | 'tank' | 'valve' | 'pump' | 'delete';
+type QuickDocType = 'financial' | 'admin' | 'technical' | 'photo' | 'drawing';
+
+type AssetContextMenuState = {
+  assetId: string;
+  clientX: number;
+  clientY: number;
+};
+
+type AssetDocsPopupState = {
+  assetId: string;
+  title: string;
+  clientX: number;
+  clientY: number;
+  docs: Array<{
+    id: string;
+    title: string;
+    doc_type: string;
+    file_url?: string;
+    created_at?: string;
+  }>;
+};
+
+function mapQuickDocType(value: QuickDocType): { docType: string; department: string } {
+  if (value === 'financial') return { docType: 'financial', department: 'finance' };
+  if (value === 'admin') return { docType: 'admin', department: 'administration' };
+  if (value === 'technical') return { docType: 'technical', department: 'technical' };
+  if (value === 'photo') return { docType: 'photo', department: 'engineering' };
+  return { docType: 'drawing', department: 'engineering' };
+}
 
 async function readApiPayload(res: Response): Promise<any> {
   const raw = await res.text();
@@ -288,6 +317,31 @@ async function postJsonWithFallbackEndpoints(
   throw lastError || new Error(errorFallbackLabel);
 }
 
+type AssetAskReference = {
+  ref: string;
+  source_id: string;
+  title: string;
+  file_url: string;
+  doc_type: string;
+  extraction_status: string;
+};
+
+type AssetAssistantMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  references?: AssetAskReference[];
+};
+
+type AssetAssistantState = {
+  assetId: string;
+  assetName: string;
+  input: string;
+  loading: boolean;
+  err: string;
+  messages: AssetAssistantMessage[];
+};
+
 /** Route-aware title strip: shows registry context or standalone engineering context */
 function TitleStrip() {
   const pathname = usePathname();
@@ -333,6 +387,12 @@ function EngineeringWorkspaceInner() {
   // Asset-centric UI state
   const [selectedAssetId, setSelectedAssetId]   = useState<string | null>(null);
   const [intelligenceOpen, setIntelligenceOpen] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(300);
+  const [assetContextMenu, setAssetContextMenu] = useState<AssetContextMenuState | null>(null);
+  const [assetDocsPopup, setAssetDocsPopup] = useState<AssetDocsPopupState | null>(null);
+  const [quickUpload, setQuickUpload] = useState<{ assetId: string; kind: QuickDocType } | null>(null);
+  const [assetAssistant, setAssetAssistant] = useState<AssetAssistantState | null>(null);
+  const quickFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Create principal asset modal
   const [showCreateModal, setShowCreateModal]       = useState(false);
@@ -477,6 +537,29 @@ function EngineeringWorkspaceInner() {
   // Refresh key for left panel — increment to force reload
   const [leftPanelRefreshKey, setLeftPanelRefreshKey] = useState(0);
   const [geoScadaTool, setGeoScadaTool] = useState<GeoScadaTool>('idle');
+
+  const startResize = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startWidth = panelWidth;
+    const minWidth = 280;
+    const maxWidth = 640;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startX - moveEvent.clientX;
+      const nextWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta));
+      setPanelWidth(nextWidth);
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [panelWidth]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('engineering:scada-geo-tool', {
@@ -964,6 +1047,273 @@ function EngineeringWorkspaceInner() {
     return () => window.removeEventListener('engineering:redraw-asset', redrawHandler as EventListener);
   }, [setDrawingMode]);
 
+  useEffect(() => {
+    const openContextMenu = (e: Event) => {
+      const ev = e as CustomEvent<{ assetId: string; clientX: number; clientY: number }>;
+      const assetId = String(ev.detail?.assetId || '').trim();
+      if (!assetId) return;
+      setSelectedAssetId(assetId);
+      selectEntity('asset', assetId);
+      setAssetDocsPopup(null);
+      setAssetContextMenu({
+        assetId,
+        clientX: Number(ev.detail?.clientX || 0),
+        clientY: Number(ev.detail?.clientY || 0),
+      });
+    };
+
+    const closeContextMenu = () => setAssetContextMenu(null);
+    window.addEventListener('engineering:asset-context-menu', openContextMenu as EventListener);
+    window.addEventListener('click', closeContextMenu);
+    window.addEventListener('scroll', closeContextMenu, true);
+    return () => {
+      window.removeEventListener('engineering:asset-context-menu', openContextMenu as EventListener);
+      window.removeEventListener('click', closeContextMenu);
+      window.removeEventListener('scroll', closeContextMenu, true);
+    };
+  }, [selectEntity]);
+
+  const openAssetDocsPopup = useCallback(async (assetId: string, x: number, y: number) => {
+    try {
+      const center = await workspaceApi.getAssetCenter(assetId);
+      const docs = Array.isArray(center?.documents) ? center.documents : [];
+      setAssetDocsPopup({
+        assetId,
+        title: String(center?.asset?.asset_name || 'وثائق الأصل'),
+        clientX: x,
+        clientY: y,
+        docs: docs.slice(0, 15),
+      });
+    } catch (e: any) {
+      showToast(`تعذر تحميل المرفقات: ${e?.message || 'خطأ غير معروف'}`, 'error');
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ assetId: string; clientX: number; clientY: number }>;
+      const assetId = String(ev.detail?.assetId || '').trim();
+      if (!assetId) return;
+      void openAssetDocsPopup(assetId, Number(ev.detail?.clientX || 80), Number(ev.detail?.clientY || 120));
+    };
+
+    window.addEventListener('engineering:open-asset-doc-popup', handler as EventListener);
+    return () => window.removeEventListener('engineering:open-asset-doc-popup', handler as EventListener);
+  }, [openAssetDocsPopup]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const publishAssetDocsOverlay = async () => {
+      if (!selectedAssetId) {
+        window.dispatchEvent(new CustomEvent('engineering:clear-asset-doc-overlay'));
+        return;
+      }
+
+      try {
+        const center = await workspaceApi.getAssetCenter(selectedAssetId);
+        if (cancelled) return;
+        const docs = Array.isArray(center?.documents) ? center.documents : [];
+        window.dispatchEvent(new CustomEvent('engineering:show-asset-doc-overlay', {
+          detail: {
+            assetId: selectedAssetId,
+            assetName: String(center?.asset?.asset_name || ''),
+            geometry: center?.asset?.geometry || center?.asset?.geometry_json || center?.geometry || null,
+            docs,
+          },
+        }));
+      } catch {
+        if (!cancelled) {
+          window.dispatchEvent(new CustomEvent('engineering:clear-asset-doc-overlay'));
+        }
+      }
+    };
+
+    void publishAssetDocsOverlay();
+    return () => { cancelled = true; };
+  }, [selectedAssetId]);
+
+  const startQuickUpload = useCallback((kind: QuickDocType) => {
+    if (!assetContextMenu?.assetId) return;
+    setQuickUpload({ assetId: assetContextMenu.assetId, kind });
+    setAssetContextMenu(null);
+    setTimeout(() => quickFileInputRef.current?.click(), 0);
+  }, [assetContextMenu]);
+
+  const triggerAssetKnowledgeIngest = useCallback(async (assetId: string) => {
+    try {
+      const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ingest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {}),
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await readApiPayload(res);
+      if (!res.ok || !data?.ok) return null;
+      return {
+        linked: Number(data?.stats?.linked_sources || 0),
+        ingested: Number(data?.stats?.ingested_sources || 0),
+        needsOcr: Number(data?.stats?.needs_ocr_sources || 0),
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const openAssetAssistant = useCallback(async (assetId: string) => {
+    try {
+      const center = await workspaceApi.getAssetCenter(assetId);
+      const assetName = String(center?.asset?.asset_name || 'الأصل');
+      setAssetAssistant({
+        assetId,
+        assetName,
+        input: '',
+        loading: false,
+        err: '',
+        messages: [
+          {
+            id: `assistant:init:${Date.now()}`,
+            role: 'assistant',
+            text: 'أنا مساعد هذا الأصل. اسأل بأي صيغة تريد، وسأجيب فقط من المعرفة المفهرسة الخاصة بهذا الأصل مع المراجع. إذا لم توجد بيانات كافية سأخبرك بذلك.',
+          },
+        ],
+      });
+    } catch (e: any) {
+      showToast(`تعذر فتح مساعد الأصل: ${e?.message || 'خطأ غير معروف'}`, 'error');
+    }
+  }, [showToast]);
+
+  const sendAssistantQuestion = useCallback(async () => {
+    const st = assetAssistant;
+    if (!st) return;
+
+    const q = st.input.trim();
+    if (!q || st.loading) return;
+
+    const userMsg: AssetAssistantMessage = {
+      id: `user:${Date.now()}`,
+      role: 'user',
+      text: q,
+    };
+
+    setAssetAssistant((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        input: '',
+        loading: true,
+        err: '',
+        messages: [...prev.messages, userMsg],
+      };
+    });
+
+    try {
+      const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(st.assetId)}/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {}),
+        },
+        body: JSON.stringify({ question: q }),
+      });
+
+      const data = await readApiPayload(res);
+      if (!res.ok || !data?.ok) {
+        throw new Error(toApiErrorMessage(res, data, 'تعذر استدعاء مساعد الأصل'));
+      }
+
+      const refs: AssetAskReference[] = Array.isArray(data?.references) ? data.references : [];
+      const assistantMsg: AssetAssistantMessage = {
+        id: `assistant:${Date.now()}`,
+        role: 'assistant',
+        text: String(data?.answer || 'لا توجد إجابة متاحة.'),
+        references: refs,
+      };
+
+      setAssetAssistant((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          loading: false,
+          messages: [...prev.messages, assistantMsg],
+        };
+      });
+    } catch (e: any) {
+      setAssetAssistant((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          loading: false,
+          err: String(e?.message || 'تعذر إرسال السؤال'),
+        };
+      });
+    }
+  }, [assetAssistant]);
+
+  const handleQuickFilePicked = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files.length > 0 ? e.target.files[0] : null;
+    e.target.value = '';
+    if (!file || !quickUpload) return;
+
+    try {
+      const mapped = mapQuickDocType(quickUpload.kind);
+      const uploadForm = new FormData();
+      uploadForm.append('file', file);
+      uploadForm.append('docType', mapped.docType);
+
+      const uploadRes = await fetch('/api/engineering/workspace/uploads', {
+        method: 'POST',
+        headers: {
+          ...(TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {}),
+        },
+        body: uploadForm,
+      });
+      const uploadData = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok || !uploadData?.fileUrl) {
+        throw new Error(uploadData?.error || `Upload failed (${uploadRes.status})`);
+      }
+
+      await workspaceApi.addAssetDocument(quickUpload.assetId, {
+        doc_type: mapped.docType,
+        title: file.name,
+        file_url: String(uploadData.fileUrl),
+        file_size: Number(uploadData.fileSize) || undefined,
+        department: mapped.department,
+        notes: '[source:context-menu-upload]',
+      });
+
+      window.dispatchEvent(new CustomEvent('engineering:asset-doc-updated', {
+        detail: { assetId: quickUpload.assetId, delta: 1 },
+      }));
+
+      const ingestStats = await triggerAssetKnowledgeIngest(quickUpload.assetId);
+      const center = await workspaceApi.getAssetCenter(quickUpload.assetId);
+      const docs = Array.isArray(center?.documents) ? center.documents : [];
+      window.dispatchEvent(new CustomEvent('engineering:show-asset-doc-overlay', {
+        detail: {
+          assetId: quickUpload.assetId,
+          assetName: String(center?.asset?.asset_name || ''),
+          geometry: center?.asset?.geometry || center?.asset?.geometry_json || center?.geometry || null,
+          docs,
+        },
+      }));
+
+      showToast('تم رفع الوثيقة وربطها بالأصل', 'success');
+      if (ingestStats) {
+        showToast(`تم تحديث معرفة الأصل: ${ingestStats.ingested} معالجة نصية، ${ingestStats.needsOcr} تحتاج OCR`, 'info');
+      }
+
+      setSelectedAssetId(quickUpload.assetId);
+      await openAssetDocsPopup(quickUpload.assetId, 64, 120);
+    } catch (err: any) {
+      showToast(`فشل رفع الوثيقة: ${err?.message || 'خطأ غير معروف'}`, 'error');
+    } finally {
+      setQuickUpload(null);
+    }
+  }, [openAssetDocsPopup, quickUpload, showToast, triggerAssetKnowledgeIngest]);
+
   return (
     <GisErrorBoundary title="تعذر تحميل مساحة العمل الهندسية">
       <div className="flex flex-col h-screen w-full bg-slate-950 text-slate-200 overflow-hidden relative" dir="rtl">
@@ -1069,6 +1419,182 @@ function EngineeringWorkspaceInner() {
           {/* Map — always takes remaining space */}
           <main className="flex flex-1 relative">
             <MapCenterCanvas hideControls={true} />
+
+            {assetContextMenu && (
+              <div
+                className="fixed z-[9300] min-w-[220px] rounded-xl border border-slate-600 bg-slate-900/95 shadow-2xl backdrop-blur p-1"
+                style={{ top: assetContextMenu.clientY, left: assetContextMenu.clientX }}
+                onClick={(evt) => evt.stopPropagation()}
+              >
+                <button onClick={() => startQuickUpload('financial')} className="w-full text-right px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-500/15 rounded-lg">إضافة ملف مالي</button>
+                <button onClick={() => startQuickUpload('admin')} className="w-full text-right px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/15 rounded-lg">إضافة ملف إداري</button>
+                <button onClick={() => startQuickUpload('technical')} className="w-full text-right px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/15 rounded-lg">إضافة ملف فني</button>
+                <button onClick={() => startQuickUpload('photo')} className="w-full text-right px-3 py-2 text-xs text-cyan-300 hover:bg-cyan-500/15 rounded-lg">إضافة صورة</button>
+                <button onClick={() => startQuickUpload('drawing')} className="w-full text-right px-3 py-2 text-xs text-sky-300 hover:bg-sky-500/15 rounded-lg">إضافة خريطة/رسم</button>
+                <div className="my-1 border-t border-slate-700" />
+                <button
+                  onClick={() => {
+                    const st = assetContextMenu;
+                    setAssetContextMenu(null);
+                    if (st?.assetId) void openAssetAssistant(st.assetId);
+                  }}
+                  className="w-full text-right px-3 py-2 text-xs text-fuchsia-300 hover:bg-fuchsia-500/15 rounded-lg"
+                >
+                  فتح مساعد الأصل الذكي
+                </button>
+                <button
+                  onClick={() => {
+                    const st = assetContextMenu;
+                    setAssetContextMenu(null);
+                    void openAssetDocsPopup(st.assetId, st.clientX, st.clientY);
+                  }}
+                  className="w-full text-right px-3 py-2 text-xs text-slate-200 hover:bg-slate-700/60 rounded-lg"
+                >
+                  عرض المرفقات
+                </button>
+              </div>
+            )}
+
+            {assetDocsPopup && (
+              <div
+                className="fixed z-[9300] w-[360px] max-w-[92vw] rounded-2xl border border-slate-600 bg-slate-950/95 shadow-2xl backdrop-blur"
+                style={{ top: assetDocsPopup.clientY + 8, left: assetDocsPopup.clientX + 8 }}
+                onClick={(evt) => evt.stopPropagation()}
+              >
+                <div className="px-3 py-2 border-b border-slate-700 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-300 font-semibold">مرفقات الأصل</p>
+                    <p className="text-[11px] text-slate-500 truncate">{assetDocsPopup.title}</p>
+                  </div>
+                  <button onClick={() => setAssetDocsPopup(null)} className="text-slate-400 hover:text-white text-xs">إغلاق</button>
+                </div>
+                <div className="max-h-[320px] overflow-y-auto divide-y divide-slate-800">
+                  {assetDocsPopup.docs.length === 0 ? (
+                    <p className="px-3 py-5 text-center text-xs text-slate-500">لا توجد مرفقات بعد</p>
+                  ) : (() => {
+                    const groups: Array<{ key: string; label: string; docs: typeof assetDocsPopup.docs }> = [
+                      { key: 'financial', label: 'وثائق مالية', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'financial') },
+                      { key: 'admin', label: 'وثائق إدارية', docs: assetDocsPopup.docs.filter((d) => ['admin', 'contract'].includes(d.doc_type)) },
+                      { key: 'technical', label: 'وثائق فنية', docs: assetDocsPopup.docs.filter((d) => ['technical', 'manual'].includes(d.doc_type)) },
+                      { key: 'photos', label: 'الصور', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'photo') },
+                      { key: 'maps', label: 'خرائط ورسومات', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'drawing') },
+                      { key: 'other', label: 'أخرى', docs: assetDocsPopup.docs.filter((d) => !['financial', 'admin', 'contract', 'technical', 'manual', 'photo', 'drawing'].includes(d.doc_type)) },
+                    ];
+
+                    return groups.filter((g) => g.docs.length > 0).map((g) => (
+                      <div key={g.key} className="px-3 py-2">
+                        <p className="text-[11px] font-semibold text-slate-300 mb-1.5">{g.label}</p>
+                        <div className="space-y-1.5">
+                          {g.docs.map((d) => (
+                            <div key={d.id} className="px-2 py-1.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                              <p className="text-xs text-slate-100 truncate">{d.title}</p>
+                              <div className="flex items-center justify-between mt-1 gap-2">
+                                <span className="text-[10px] text-slate-500">{d.doc_type}</span>
+                                <div className="flex items-center gap-2">
+                                  {d.file_url ? (
+                                    <>
+                                      <a href={d.file_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-300 hover:text-cyan-200">فتح</a>
+                                      <a href={`${d.file_url}${d.file_url.includes('?') ? '&' : '?'}download=1`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-300 hover:text-emerald-200">تنزيل</a>
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-500">بدون رابط ملف</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+                      {assetAssistant && (
+                        <div
+                          className="fixed z-[9400] right-6 bottom-6 w-[460px] max-w-[95vw] max-h-[78vh] rounded-2xl border border-slate-600 bg-slate-950/95 shadow-2xl backdrop-blur flex flex-col"
+                          onClick={(evt) => evt.stopPropagation()}
+                        >
+                          <div className="px-4 py-3 border-b border-slate-700 flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-fuchsia-300">مساعد الأصل الذكي</p>
+                              <p className="text-[11px] text-slate-400 truncate">{assetAssistant.assetName}</p>
+                              <p className="text-[10px] text-amber-300 mt-1">الإجابة مقيدة ببيانات هذا الأصل المفهرسة فقط.</p>
+                            </div>
+                            <button
+                              onClick={() => setAssetAssistant(null)}
+                              className="text-slate-400 hover:text-white text-xs"
+                            >
+                              إغلاق
+                            </button>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                            {assetAssistant.messages.map((msg) => (
+                              <div
+                                key={msg.id}
+                                className={`rounded-xl border px-3 py-2 ${msg.role === 'assistant' ? 'bg-slate-800/80 border-slate-700 text-slate-100' : 'bg-cyan-900/25 border-cyan-700/40 text-cyan-100'}`}
+                              >
+                                <p className="text-xs whitespace-pre-line leading-relaxed">{msg.text}</p>
+                                {msg.references && msg.references.length > 0 && (
+                                  <div className="mt-2 space-y-1">
+                                    {msg.references.map((r) => (
+                                      <a
+                                        key={`${msg.id}:${r.ref}:${r.source_id}`}
+                                        href={r.file_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block text-[10px] text-cyan-300 hover:text-cyan-200 truncate"
+                                        title={`${r.title} (${r.doc_type})`}
+                                      >
+                                        [{r.ref}] {r.title}
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="p-3 border-t border-slate-700 space-y-2">
+                            <textarea
+                              value={assetAssistant.input}
+                              onChange={(e) => setAssetAssistant((prev) => prev ? { ...prev, input: e.target.value } : prev)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  void sendAssistantQuestion();
+                                }
+                              }}
+                              rows={2}
+                              placeholder="اسأل بحرية: تاريخ الصيانة، وضع الأصل، المخاطر، الإجراءات..."
+                              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                            />
+
+                            {assetAssistant.err && (
+                              <p className="text-[11px] text-red-300">{assetAssistant.err}</p>
+                            )}
+
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] text-slate-500">Enter للإرسال • Shift+Enter لسطر جديد</p>
+                              <button
+                                onClick={() => void sendAssistantQuestion()}
+                                disabled={assetAssistant.loading || !assetAssistant.input.trim()}
+                                className="px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-semibold disabled:opacity-50"
+                              >
+                                {assetAssistant.loading ? 'جارٍ التحليل...' : 'إرسال'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+              </div>
+            )}
+
+            <input
+              ref={quickFileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleQuickFilePicked}
+            />
           </main>
         </div>
 
@@ -1277,6 +1803,7 @@ function EngineeringWorkspaceInner() {
                     let parentId: string | null = null;
                     try {
                       const groupGeom = mergeLayerGeometry({
+                        type: 'FeatureCollection',
                         features: selected.flatMap(l => l.geojson?.features || []),
                       });
                       const r = await fetch('/api/engineering/workspace/principal-assets', {

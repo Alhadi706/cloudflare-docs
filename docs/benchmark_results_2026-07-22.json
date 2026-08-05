@@ -1,0 +1,73 @@
+{
+  "run_date": "2026-07-22",
+  "asset_id": "PIPE-WTR-TEST-001",
+  "asset_type": "WATER_PIPELINE",
+  "dataset": {
+    "train_rows": 220,
+    "test_rows": 41,
+    "event_rows": 18,
+    "normal_rows": 23,
+    "event_start": "2026-01-15",
+    "event_end": "2026-04-15",
+    "signal_stats_source": "MINERVA runtime 2026-07-22, N=147"
+  },
+  "results": [
+    {
+      "method": "M1: Global Threshold",
+      "tp": 18,
+      "fp": 3,
+      "tn": 20,
+      "fn": 0,
+      "precision": 0.8571,
+      "recall": 1.0,
+      "f1": 0.9231,
+      "accuracy": 0.9268,
+      "fpr": 0.1304,
+      "fnr": 0.0,
+      "avg_days_to_detect": 1.0
+    },
+    {
+      "method": "M2: Conditional Baseline",
+      "tp": 15,
+      "fp": 0,
+      "tn": 23,
+      "fn": 3,
+      "precision": 1.0,
+      "recall": 0.8333,
+      "f1": 0.9091,
+      "accuracy": 0.9268,
+      "fpr": 0.0,
+      "fnr": 0.1667,
+      "avg_days_to_detect": 1.0
+    },
+    {
+      "method": "M3: Multi-Signal (No Context)",
+      "tp": 18,
+      "fp": 2,
+      "tn": 21,
+      "fn": 0,
+      "precision": 0.9,
+      "recall": 1.0,
+      "f1": 0.9474,
+      "accuracy": 0.9512,
+      "fpr": 0.087,
+      "fnr": 0.0,
+      "avg_days_to_detect": 1.0
+    },
+    {
+      "method": "M4: MINERVA Full",
+      "tp": 15,
+      "fp": 0,
+      "tn": 23,
+      "fn": 3,
+      "precision": 1.0,
+      "recall": 0.8333,
+      "f1": 0.9091,
+      "accuracy": 0.9268,
+      "fpr": 0.0,
+      "fnr": 0.1667,
+      "avg_days_to_detect": 1.0
+    }
+  ],
+  "best_f1_method": "M3: Multi-Signal (No Context)"
+}

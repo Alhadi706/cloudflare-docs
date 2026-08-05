@@ -169,6 +169,8 @@ export interface MapEmployee {
   id: string | number;
   name: string;
   department: string;
+  site_id?: string | number | null;
+  position_name?: string | null;
   latitude: number | null;
   longitude: number | null;
   location_status: 'located' | 'unassigned' | 'unknown';
@@ -711,6 +713,8 @@ async function fetchEmployees(): Promise<MapEmployee[]> {
         id: p.id,
         name: p.name ?? `موظف ${p.id}`,
         department: p.department ?? 'غير محدد',
+        site_id: p.site_id ?? p.asset_id ?? null,
+        position_name: p.position_name ?? p.position_name_ar ?? p.role ?? null,
         latitude: f.geometry?.type === 'Point' ? f.geometry.coordinates[1] : null,
         longitude: f.geometry?.type === 'Point' ? f.geometry.coordinates[0] : null,
         location_status: (f.geometry ? 'located' : 'unknown') as 'located' | 'unassigned' | 'unknown',

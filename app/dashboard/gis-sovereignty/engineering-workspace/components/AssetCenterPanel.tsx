@@ -284,6 +284,7 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
   // Add-record dialog state
   const [addMode, setAddMode]         = useState<'doc' | 'emp' | 'fin' | 'child' | 'comp' | null>(null);
   const [formData, setFormData]       = useState<Record<string, string>>({});
+  const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
   const [saving, setSaving]           = useState(false);
 
   // Edit principal asset
@@ -306,6 +307,10 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
   const actorLabel = userName || userRole || 'unknown';
   const buildAuditStamp = (action: string) =>
     `[source:${sourceDept}|layer:${infoLayer}|by:${actorLabel}|at:${new Date().toISOString()}|action:${action}]`;
+
+  useEffect(() => {
+    if (addMode !== 'doc') setSelectedDocFile(null);
+  }, [addMode]);
 
   const auditEvents = React.useMemo<AuditEvent[]>(() => {
     if (!data) return [];
@@ -545,16 +550,65 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
     }
     setSaving(true);
     try {
+      let resolvedFileUrl: string | undefined = formData.file_url || undefined;
+      let resolvedFileSize: number | undefined;
+
+      if (selectedDocFile) {
+        const uploadForm = new FormData();
+        uploadForm.append('file', selectedDocFile);
+        uploadForm.append('docType', formData.doc_type || 'other');
+
+        const uploadRes = await fetch('/api/engineering/workspace/uploads', {
+          method: 'POST',
+          headers: getTenantHeader(),
+          body: uploadForm,
+        });
+        const uploadData = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok || !uploadData?.fileUrl) {
+          throw new Error(uploadData?.error || `فشل رفع الملف (HTTP ${uploadRes.status})`);
+        }
+
+        resolvedFileUrl = String(uploadData.fileUrl);
+        resolvedFileSize = Number(uploadData.fileSize) || undefined;
+      }
+
       await workspaceApi.addAssetDocument(assetId, {
         doc_type:   formData.doc_type   || 'other',
         title:      formData.title,
-        file_url:   formData.file_url   || undefined,
+        file_url:   resolvedFileUrl,
+        file_size:  resolvedFileSize,
         department: formData.department || infoLayerLabel,
         notes:      [formData.notes, buildAuditStamp('document.create')].filter(Boolean).join(' '),
       });
+
+      let ingestStats: { ingested: number; needsOcr: number } | null = null;
+      try {
+        const ingestRes = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ingest`, {
+          method: 'POST',
+          headers: getTenantHeader({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({}),
+        });
+        const ingestData = await ingestRes.json().catch(() => ({}));
+        if (ingestRes.ok && ingestData?.ok) {
+          ingestStats = {
+            ingested: Number(ingestData?.stats?.ingested_sources || 0),
+            needsOcr: Number(ingestData?.stats?.needs_ocr_sources || 0),
+          };
+        }
+      } catch {
+        // Keep document save successful even if indexing fails.
+      }
+
+      window.dispatchEvent(new CustomEvent('engineering:asset-doc-updated', {
+        detail: { assetId, delta: 1 },
+      }));
       showToast('تم إرفاق الوثيقة', 'success');
+      if (ingestStats) {
+        showToast(`تم تحديث معرفة الأصل: ${ingestStats.ingested} معالجة نصية، ${ingestStats.needsOcr} تحتاج OCR`, 'info');
+      }
       setAddMode(null);
       setFormData({});
+      setSelectedDocFile(null);
       load();
     } catch (e: any) {
       showToast(e.message, 'error');
@@ -900,7 +954,10 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
           let badge: number | null = null;
           if (tab.id === 'admin'      && data)           badge = data.doc_counts.admin;
           if (tab.id === 'technical'  && data)           badge = data.doc_counts.technical;
-          if (tab.id === 'financial'  && data)           badge = data.financials.length;
+          if (tab.id === 'financial'  && data) {
+            const finDocs = data.documents.filter((d) => d.doc_type === 'financial').length;
+            badge = data.financials.length + finDocs;
+          }
           if (tab.id === 'children'   && childrenData)   badge = childrenData.total_children;
           if (tab.id === 'components' && componentsData) badge = componentsData.total_count;
           if (tab.id === 'audit')                          badge = auditEvents.length;
@@ -954,7 +1011,8 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
             )}
             {activeTab === 'admin'     && (
               <DocsTab
-                docs={data.documents.filter(d => ['admin','contract','photo','other'].includes(d.doc_type))}
+                docs={data.documents.filter(d => ['admin','contract','other'].includes(d.doc_type))}
+                photos={data.documents.filter(d => d.doc_type === 'photo')}
                 onDelete={handleDeleteDoc}
                 onAdd={writableTabs.includes('admin') ? () => { setFormData({ doc_type: 'admin' }); setAddMode('doc'); } : undefined}
               />
@@ -972,9 +1030,12 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
             {activeTab === 'financial' && (
               <FinancialTab
                 financials={data.financials}
+                docs={data.documents.filter(d => d.doc_type === 'financial')}
                 summary={data.financial_summary}
                 onDelete={handleDeleteFin}
+                onDeleteDoc={handleDeleteDoc}
                 onAdd={writableTabs.includes('financial') ? () => { setFormData({ financial_type: 'maintenance', currency: 'LYD' }); setAddMode('fin'); } : undefined}
+                onAddDoc={writableTabs.includes('financial') ? () => { setFormData({ doc_type: 'financial' }); setAddMode('doc'); } : undefined}
               />
             )}
             {activeTab === 'components' && (
@@ -993,7 +1054,7 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
               />
             )}
             {activeTab === 'audit' && (
-              <AuditTab events={auditEvents} />
+              <AuditTab assetId={assetId} events={auditEvents} />
             )}
           </>
         )}
@@ -1035,6 +1096,24 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
               placeholder="https://..."
               className="input-field"
             />
+          </Field>
+          <Field label="أو رفع ملف من الجهاز">
+            <input
+              type="file"
+              onChange={e => {
+                const next = e.target.files && e.target.files.length > 0 ? e.target.files[0] : null;
+                setSelectedDocFile(next);
+                if (next && !formData.title) {
+                  setFormData(f => ({ ...f, title: next.name }));
+                }
+              }}
+              className="input-field file:mr-2 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1 file:text-xs file:text-slate-100"
+            />
+            {selectedDocFile && (
+              <p className="mt-1 text-[11px] text-emerald-300">
+                ملف مختار: {selectedDocFile.name} ({Math.round(selectedDocFile.size / 1024)} KB)
+              </p>
+            )}
           </Field>
           <Field label="القسم / الجهة">
             <input
@@ -1733,24 +1812,39 @@ function GeoTab({
 
 function DocsTab({
   docs,
+  photos,
   onDelete,
   onAdd,
 }: {
   docs: DocumentRecord[];
+  photos: DocumentRecord[];
   onDelete: (id: string) => void;
   onAdd?: () => void;
 }) {
   return (
     <div className="p-4 space-y-3">
       <SectionHeader title="الوثائق والمراسلات" onAdd={onAdd} />
-      {docs.length === 0 ? (
+      {docs.length === 0 && photos.length === 0 ? (
         <EmptyState icon={<FileText className="w-6 h-6" />} text="لا توجد وثائق إدارية" />
       ) : (
-        <div className="space-y-2">
-          {docs.map(d => (
-            <DocCard key={d.id} doc={d} onDelete={onDelete} docTypeLabels={DOC_TYPE_LABELS} />
-          ))}
-        </div>
+        <>
+          {docs.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400">الوثائق الإدارية</p>
+              {docs.map(d => (
+                <DocCard key={d.id} doc={d} onDelete={onDelete} docTypeLabels={DOC_TYPE_LABELS} />
+              ))}
+            </div>
+          )}
+          {photos.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-cyan-300">الصور</p>
+              {photos.map(d => (
+                <DocCard key={d.id} doc={d} onDelete={onDelete} docTypeLabels={DOC_TYPE_LABELS} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1827,17 +1921,34 @@ function TechnicalTab({
 
 function FinancialTab({
   financials,
+  docs,
   summary,
   onDelete,
+  onDeleteDoc,
   onAdd,
+  onAddDoc,
 }: {
   financials: FinancialRecord[];
+  docs: DocumentRecord[];
   summary: AssetCenterData['financial_summary'];
   onDelete: (id: string) => void;
+  onDeleteDoc: (id: string) => void;
   onAdd?: () => void;
+  onAddDoc?: () => void;
 }) {
   return (
     <div className="p-4 space-y-4">
+      <SectionHeader title="الوثائق المالية" onAdd={onAddDoc} />
+      {docs.length === 0 ? (
+        <EmptyState icon={<FileText className="w-5 h-5" />} text="لا توجد وثائق مالية" />
+      ) : (
+        <div className="space-y-2">
+          {docs.map(d => (
+            <DocCard key={d.id} doc={d} onDelete={onDeleteDoc} docTypeLabels={DOC_TYPE_LABELS} />
+          ))}
+        </div>
+      )}
+
       {/* Summary */}
       {summary.grand_total > 0 && (
         <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
@@ -1907,7 +2018,32 @@ function FinancialTab({
   );
 }
 
-function AuditTab({ events }: { events: AuditEvent[] }) {
+type BriefSource = {
+  ref: string;
+  type: 'record' | 'document';
+  title: string;
+  url: string;
+  note?: string;
+  created_at?: string;
+};
+
+type BriefSentence = {
+  id: string;
+  text: string;
+  source_refs: string[];
+  priority: 'core' | 'support' | 'audit';
+};
+
+type AskReference = {
+  ref: string;
+  source_id: string;
+  title: string;
+  file_url: string;
+  doc_type: string;
+  extraction_status: string;
+};
+
+function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }) {
   const ICONS: Record<AuditEvent['kind'], React.ElementType> = {
     asset: Building2,
     document: FileText,
@@ -1915,6 +2051,140 @@ function AuditTab({ events }: { events: AuditEvent[] }) {
     financial: DollarSign,
     component: Cpu,
     child: Boxes,
+  };
+
+  const [question, setQuestion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [answer, setAnswer] = useState('');
+  const [sources, setSources] = useState<BriefSource[]>([]);
+  const [sentences, setSentences] = useState<BriefSentence[]>([]);
+  const [askReferences, setAskReferences] = useState<AskReference[]>([]);
+  const [packetCount, setPacketCount] = useState<number | null>(null);
+  const [ingestStats, setIngestStats] = useState<{ linked: number; ingested: number; needsOcr: number } | null>(null);
+  const [err, setErr] = useState('');
+
+  const askKnowledge = async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ask`, {
+        method: 'POST',
+        headers: getTenantHeader({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ question }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      const refs: AskReference[] = Array.isArray(data.references) ? data.references : [];
+      setAnswer(String(data.answer || ''));
+      setAskReferences(refs);
+      setSentences([]);
+      setSources(refs.map((r) => ({
+        ref: r.ref,
+        type: 'document',
+        title: r.title,
+        url: r.file_url,
+        note: `${r.doc_type} | ${r.extraction_status}`,
+      })));
+    } catch (e: any) {
+      setErr(String(e?.message || 'failed_to_ask_knowledge'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const askBrief = async (demo = false) => {
+    setLoading(true);
+    setErr('');
+    try {
+      const url = `/api/knowledge/assets/${encodeURIComponent(assetId)}/brief${demo ? '?demo=1' : ''}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: getTenantHeader({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ question }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setAnswer(String(data.answer || ''));
+      setSources(Array.isArray(data.sources) ? data.sources : []);
+      setSentences(Array.isArray(data.sentences) ? data.sentences : []);
+    } catch (e: any) {
+      setErr(String(e?.message || 'failed_to_generate_brief'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const preparePacket = async (demo = false) => {
+    setLoading(true);
+    setErr('');
+    try {
+      const url = `/api/knowledge/assets/${encodeURIComponent(assetId)}/packet${demo ? '?demo=1' : ''}`;
+      const res = await fetch(url, { headers: getTenantHeader() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setPacketCount(Array.isArray(data.attachments) ? data.attachments.length : 0);
+    } catch (e: any) {
+      setErr(String(e?.message || 'failed_to_prepare_packet'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runIngest = async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ingest`, {
+        method: 'POST',
+        headers: getTenantHeader({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setIngestStats({
+        linked: Number(data?.stats?.linked_sources || 0),
+        ingested: Number(data?.stats?.ingested_sources || 0),
+        needsOcr: Number(data?.stats?.needs_ocr_sources || 0),
+      });
+    } catch (e: any) {
+      setErr(String(e?.message || 'failed_to_ingest_asset_docs'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runIngestDemo = async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ingest?demo=1`, {
+        method: 'POST',
+        headers: getTenantHeader({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ demo: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setIngestStats({
+        linked: Number(data?.stats?.linked_sources || 0),
+        ingested: Number(data?.stats?.ingested_sources || 0),
+        needsOcr: Number(data?.stats?.needs_ocr_sources || 0),
+      });
+    } catch (e: any) {
+      setErr(String(e?.message || 'failed_to_ingest_demo'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -1946,6 +2216,170 @@ function AuditTab({ events }: { events: AuditEvent[] }) {
           })}
         </div>
       )}
+
+      <div className="mt-4 p-3 rounded-xl bg-slate-900/70 border border-slate-700/50">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h4 className="text-sm font-semibold text-cyan-300">مُلخّص ذكي مؤسّس على مصادر</h4>
+          {loading && <Loader2 className="w-4 h-4 text-cyan-300 animate-spin" />}
+        </div>
+        <p className="text-xs text-slate-400 mb-2">
+          اكتب سؤالك عن الأصل، وسيتم توليد إجابة مرتبطة بمصادر أصلية قابلة للفتح والتحقق.
+        </p>
+
+        <textarea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          rows={2}
+          className="w-full rounded-lg bg-slate-800/80 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
+          placeholder="مثال: ما الوضع الحالي للأصل وما أحدث الوثائق الداعمة؟"
+        />
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            onClick={runIngest}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold disabled:opacity-50"
+          >
+            فهرسة وثائق الأصل
+          </button>
+          <button
+            onClick={runIngestDemo}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-amber-900 hover:bg-amber-800 text-white text-xs font-semibold disabled:opacity-50"
+          >
+            فهرسة تجريبية سريعة
+          </button>
+          <button
+            onClick={askKnowledge}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-semibold disabled:opacity-50"
+          >
+            اسأل المعرفة المخزنة
+          </button>
+          <button
+            onClick={() => askBrief(false)}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold disabled:opacity-50"
+          >
+            توليد ملخص مؤسّس
+          </button>
+          <button
+            onClick={() => askBrief(true)}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs font-semibold disabled:opacity-50"
+          >
+            تجربة سريعة (Demo)
+          </button>
+          <button
+            onClick={() => preparePacket(false)}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold disabled:opacity-50"
+          >
+            تجهيز قائمة مرفقات
+          </button>
+          <button
+            onClick={() => {
+              const u = `/api/knowledge/assets/${encodeURIComponent(assetId)}/packet?download=1`;
+              window.open(u, '_blank', 'noopener,noreferrer');
+            }}
+            className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold"
+          >
+            تنزيل قائمة الإرفاق
+          </button>
+        </div>
+
+        {packetCount != null && (
+          <p className="mt-2 text-xs text-emerald-300">تم تجهيز الحزمة: {packetCount} وثيقة.</p>
+        )}
+
+        {ingestStats && (
+          <p className="mt-2 text-xs text-amber-300">
+            الفهرسة: ربط {ingestStats.linked} وثيقة | معالجة نصية {ingestStats.ingested} | تحتاج OCR {ingestStats.needsOcr}
+          </p>
+        )}
+
+        {err && (
+          <p className="mt-2 text-xs text-red-300">{err}</p>
+        )}
+
+        {answer && (
+          <div className="mt-3 rounded-lg bg-slate-800/70 border border-slate-700 p-2.5">
+            <p className="text-xs whitespace-pre-line text-slate-100">{answer}</p>
+          </div>
+        )}
+
+        {sentences.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs font-semibold text-slate-200">الجُمل الموثقة بالمراجع</p>
+            {sentences.map((sentence) => {
+              const priClass =
+                sentence.priority === 'core'
+                  ? 'text-cyan-300 border-cyan-500/30 bg-cyan-500/10'
+                  : sentence.priority === 'audit'
+                    ? 'text-amber-300 border-amber-500/30 bg-amber-500/10'
+                    : 'text-slate-200 border-slate-700 bg-slate-800/60';
+              return (
+                <div key={sentence.id} className={`rounded-lg border p-2 ${priClass}`}>
+                  <p className="text-xs leading-relaxed">{sentence.text}</p>
+                  {sentence.source_refs.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {sentence.source_refs.map((ref) => {
+                        const src = sources.find((s) => s.ref === ref);
+                        if (!src) {
+                          return (
+                            <span key={`${sentence.id}:${ref}`} className="px-2 py-0.5 rounded bg-slate-700 text-[10px] text-slate-300">
+                              {ref}
+                            </span>
+                          );
+                        }
+                        return (
+                          <a
+                            key={`${sentence.id}:${ref}`}
+                            href={src.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2 py-0.5 rounded bg-slate-900/70 border border-slate-600 text-[10px] text-cyan-300 hover:border-cyan-400"
+                            title={src.title}
+                          >
+                            {ref}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-slate-500">لا توجد مراجع مباشرة لهذه الجملة.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {sources.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            <p className="text-xs font-semibold text-slate-200">المصادر الأصلية</p>
+            {sources.map((s) => (
+              <a
+                key={`${s.ref}:${s.url}`}
+                href={s.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-md border border-slate-700 bg-slate-800/60 px-2 py-1.5 hover:border-cyan-500/40"
+              >
+                <p className="text-[11px] text-cyan-300 font-semibold">[{s.ref}] {s.title}</p>
+                <p className="text-[11px] text-slate-400 truncate">{s.url}</p>
+                {s.note && <p className="text-[10px] text-slate-500">{s.note}</p>}
+              </a>
+            ))}
+          </div>
+        )}
+
+        {askReferences.length > 0 && (
+          <p className="mt-2 text-[11px] text-slate-400">
+            تم عرض {askReferences.length} مرجع/مراجع من المعرفة المخزنة لهذا الرد.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

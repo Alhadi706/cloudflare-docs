@@ -50,7 +50,25 @@ function StatsBar() {
     teams:    employees.filter(e => e.active).length,
   }), [workOrders, employees]);
 
-  return (
+  
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/90 flex-wrap shrink-0" dir="rtl">
       <h1 className="text-sm font-bold text-white ml-1">الصيانة الميدانية والأصول</h1>
       <GisWorkspaceSwitcher />

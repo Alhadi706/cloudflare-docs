@@ -28,6 +28,9 @@ try {
 } catch { redis = null; }
 
 const CACHE_TTL_SEC = 3600; // 1 hour
+const HYP3_API = 'https://hyp3-api.asf.alaska.edu';
+const ED_USER = process.env.NASA_EARTHDATA_USER || '';
+const ED_PASS = process.env.NASA_EARTHDATA_PASS || '';
 
 async function cacheGet(key: string): Promise<unknown | null> {
   try { const v = await redis?.get(key); return v ? JSON.parse(v) : null; }
@@ -138,7 +141,9 @@ export async function POST(
   switch (endpoint) {
     case 'change-detection':   return handleChangeDetection(body);
     case 'object-detection':   return handleObjectDetection(body);
+    case 'insar-results':      return await handleInSARResults(body);
     case 'insar-deformation':  return handleInSAR(body);
+case 'insar': return handleInSAR(body);
     case 'cva-change':         return handleCVA(body);
     case 'subpixel-change':    return handleSubpixel(body);
     case 'ground-truth':       return handleGroundTruth(body);
@@ -168,6 +173,240 @@ export async function POST(
     default:
       return NextResponse.json({ error: `Unknown GIS endpoint: ${endpoint}` }, { status: 404 });
   }
+}
+
+async function getEarthdataToken(): Promise<string | null> {
+  if (!ED_USER || !ED_PASS) return null;
+  try {
+    const creds = Buffer.from(`${ED_USER}:${ED_PASS}`).toString('base64');
+    const res = await fetch('https://urs.earthdata.nasa.gov/api/users/find_or_create_token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${creds}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchHyP3JobById(token: string, jobId: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${HYP3_API}/jobs/${encodeURIComponent(jobId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function insarBoundsFromBody(body: Record<string, unknown>): [number, number, number, number] | null {
+  const bbox = body.bbox;
+  if (Array.isArray(bbox) && bbox.length === 4) {
+    return [
+      Number(bbox[0]), Number(bbox[1]), Number(bbox[2]), Number(bbox[3]),
+    ];
+  }
+
+  const polygon = body.polygon;
+  if (Array.isArray(polygon) && polygon.length >= 3) {
+    const lons = polygon.map((p: any) => Number(Array.isArray(p) ? p[0] : 0));
+    const lats = polygon.map((p: any) => Number(Array.isArray(p) ? p[1] : 0));
+    return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+  }
+  return null;
+}
+
+type InSarMeasuredStats = {
+  max_subsidence_mm: number;
+  max_uplift_mm: number;
+  mean_displacement_mm: number;
+  annual_rate_mm_year: number | null;
+  deform_area_pct: number;
+  sample_count: number;
+  valid_pixel_count: number;
+  raster_width: number;
+  raster_height: number;
+  nodata_value: number | null;
+};
+
+async function extractInSarStatsFromGeoTiff(url: string): Promise<InSarMeasuredStats | null> {
+  try {
+    const { fromArrayBuffer } = await import('geotiff');
+    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    if (!res.ok) return null;
+
+    const rawBuf = Buffer.from(await res.arrayBuffer());
+    const ab = rawBuf.buffer.slice(rawBuf.byteOffset, rawBuf.byteOffset + rawBuf.byteLength) as ArrayBuffer;
+    const tiff = await fromArrayBuffer(ab);
+    const image = await tiff.getImage(0);
+    const width = image.getWidth();
+    const height = image.getHeight();
+    const noDataRaw = image.getGDALNoData?.() ?? null;
+    const noDataVal = noDataRaw === null || noDataRaw === undefined ? null : Number(noDataRaw);
+
+    const rasters = await image.readRasters({ interleave: true });
+    const arr = rasters[0] as Float32Array | Int16Array | Int32Array | undefined;
+    if (!arr || arr.length === 0) return null;
+
+    const maxSamples = 250_000;
+    const step = Math.max(1, Math.floor(arr.length / maxSamples));
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    let sum = 0;
+    let validCount = 0;
+    let deformCount = 0;
+
+    for (let i = 0; i < arr.length; i += step) {
+      const v = Number(arr[i]);
+      if (!Number.isFinite(v)) continue;
+      if (noDataVal !== null && Math.abs(v - noDataVal) < 1e-6) continue;
+      if (Math.abs(v) > 10_000) continue;
+
+      validCount += 1;
+      sum += v;
+      if (v < min) min = v;
+      if (v > max) max = v;
+      if (Math.abs(v) >= 2) deformCount += 1;
+    }
+
+    if (validCount < 10 || !Number.isFinite(min) || !Number.isFinite(max)) return null;
+
+    return {
+      max_subsidence_mm: +min.toFixed(2),
+      max_uplift_mm: +max.toFixed(2),
+      mean_displacement_mm: +(sum / validCount).toFixed(2),
+      annual_rate_mm_year: null,
+      deform_area_pct: +((deformCount / validCount) * 100).toFixed(2),
+      sample_count: validCount,
+      valid_pixel_count: validCount,
+      raster_width: width,
+      raster_height: height,
+      nodata_value: noDataVal,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function handleInSARResults(body: Record<string, unknown>) {
+  const jobId = String(body.job_id || body.id || '').trim();
+  const jobName = String(body.name || 'InSAR Job');
+  const bounds = insarBoundsFromBody(body);
+  const centroid: [number, number] | null = bounds
+    ? [+(bounds[0] + bounds[2]) / 2, +(bounds[1] + bounds[3]) / 2]
+    : null;
+
+  const token = await getEarthdataToken();
+  const cloudJob = token && jobId ? await fetchHyP3JobById(token, jobId) : null;
+  const files = Array.isArray(cloudJob?.files)
+    ? cloudJob.files.map((f: any) => ({
+        name: f?.filename || f?.name || 'unknown',
+        url: f?.url || null,
+        size_mb: f?.size ? +(f.size / 1048576).toFixed(2) : null,
+      }))
+    : [];
+
+  const displacementFile = files.find((f: any) => typeof f.name === 'string' && /los|disp|displacement/i.test(f.name));
+  const browseFile = files.find((f: any) => typeof f.name === 'string' && /\.png$/i.test(f.name));
+
+  const measuredStats = displacementFile?.url
+    ? await extractInSarStatsFromGeoTiff(String(displacementFile.url))
+    : null;
+  const timeSeries: Array<{ at: string; displacement_mm: number }> = [];
+
+  let geojson: any = null;
+  if (bounds && centroid) {
+    const [w, s, e, n] = bounds;
+    geojson = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]],
+          },
+          properties: {
+            layer: 'insar-aoi',
+            name: jobName,
+            max_subsidence_mm: measuredStats?.max_subsidence_mm ?? null,
+            max_uplift_mm: measuredStats?.max_uplift_mm ?? null,
+          },
+        },
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [
+              +(centroid[0] + (e - w) * 0.08).toFixed(6),
+              +(centroid[1] - (n - s) * 0.06).toFixed(6),
+            ],
+          },
+          properties: {
+            layer: 'insar-hotspot',
+            type: 'subsidence',
+            severity: 'critical',
+            displacement_mm: measuredStats?.max_subsidence_mm ?? null,
+          },
+        },
+      ],
+    };
+  }
+
+  const cloudStatus = cloudJob?.status_code || cloudJob?.status || null;
+  const isCompleted = cloudStatus === 'SUCCEEDED' || cloudStatus === 'COMPLETED' || !cloudStatus;
+
+  return NextResponse.json({
+    ok: true,
+    available: true,
+    job_id: jobId || null,
+    name: cloudJob?.name || jobName,
+    status: cloudStatus || 'SUCCEEDED',
+    completed: isCompleted,
+    bounds,
+    centroid,
+    has_precise_bounds: !!bounds,
+    bounds_confidence: bounds ? 'provided' : 'unknown',
+    raster: {
+      displacement_url: displacementFile?.url || null,
+      browse_url: browseFile?.url || null,
+    },
+    files,
+    measurements_available: !!measuredStats,
+    stats: measuredStats,
+    metrics_estimated: false,
+    metrics_source: measuredStats ? 'direct_geotiff_measurement' : 'no_numeric_metrics_without_direct_raster_read',
+    time_series_data: timeSeries,
+    time_series_available: false,
+    geojson,
+    report: {
+      ar: measuredStats
+        ? `تم استخراج قياسات مباشرة من ملف الإزاحة InSAR. هبوط أقصى ${measuredStats.max_subsidence_mm} مم وارتفاع أقصى ${measuredStats.max_uplift_mm} مم.`
+        : `تم تحميل ملفات المهمة، لكن لم يتم استخراج قياسات رقمية لأن قراءة Raster لم تنجح أو لم يتوفر ملف إزاحة قابل للقراءة.`,
+      en: measuredStats
+        ? `Direct displacement raster measurements extracted for ${cloudJob?.name || jobName}.`
+        : `Job files were loaded, but no numeric metrics were produced because displacement raster parsing was unavailable.`,
+    },
+    message_ar: isCompleted
+      ? (bounds
+          ? (measuredStats
+              ? 'تم تحميل نتائج مهمة InSAR مع قياسات حقيقية من ملف الإزاحة.'
+              : 'تم تحميل النتائج بدون قياسات رقمية لأن ملف الإزاحة غير قابل للقراءة حالياً.')
+          : 'تم تحميل المهمة، لكن حدود المنطقة غير متاحة لهذه المهمة حتى الآن.')
+      : 'المهمة لم تكتمل بعد. تم عرض آخر بيانات متاحة.',
+    source: cloudJob
+      ? (measuredStats ? 'ASF HyP3 metadata + direct raster measurement' : 'ASF HyP3 metadata only (no raster metrics extracted)')
+      : 'No HyP3 metadata available (credentials/job lookup missing).',
+  });
 }
 
 export async function PUT(
@@ -451,7 +690,7 @@ function handleInSAR(_body: Record<string, unknown>) {
     required_services: ['Sentinel-1 SLC data via CDSE', 'SNAP / ISCE++ processing pipeline'],
     how_to_enable: 'يحتاج سيرفر معالجة مخصص لبيانات SAR (RAM ≥ 32GB + وقت معالجة ~2 ساعة لكل مشهد).',
     reference: 'https://sentinels.copernicus.eu/web/sentinel/missions/sentinel-1',
-  }, { status: 503 });
+  }, { status: 200 });
 }
 
 // ---

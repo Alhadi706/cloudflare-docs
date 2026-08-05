@@ -227,7 +227,7 @@ interface Props {
     topologyQa: TopologyQaResult | null;
   }>;
   onSuitabilityLocations?: (pins: SuitabilityPin[]) => void;
-  onFlyTo?: (lon: number, lat: number) => void;
+  onFlyTo?: (lon: number, lat: number, zoom?: number) => void;
   // Routing props
   routingPickMode?: 'idle' | 'picking_start' | 'picking_end';
   routingStartPoint?: [number, number] | null;
@@ -448,6 +448,8 @@ async function persistParityReport(result: ArcGisParityResult) {
 }
 
 export default function SatIntelRightPanel({
+  
+
   summary, loading, error, sceneUid, scenes,
   areaResult, areaLoading, drawnPolygon,
   areaReport, areaReportLoading, areaReportError,
@@ -1128,6 +1130,8 @@ export default function SatIntelRightPanel({
           <button
             key={sz}
             onClick={() => {
+  // Trigger Job Selection
+
               onPanelSizeChange?.(sz);
               if (typeof window !== 'undefined') localStorage.setItem('sic_panel_size', sz);
             }}
@@ -1403,7 +1407,10 @@ export default function SatIntelRightPanel({
         )}
 
         {tab === 'insar' && (
-          <InSARPanel polygon={drawnPolygon} />
+          <InSARPanel
+            polygon={drawnPolygon}
+            onFlyTo={(lon, lat, zoom) => onFlyTo?.(lon, lat, zoom)}
+          />
         )}
 
         {tab === 'simulation' && (

@@ -1,0 +1,4797 @@
+{
+  "generated_at": "2026-07-26",
+  "mode": "observation_only",
+  "rules": [
+    "no_model_changes",
+    "no_threshold_changes",
+    "no_retraining",
+    "runtime_trace_only"
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "WATER_LEAK_TRIPOLI_001",
+      "mission_type": "WATER_LEAK_DETECTION",
+      "primary_signal": "NDMI",
+      "mission_threshold": -0.08,
+      "min_confidence": 0.5,
+      "expected_severity": "WARNING",
+      "result": {
+        "scenario_id": "WATER_LEAK_TRIPOLI_001",
+        "lab_run_id": "INV-WATER_LEAK_TRIPOLI_001",
+        "minerva_version": "dev",
+        "run_timestamp": "2026-07-26T05:47:48.675949",
+        "duration_seconds": 0.0,
+        "passed": false,
+        "failure_reasons": [
+          "DETECTION FAILED: no anomaly detected"
+        ],
+        "n_frames": 19,
+        "n_eo_observations": 47,
+        "signal_coverage": {
+          "NDMI": 18,
+          "NDVI": 18,
+          "VV_dB": 8,
+          "LST_C": 3
+        },
+        "detection": {
+          "tp": 0,
+          "fp": 0,
+          "tn": 14,
+          "fn": 5,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "fpr": 0.0,
+          "fnr": 1.0,
+          "accuracy": 0.7368
+        },
+        "timing": {
+          "detection_delay_days": null,
+          "time_to_first_alert_h": null,
+          "detection_status": "MISSED"
+        },
+        "localization": {
+          "detected_lat": 32.89,
+          "detected_lon": 13.18,
+          "true_lat": 32.89,
+          "true_lon": 13.18,
+          "distance_error_m": 0.0,
+          "confidence_radius_m": null,
+          "within_confidence": null,
+          "quality": "EXCELLENT"
+        },
+        "decision": {
+          "predicted_root_cause": null,
+          "actual_root_cause": null,
+          "root_cause_correct": null,
+          "recommended_action_relevant": null,
+          "decision_quality_score": 0.0
+        },
+        "economic": {
+          "true_positive_value_usd": 0.0,
+          "false_alarm_cost_usd": 0.0,
+          "missed_event_cost_usd": 0.0,
+          "net_economic_value_usd": 0.0
+        }
+      },
+      "stage1_acquisition": {
+        "frames_total": 19,
+        "event_frames": 5,
+        "source_obs_counts_across_frames": {
+          "S2": 150,
+          "S1": 197,
+          "MODIS": 36
+        },
+        "signal_coverage": {
+          "NDMI": 18,
+          "NDVI": 18,
+          "VV_dB": 8,
+          "LST_C": 3
+        }
+      },
+      "stage2_missing_percent_event_frames": {
+        "NDVI": 0.0,
+        "NDMI": 0.0,
+        "VV_dB": 0.0,
+        "VH_dB": 40.0,
+        "LST_C": 40.0,
+        "Moisture": 0.0,
+        "WaterIndex": 80.0,
+        "VegetationIndex": 0.0
+      },
+      "root_cause_counts_event_frames": {
+        "insufficient_data_gate": 0,
+        "too_few_primary_points": 0,
+        "forecast_none": 0,
+        "anomaly_probability_below_min_conf": 5,
+        "alerted": 0
+      },
+      "root_cause_percent_event_frames": {
+        "insufficient_data_gate": 0.0,
+        "too_few_primary_points": 0.0,
+        "forecast_none": 0.0,
+        "anomaly_probability_below_min_conf": 100.0,
+        "alerted": 0.0
+      },
+      "root_cause_ranking": [
+        {
+          "cause": "anomaly_probability_below_min_conf",
+          "count": 5,
+          "pct": 100.0
+        },
+        {
+          "cause": "insufficient_data_gate",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "too_few_primary_points",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "forecast_none",
+          "count": 0,
+          "pct": 0.0
+        }
+      ],
+      "cannot_verify": {
+        "stage3_feature_normalization": "Cannot verify",
+        "stage4_baseline_engine_object": "Cannot verify",
+        "stage5_multi_evidence_fusion": "Cannot verify",
+        "stage6_rule_tree_multi_hypothesis": "Cannot verify"
+      },
+      "frames": [
+        {
+          "frame_date": "2026-01-01",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 0,
+            "data_complete_gate": false,
+            "sources_seen": []
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 0.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 0,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": null,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-01-11",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 1,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.18158,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.1
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 1,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.02359,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-01-21",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 1,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.18158,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.1
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 1,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.02359,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-01-31",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 1,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.18158,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.1
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 1,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.02359,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-02-10",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 1,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.18158,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.1
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 1,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.02359,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-02-20",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 1,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.18158,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.1
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 1,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.02359,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-03-02",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 3,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.13675,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.3
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 3,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.01328,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-03-12",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 4,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.13949,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.4
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 4,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.01269,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": true,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-03-22",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 5,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.13365,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.5
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 5,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.01063,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": true,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-04-01",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 5,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.13365,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.5
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 5,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.01063,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": true,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-04-11",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 7,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.14393,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.7
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 7,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": 0.00016498002995506738,
+              "direction": "IMPROVING",
+              "r_squared": 0.71,
+              "p_value_approx": 0.01,
+              "window_days": 365,
+              "n_observations": 7,
+              "trend_type": "SLOW_IMPROVEMENT",
+              "confidence": 0.539,
+              "notes": [
+                "عدد قراءات محدود (7) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.00572,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.562,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.562
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.562,
+            "signal": "NDMI",
+            "n_obs_used": 7,
+            "trend_direction": "IMPROVING"
+          }
+        },
+        {
+          "frame_date": "2026-04-21",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 14,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.13389,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 9,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": 9.244660779329683e-05,
+              "direction": "IMPROVING",
+              "r_squared": 0.241,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 9,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.223,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً",
+                "عدد قراءات محدود (9) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.01952,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.303,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.303
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.303,
+            "signal": "NDMI",
+            "n_obs_used": 9,
+            "trend_direction": "IMPROVING"
+          }
+        },
+        {
+          "frame_date": "2026-05-01",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 19,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": -12.328,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 10,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": 6.588216535119189e-05,
+              "direction": "IMPROVING",
+              "r_squared": 0.14,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 10,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.158,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً",
+                "عدد قراءات محدود (10) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.01528,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.252,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.252
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.252,
+            "signal": "NDMI",
+            "n_obs_used": 10,
+            "trend_direction": "IMPROVING"
+          }
+        },
+        {
+          "frame_date": "2026-05-11",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 25,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.13711,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 12,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": 3.32494273716358e-05,
+              "direction": "IMPROVING",
+              "r_squared": 0.048,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 12,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.106,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.01494,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.215,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.215
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.215,
+            "signal": "NDMI",
+            "n_obs_used": 12,
+            "trend_direction": "IMPROVING"
+          }
+        },
+        {
+          "frame_date": "2026-05-21",
+          "is_event_period": true,
+          "days_since_event": 6,
+          "stage1_input": {
+            "n_eo_obs_total": 36,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": -0.13556,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 13,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": -1.8872118095869958e-05,
+              "direction": "DETERIORATING",
+              "r_squared": 0.011,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 13,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.086,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.02827,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.202,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.202
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.202,
+            "signal": "NDMI",
+            "n_obs_used": 13,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-05-31",
+          "is_event_period": true,
+          "days_since_event": 16,
+          "stage1_input": {
+            "n_eo_obs_total": 46,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": -11.846,
+            "Thermal_LST_C": null,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 16,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": -0.00012185471831438298,
+              "direction": "DETERIORATING",
+              "r_squared": 0.233,
+              "p_value_approx": 0.05,
+              "window_days": 365,
+              "n_observations": 16,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.259,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.03603,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.348,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.348
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.348,
+            "signal": "NDMI",
+            "n_obs_used": 16,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-06-10",
+          "is_event_period": true,
+          "days_since_event": 26,
+          "stage1_input": {
+            "n_eo_obs_total": 54,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "MODIS",
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": 35.66,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": false,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 18,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": -0.00016231983527796844,
+              "direction": "DETERIORATING",
+              "r_squared": 0.358,
+              "p_value_approx": 0.05,
+              "window_days": 365,
+              "n_observations": 18,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.359,
+              "notes": []
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.03593,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.434,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.434
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.434,
+            "signal": "NDMI",
+            "n_obs_used": 18,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-06-20",
+          "is_event_period": true,
+          "days_since_event": 36,
+          "stage1_input": {
+            "n_eo_obs_total": 71,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "MODIS",
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": -12.138,
+            "Thermal_LST_C": 35.66,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": false,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 20,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": -0.00015954587191919643,
+              "direction": "DETERIORATING",
+              "r_squared": 0.389,
+              "p_value_approx": 0.01,
+              "window_days": 365,
+              "n_observations": 20,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.392,
+              "notes": []
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.02532,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.467,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.467
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.467,
+            "signal": "NDMI",
+            "n_obs_used": 20,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-06-30",
+          "is_event_period": true,
+          "days_since_event": 46,
+          "stage1_input": {
+            "n_eo_obs_total": 89,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "MODIS",
+              "S1",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.09675,
+            "NDMI": -0.02359,
+            "SAR_VV_dB": -5.042,
+            "SAR_VH_dB": -12.747,
+            "Thermal_LST_C": 35.66,
+            "Moisture": -0.02359,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.09675,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": false,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDMI",
+            "n_primary_points": 23,
+            "trend": {
+              "signal": "NDMI",
+              "slope_per_day": -0.00020561508242326272,
+              "direction": "DETERIORATING",
+              "r_squared": 0.497,
+              "p_value_approx": 0.001,
+              "window_days": 365,
+              "n_observations": 23,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.486,
+              "notes": []
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -0.05577,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDMI"
+            ],
+            "weights": {
+              "NDMI": 1.0
+            },
+            "confidence": 0.55,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.5"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.177,
+              "model_confidence": 0.55
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.177,
+            "confidence": 0.55,
+            "signal": "NDMI",
+            "n_obs_used": 23,
+            "trend_direction": "DETERIORATING"
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "VEGETATION_LOSS_BENGHAZI_001",
+      "mission_type": "VEGETATION_HEALTH",
+      "primary_signal": "NDVI",
+      "mission_threshold": 0.1,
+      "min_confidence": 0.45,
+      "expected_severity": "WARNING",
+      "result": {
+        "scenario_id": "VEGETATION_LOSS_BENGHAZI_001",
+        "lab_run_id": "INV-VEGETATION_LOSS_BENGHAZI_001",
+        "minerva_version": "dev",
+        "run_timestamp": "2026-07-26T05:49:15.166103",
+        "duration_seconds": 0.0,
+        "passed": false,
+        "failure_reasons": [
+          "DETECTION FAILED: no anomaly detected"
+        ],
+        "n_frames": 14,
+        "n_eo_observations": 29,
+        "signal_coverage": {
+          "NDMI": 13,
+          "NDVI": 13,
+          "VV_dB": 0,
+          "LST_C": 3
+        },
+        "detection": {
+          "tp": 0,
+          "fp": 0,
+          "tn": 14,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "fpr": 0.0,
+          "fnr": 0.0,
+          "accuracy": 1.0
+        },
+        "timing": {
+          "detection_delay_days": null,
+          "time_to_first_alert_h": null,
+          "detection_status": "MISSED"
+        },
+        "localization": {
+          "detected_lat": null,
+          "detected_lon": null,
+          "true_lat": null,
+          "true_lon": null,
+          "distance_error_m": null,
+          "confidence_radius_m": null,
+          "within_confidence": null,
+          "quality": "UNKNOWN"
+        },
+        "decision": {
+          "predicted_root_cause": null,
+          "actual_root_cause": null,
+          "root_cause_correct": null,
+          "recommended_action_relevant": null,
+          "decision_quality_score": 0.0
+        },
+        "economic": {
+          "true_positive_value_usd": 0.0,
+          "false_alarm_cost_usd": 0.0,
+          "missed_event_cost_usd": 0.0,
+          "net_economic_value_usd": 0.0
+        }
+      },
+      "stage1_acquisition": {
+        "frames_total": 14,
+        "event_frames": 0,
+        "source_obs_counts_across_frames": {
+          "S2": 120,
+          "S1": 0,
+          "MODIS": 63
+        },
+        "signal_coverage": {
+          "NDMI": 13,
+          "NDVI": 13,
+          "VV_dB": 0,
+          "LST_C": 3
+        }
+      },
+      "stage2_missing_percent_event_frames": {
+        "NDVI": 0.0,
+        "NDMI": 0.0,
+        "VV_dB": 0.0,
+        "VH_dB": 0.0,
+        "LST_C": 0.0,
+        "Moisture": 0.0,
+        "WaterIndex": 0.0,
+        "VegetationIndex": 0.0
+      },
+      "root_cause_counts_event_frames": {
+        "insufficient_data_gate": 0,
+        "too_few_primary_points": 0,
+        "forecast_none": 0,
+        "anomaly_probability_below_min_conf": 0,
+        "alerted": 0
+      },
+      "root_cause_percent_event_frames": {
+        "insufficient_data_gate": 0.0,
+        "too_few_primary_points": 0.0,
+        "forecast_none": 0.0,
+        "anomaly_probability_below_min_conf": 0.0,
+        "alerted": 0.0
+      },
+      "root_cause_ranking": [
+        {
+          "cause": "insufficient_data_gate",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "too_few_primary_points",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "forecast_none",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "anomaly_probability_below_min_conf",
+          "count": 0,
+          "pct": 0.0
+        }
+      ],
+      "cannot_verify": {
+        "stage3_feature_normalization": "Cannot verify",
+        "stage4_baseline_engine_object": "Cannot verify",
+        "stage5_multi_evidence_fusion": "Cannot verify",
+        "stage6_rule_tree_multi_hypothesis": "Cannot verify"
+      },
+      "frames": [
+        {
+          "frame_date": "2026-03-01",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 0,
+            "data_complete_gate": false,
+            "sources_seen": []
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 0.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 0,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": null,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-03-11",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 2,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14178,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.2
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 2,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.06905,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-03-21",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 2,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14178,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.2
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 2,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.06905,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-03-31",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 2,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14178,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.2
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 2,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.06905,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-04-10",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 4,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14839,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.4
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 4,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.0768,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": true,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-04-20",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 4,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14839,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.4
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 4,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.0768,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": true,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-04-30",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 6,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14891,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.6
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 6,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -8.484190106692538e-05,
+              "direction": "DETERIORATING",
+              "r_squared": 0.145,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 6,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.138,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً",
+                "عدد قراءات محدود (6) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.0738,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.224,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.224
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.224,
+            "signal": "NDVI",
+            "n_obs_used": 6,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-05-10",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 7,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.15063,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.7
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 7,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -7.334536505332242e-05,
+              "direction": "DETERIORATING",
+              "r_squared": 0.145,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 7,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.144,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً",
+                "عدد قراءات محدود (7) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.07241,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.232,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.232
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.232,
+            "signal": "NDVI",
+            "n_obs_used": 7,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-05-20",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 9,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14783,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 0.9
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 9,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -9.52375848517328e-05,
+              "direction": "DETERIORATING",
+              "r_squared": 0.3,
+              "p_value_approx": 0.15,
+              "window_days": 365,
+              "n_observations": 9,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.264,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً",
+                "عدد قراءات محدود (9) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.06726,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.338,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.338
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.338,
+            "signal": "NDVI",
+            "n_obs_used": 9,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-05-30",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 11,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.14321,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 11,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -0.0001212390917379412,
+              "direction": "DETERIORATING",
+              "r_squared": 0.454,
+              "p_value_approx": 0.05,
+              "window_days": 365,
+              "n_observations": 11,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.384,
+              "notes": [
+                "عدد قراءات محدود (11) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.06793,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.443,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.443
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.443,
+            "signal": "NDVI",
+            "n_obs_used": 11,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-06-09",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 14,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": -0.13945,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": false,
+              "Water_Index_NDWI": false,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 14,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -0.00010413439873507068,
+              "direction": "DETERIORATING",
+              "r_squared": 0.406,
+              "p_value_approx": 0.05,
+              "window_days": 365,
+              "n_observations": 14,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.368,
+              "notes": []
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.06471,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.438,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.438
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.438,
+            "signal": "NDVI",
+            "n_obs_used": 14,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-06-19",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 30,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "MODIS",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": 34.02,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": false,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 17,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -0.00013132229748551158,
+              "direction": "DETERIORATING",
+              "r_squared": 0.515,
+              "p_value_approx": 0.01,
+              "window_days": 365,
+              "n_observations": 17,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.462,
+              "notes": []
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.06474,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.523,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.523
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.523,
+            "signal": "NDVI",
+            "n_obs_used": 17,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-06-29",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 41,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "MODIS",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": 34.02,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": false,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 20,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -0.000149613875168487,
+              "direction": "DETERIORATING",
+              "r_squared": 0.602,
+              "p_value_approx": 0.001,
+              "window_days": 365,
+              "n_observations": 20,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.541,
+              "notes": []
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.0565,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.596,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.596
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.596,
+            "signal": "NDVI",
+            "n_obs_used": 20,
+            "trend_direction": "DETERIORATING"
+          }
+        },
+        {
+          "frame_date": "2026-07-09",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 51,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "MODIS",
+              "S2"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": 0.08192,
+            "NDMI": -0.01971,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": 34.02,
+            "Moisture": -0.01971,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": 0.08192,
+            "missing": {
+              "NDVI": false,
+              "NDMI": false,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": false,
+              "Moisture": false,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": false
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "NDVI",
+            "n_primary_points": 22,
+            "trend": {
+              "signal": "NDVI",
+              "slope_per_day": -0.00017116040555886558,
+              "direction": "DETERIORATING",
+              "r_squared": 0.656,
+              "p_value_approx": 0.001,
+              "window_days": 365,
+              "n_observations": 22,
+              "trend_type": "GRADUAL_TREND",
+              "confidence": 0.591,
+              "notes": []
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": 0.05151,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "NDVI"
+            ],
+            "weights": {
+              "NDVI": 1.0
+            },
+            "confidence": 0.641,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.45"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.641
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "anomaly_probability_below_min_conf",
+            "confidence_below_threshold": true,
+            "evidence_rejected": false,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "anomaly_prob": 0.05,
+            "confidence": 0.641,
+            "signal": "NDVI",
+            "n_obs_used": 22,
+            "trend_direction": "DETERIORATING"
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "GROUND_DEFORMATION_COASTAL_001",
+      "mission_type": "SUBSIDENCE_MONITORING",
+      "primary_signal": "VV_dB",
+      "mission_threshold": -3.0,
+      "min_confidence": 0.55,
+      "expected_severity": "ALERT",
+      "result": {
+        "scenario_id": "GROUND_DEFORMATION_COASTAL_001",
+        "lab_run_id": "INV-GROUND_DEFORMATION_COASTAL_001",
+        "minerva_version": "dev",
+        "run_timestamp": "2026-07-26T05:49:49.106625",
+        "duration_seconds": 0.0,
+        "passed": false,
+        "failure_reasons": [
+          "DETECTION FAILED: no anomaly detected"
+        ],
+        "n_frames": 10,
+        "n_eo_observations": 8,
+        "signal_coverage": {
+          "NDMI": 0,
+          "NDVI": 0,
+          "VV_dB": 8,
+          "LST_C": 0
+        },
+        "detection": {
+          "tp": 0,
+          "fp": 0,
+          "tn": 10,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "fpr": 0.0,
+          "fnr": 0.0,
+          "accuracy": 1.0
+        },
+        "timing": {
+          "detection_delay_days": null,
+          "time_to_first_alert_h": null,
+          "detection_status": "MISSED"
+        },
+        "localization": {
+          "detected_lat": null,
+          "detected_lon": null,
+          "true_lat": null,
+          "true_lon": null,
+          "distance_error_m": null,
+          "confidence_radius_m": null,
+          "within_confidence": null,
+          "quality": "UNKNOWN"
+        },
+        "decision": {
+          "predicted_root_cause": null,
+          "actual_root_cause": null,
+          "root_cause_correct": null,
+          "recommended_action_relevant": null,
+          "decision_quality_score": 0.0
+        },
+        "economic": {
+          "true_positive_value_usd": 0.0,
+          "false_alarm_cost_usd": 0.0,
+          "missed_event_cost_usd": 0.0,
+          "net_economic_value_usd": 0.0
+        }
+      },
+      "stage1_acquisition": {
+        "frames_total": 10,
+        "event_frames": 0,
+        "source_obs_counts_across_frames": {
+          "S2": 0,
+          "S1": 197,
+          "MODIS": 0
+        },
+        "signal_coverage": {
+          "NDMI": 0,
+          "NDVI": 0,
+          "VV_dB": 8,
+          "LST_C": 0
+        }
+      },
+      "stage2_missing_percent_event_frames": {
+        "NDVI": 0.0,
+        "NDMI": 0.0,
+        "VV_dB": 0.0,
+        "VH_dB": 0.0,
+        "LST_C": 0.0,
+        "Moisture": 0.0,
+        "WaterIndex": 0.0,
+        "VegetationIndex": 0.0
+      },
+      "root_cause_counts_event_frames": {
+        "insufficient_data_gate": 0,
+        "too_few_primary_points": 0,
+        "forecast_none": 0,
+        "anomaly_probability_below_min_conf": 0,
+        "alerted": 0
+      },
+      "root_cause_percent_event_frames": {
+        "insufficient_data_gate": 0.0,
+        "too_few_primary_points": 0.0,
+        "forecast_none": 0.0,
+        "anomaly_probability_below_min_conf": 0.0,
+        "alerted": 0.0
+      },
+      "root_cause_ranking": [
+        {
+          "cause": "insufficient_data_gate",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "too_few_primary_points",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "forecast_none",
+          "count": 0,
+          "pct": 0.0
+        },
+        {
+          "cause": "anomaly_probability_below_min_conf",
+          "count": 0,
+          "pct": 0.0
+        }
+      ],
+      "cannot_verify": {
+        "stage3_feature_normalization": "Cannot verify",
+        "stage4_baseline_engine_object": "Cannot verify",
+        "stage5_multi_evidence_fusion": "Cannot verify",
+        "stage6_rule_tree_multi_hypothesis": "Cannot verify"
+      },
+      "frames": [
+        {
+          "frame_date": "2026-04-01",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 0,
+            "data_complete_gate": false,
+            "sources_seen": []
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 0.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 0,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": null,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-04-11",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 0,
+            "data_complete_gate": false,
+            "sources_seen": []
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": null,
+            "SAR_VH_dB": null,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": true,
+              "SAR_VH_dB": true,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 0.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 0,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": "too_few_points",
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": null,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": false,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-04-21",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 5,
+            "data_complete_gate": false,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -19.235,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 0.5
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 5,
+            "trend": null,
+            "feature_rejected": true,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -15.011,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "Cannot verify"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.0,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": false,
+              "enough_primary_points": true,
+              "forecast_exists": false,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.0,
+              "model_confidence": 0.0
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "insufficient_data",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "insufficient_data"
+          }
+        },
+        {
+          "frame_date": "2026-05-01",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 9,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -19.515,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 0.9
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 9,
+            "trend": {
+              "signal": "VV_dB",
+              "slope_per_day": 0.1259863563402889,
+              "direction": "DETERIORATING",
+              "r_squared": 0.163,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 9,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.168,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً",
+                "عدد قراءات محدود (9) — ثقة أقل"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -10.444,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.165,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.165
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "too_few_points",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "too_few_points"
+          }
+        },
+        {
+          "frame_date": "2026-05-11",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 13,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -18.333,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 13,
+            "trend": {
+              "signal": "VV_dB",
+              "slope_per_day": 0.010853159530386737,
+              "direction": "DETERIORATING",
+              "r_squared": 0.004,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 13,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.081,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -13.874,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.1,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.1
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "too_few_points",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "too_few_points"
+          }
+        },
+        {
+          "frame_date": "2026-05-21",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 23,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -18.242,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 23,
+            "trend": {
+              "signal": "VV_dB",
+              "slope_per_day": -0.04033972940667837,
+              "direction": "IMPROVING",
+              "r_squared": 0.112,
+              "p_value_approx": 0.15,
+              "window_days": 365,
+              "n_observations": 23,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.216,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -15.333,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.24,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.24
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "too_few_points",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "too_few_points"
+          }
+        },
+        {
+          "frame_date": "2026-05-31",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 30,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -18.465,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 30,
+            "trend": {
+              "signal": "VV_dB",
+              "slope_per_day": 0.0045788055820946885,
+              "direction": "DETERIORATING",
+              "r_squared": 0.001,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 30,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.181,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -12.758,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.226,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.226
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "too_few_points",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "too_few_points"
+          }
+        },
+        {
+          "frame_date": "2026-06-10",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 34,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -19.3,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 34,
+            "trend": {
+              "signal": "VV_dB",
+              "slope_per_day": -0.006508796598648527,
+              "direction": "IMPROVING",
+              "r_squared": 0.003,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 34,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.206,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -14.881,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.257,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.257
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "too_few_points",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "too_few_points"
+          }
+        },
+        {
+          "frame_date": "2026-06-20",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 38,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -19.282,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 38,
+            "trend": {
+              "signal": "VV_dB",
+              "slope_per_day": -0.005580305944420296,
+              "direction": "IMPROVING",
+              "r_squared": 0.003,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 38,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.23,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -15.004,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.287,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.287
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "too_few_points",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "too_few_points"
+          }
+        },
+        {
+          "frame_date": "2026-06-30",
+          "is_event_period": false,
+          "days_since_event": null,
+          "stage1_input": {
+            "n_eo_obs_total": 45,
+            "data_complete_gate": true,
+            "sources_seen": [
+              "S1"
+            ]
+          },
+          "stage2_signal_extraction": {
+            "NDVI": null,
+            "NDMI": null,
+            "SAR_VV_dB": -11.602,
+            "SAR_VH_dB": -20.895,
+            "Thermal_LST_C": null,
+            "Moisture": null,
+            "Water_Index_NDWI": null,
+            "Vegetation_Index": null,
+            "missing": {
+              "NDVI": true,
+              "NDMI": true,
+              "SAR_VV_dB": false,
+              "SAR_VH_dB": false,
+              "Thermal_LST_C": true,
+              "Moisture": true,
+              "Water_Index_NDWI": true,
+              "Vegetation_Index": true
+            },
+            "quality_score": 1.0
+          },
+          "stage3_feature_engine": {
+            "primary_signal": "VV_dB",
+            "n_primary_points": 45,
+            "trend": {
+              "signal": "VV_dB",
+              "slope_per_day": -0.004068009253593925,
+              "direction": "IMPROVING",
+              "r_squared": 0.003,
+              "p_value_approx": 0.5,
+              "window_days": 365,
+              "n_observations": 45,
+              "trend_type": "HIGH_VARIABILITY",
+              "confidence": 0.272,
+              "notes": [
+                "تباين عالٍ في البيانات — الاتجاه أقل وضوحاً"
+              ]
+            },
+            "feature_rejected": false,
+            "reject_reason": null,
+            "normalization": "Cannot verify"
+          },
+          "stage4_baseline_engine": {
+            "expected_baseline": "historical mean/std implicit in anomaly_probability",
+            "measured_value_latest": -15.164,
+            "deviation": null,
+            "accepted_tolerance": null,
+            "decision": "computed_via_forecast"
+          },
+          "stage5_evidence_fusion": {
+            "evidence_inputs": [
+              "VV_dB"
+            ],
+            "weights": {
+              "VV_dB": 1.0
+            },
+            "confidence": 0.302,
+            "rejected_evidence": [],
+            "reason": "single-signal-only implementation"
+          },
+          "stage6_reasoning_engine": {
+            "rules_evaluated": [
+              "data_complete_gate",
+              "len(primary_series) >= 4",
+              "forecast_exists",
+              "anomaly_probability >= 0.55"
+            ],
+            "branches_executed": {
+              "data_complete": true,
+              "enough_primary_points": true,
+              "forecast_exists": true,
+              "threshold_pass": false
+            },
+            "intermediate_scores": {
+              "anomaly_probability": 0.05,
+              "model_confidence": 0.302
+            },
+            "winning_hypothesis": "NO_ALERT",
+            "rejected_hypotheses": [
+              "ALERT"
+            ]
+          },
+          "stage7_final_decision": {
+            "alerted": false,
+            "alert_blocker_rule": "too_few_points",
+            "confidence_below_threshold": true,
+            "evidence_rejected": true,
+            "baseline_considered_normal": "Cannot verify",
+            "single_signal_domination": true
+          },
+          "pipeline_output": {
+            "alerted": false,
+            "reason": "too_few_points"
+          }
+        }
+      ]
+    }
+  ]
+}

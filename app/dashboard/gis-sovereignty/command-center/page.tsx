@@ -38,7 +38,25 @@ const STATUS_AR: Record<string, string> = {
 function KpiCard({
   label, value, sub, Icon, color, loading,
 }: { label: string; value: number | string; sub?: string; Icon: React.ElementType; color: string; loading?: boolean }) {
-  return (
+  
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (
     <div className="flex-1 min-w-0 bg-slate-800/60 border border-slate-700/40 rounded-xl px-4 py-3 flex items-center gap-3">
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color.replace('text-', 'bg-').replace('400', '500/15')}`}>
         <Icon className={`w-5 h-5 ${color}`} />

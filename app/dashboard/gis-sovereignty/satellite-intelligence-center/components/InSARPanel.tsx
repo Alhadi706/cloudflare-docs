@@ -3,6 +3,7 @@
 // InSAR Ground Deformation Detection — Sentinel-1 SAR interferometry.
 // Shows coherence map, displacement map (mm), and deformation hotspots.
 
+import { useInSarStore } from '@/store/useInSarStore';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   Radio, Loader2, AlertTriangle, TrendingDown, TrendingUp,
@@ -44,6 +45,64 @@ interface InSARResult {
 
 interface Props {
   polygon: [number, number][] | null;
+  onFlyTo?: (lon: number, lat: number, zoom?: number) => void;
+}
+
+interface HistoricalFile {
+  filename?: string;
+  name?: string;
+  url?: string;
+  size_mb?: string;
+}
+
+interface HistoricalJob {
+  id: string;
+  job_id: string;
+  name: string;
+  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+  granules: string[];
+  files: HistoricalFile[];
+  bbox?: [number, number, number, number] | null;
+  bbox_source?: string;
+  area_name?: string | null;
+  displacement_url?: string | null;
+  browse_images?: string[];
+  browse_url?: string | null;
+}
+
+function normalizeHistoricalJob(raw: any): HistoricalJob {
+  const files: HistoricalFile[] = Array.isArray(raw?.files)
+    ? raw.files.map((f: any) => ({
+        filename: f?.filename || f?.name,
+        name: f?.name || f?.filename,
+        url: f?.url,
+        size_mb: f?.size_mb,
+      }))
+    : [];
+
+  const status = (raw?.status || raw?.status_code || 'PENDING') as HistoricalJob['status'];
+  const jobId = raw?.job_id || raw?.id || raw?.name || `job-${Math.random().toString(36).slice(2, 10)}`;
+
+  return {
+    id: jobId,
+    job_id: jobId,
+    name: raw?.name || 'InSAR Job',
+    status,
+    granules: Array.isArray(raw?.granules) ? raw.granules : [],
+    files,
+    bbox: Array.isArray(raw?.bbox) && raw.bbox.length === 4
+      ? [Number(raw.bbox[0]), Number(raw.bbox[1]), Number(raw.bbox[2]), Number(raw.bbox[3])]
+      : null,
+    bbox_source: raw?.bbox_source || 'unknown',
+    area_name: raw?.area_name || null,
+    displacement_url: raw?.displacement_url || null,
+    browse_images: Array.isArray(raw?.browse_images)
+      ? raw.browse_images
+      : raw?.browse_url
+      ? [raw.browse_url]
+      : [],
+    browse_url: raw?.browse_url || null,
+  };
 }
 
 // ── Colormaps ─────────────────────────────────────────────────────────────────
@@ -99,7 +158,7 @@ function InSARMap({
   const toX = (lon: number) => ((lon - bbox[0]) / lonSpan) * W;
   const toY = (lat: number) => ((bbox[3] - lat) / latSpan) * H;
 
-  return (
+return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-xl border border-slate-700/50" style={{ height: H }}>
       {/* Heatmap cells */}
       {data.map((row, ri) =>
@@ -177,7 +236,7 @@ const PRESET_AREAS = [
   { id: 'custom',         label: '📐 منطقة مخصصة',     bbox: null as any },
 ];
 
-export default function InSARPanel({ polygon }: Props) {
+export default function InSARPanel({ polygon, onFlyTo }: Props) {
   const [panelMode, setPanelMode] = useState<'instant' | 'historical'>('instant');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<InSARResult | null>(null);
@@ -202,7 +261,79 @@ export default function InSARPanel({ polygon }: Props) {
   const [hJobs,      setHJobs]      = useState<any[]>([]);
   const [hJobsLoading, setHJobsLoading] = useState(false);
   const [hExpandJob, setHExpandJob] = useState<string | null>(null);
+  const [hSelectingJobId, setHSelectingJobId] = useState<string | null>(null);
+  const [hSelectedJobId, setHSelectedJobId] = useState<string | null>(null);
+  const [hSelectError, setHSelectError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const setSelectedJob = useInSarStore((state) => state.setSelectedJob);
+  const selectedResult = useInSarStore((state) => state.selectedResult);
+
+  const deriveActiveBbox = useCallback((): [number, number, number, number] => {
+    const area = PRESET_AREAS.find((a) => a.id === hAreaId);
+    if (hAreaId === 'custom' && polygon && polygon.length >= 3) {
+      return [
+        Math.min(...polygon.map((p) => p[0])),
+        Math.min(...polygon.map((p) => p[1])),
+        Math.max(...polygon.map((p) => p[0])),
+        Math.max(...polygon.map((p) => p[1])),
+      ];
+    }
+    return area?.bbox ?? [12.95, 32.75, 13.45, 33.05];
+  }, [hAreaId, polygon]);
+
+  const handleSelectHistoricalJob = useCallback(async (job: HistoricalJob) => {
+    const nextExpand = hExpandJob === job.job_id ? null : job.job_id;
+    setHExpandJob(nextExpand);
+
+    if (job.status !== 'SUCCEEDED') return;
+
+    setHSelectingJobId(job.job_id);
+    setHSelectError(null);
+    try {
+      const fallbackBbox = deriveActiveBbox();
+      const isCustomNamed = /منطقة_مخصصة|custom/i.test(job.name || '');
+      const requestBbox = job.bbox || (isCustomNamed ? fallbackBbox : undefined);
+
+      const data = await setSelectedJob({
+        id: job.id,
+        job_id: job.job_id,
+        name: job.name,
+        status: job.status,
+        bbox: requestBbox,
+        polygon: polygon ?? undefined,
+      });
+
+      if (!data) {
+        setHSelectError('تعذر تحميل تفاصيل الوظيفة المختارة.');
+        return;
+      }
+
+      setHSelectedJobId(job.job_id);
+
+      const bounds = Array.isArray(data?.bounds) && data.bounds.length === 4
+        ? data.bounds as [number, number, number, number]
+        : null;
+      if (bounds) {
+        const centerLon = (bounds[0] + bounds[2]) / 2;
+        const centerLat = (bounds[1] + bounds[3]) / 2;
+        onFlyTo?.(centerLon, centerLat, 13);
+      } else {
+        setHSelectError('لا يمكن تحديد حدود AOI لهذه المهمة حالياً؛ لذلك لن يتم التحريك على الخريطة.');
+      }
+
+      if (data?.geojson?.features?.length) {
+        window.dispatchEvent(new CustomEvent('engineering:preview-geojson', {
+          detail: { featureCollection: data.geojson },
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent('engineering:clear-preview'));
+      }
+    } catch {
+      setHSelectError('فشل تحميل النتائج المكانية للمهمة المحددة.');
+    } finally {
+      setHSelectingJobId(null);
+    }
+  }, [deriveActiveBbox, hExpandJob, onFlyTo, polygon, setSelectedJob]);
 
   const loadHyP3Jobs = useCallback(async () => {
     setHJobsLoading(true);
@@ -210,7 +341,13 @@ export default function InSARPanel({ polygon }: Props) {
       const res = await fetch('/api/v1/satellite/insar-subsidence');
       if (res.ok) {
         const d = await res.json();
-        const all = [...(d.pending_jobs || []), ...(d.completed_results || [])];
+        const pending = Array.isArray(d.pending_jobs)
+          ? d.pending_jobs.map((j: any) => normalizeHistoricalJob({ ...j, status: j?.status || 'PENDING' }))
+          : [];
+        const completed = Array.isArray(d.completed_results)
+          ? d.completed_results.map((j: any) => normalizeHistoricalJob({ ...j, status: j?.status || 'SUCCEEDED' }))
+          : [];
+        const all = [...pending, ...completed];
         setHJobs(all);
       }
     } catch { /* ignore */ } finally {
@@ -286,7 +423,18 @@ export default function InSARPanel({ polygon }: Props) {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'خطأ في الخادم');
+      if (!res.ok) {
+        const msg = data?.message_ar || data?.error || 'تعذر تنفيذ التحليل حالياً.';
+        throw new Error(msg);
+      }
+
+      // Business-logic response: local SAR engine unavailable.
+      if (data?.available === false || data?.code === 'SAR_DATA_REQUIRED') {
+        const msg = data?.message_ar || 'المعالجة الفورية غير متاحة حالياً.';
+        setError(`⚠️ ${msg}\n\nالحل المقترح: استخدم تبويب "تاريخي (HyP3)" لتنفيذ التحليل عبر ASF HyP3.`);
+        return;
+      }
+
       // تحقق من no_data
       if (data.ok === false && data.unavailable_reason) {
         setError(`⚠️ البيانات غير متوفرة: ${data.unavailable_reason}`);
@@ -294,7 +442,10 @@ export default function InSARPanel({ polygon }: Props) {
         setResult(data as InSARResult);
       }
     } catch (e: any) {
-      setError(e.message ?? 'خطأ');
+      setError(
+        e?.message
+          || 'تعذر تنفيذ المعالجة الفورية. إذا لم يكن محرك SNAP/ISCE++ مفعلاً، استخدم تبويب "تاريخي (HyP3)".'
+      );
     } finally {
       setLoading(false);
     }
@@ -426,13 +577,19 @@ export default function InSARPanel({ polygon }: Props) {
               </div>
             )}
 
-            {hJobs.map((job: any) => (
-              <div key={job.job_id} className={`rounded-lg border text-xs ${
+            {hSelectError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                ❌ {hSelectError}
+              </div>
+            )}
+
+            {hJobs.map((job: HistoricalJob) => (
+              <div key={job.job_id || job.id} className={`rounded-lg border text-xs ${
                 job.status==='SUCCEEDED' ? 'bg-emerald-500/5 border-emerald-500/20' :
                 job.status==='RUNNING'   ? 'bg-blue-500/5 border-blue-500/20' :
                 job.status==='FAILED'    ? 'bg-red-500/5 border-red-500/20' :
-                                           'bg-slate-800/50 border-slate-700'}`}>
-                <button onClick={() => setHExpandJob(hExpandJob===job.job_id ? null : job.job_id)}
+                                           'bg-slate-800/50 border-slate-700'} ${hSelectedJobId===job.job_id ? 'ring-1 ring-violet-400/70' : ''}`}>
+                <button onClick={() => { void handleSelectHistoricalJob(job); }}
                   className="w-full flex items-center justify-between px-3 py-2 text-right">
                   <div className="flex items-center gap-1.5 min-w-0">
                     {job.status==='SUCCEEDED' && <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />}
@@ -442,6 +599,7 @@ export default function InSARPanel({ polygon }: Props) {
                     <span className="truncate text-slate-200">{job.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {hSelectingJobId===job.job_id && <Loader2 size={11} className="text-violet-300 animate-spin" />}
                     <span className={{SUCCEEDED:'text-emerald-400',RUNNING:'text-blue-400',PENDING:'text-amber-400',FAILED:'text-red-400'}[job.status as string] || 'text-slate-400'}>
                       {job.status==='SUCCEEDED'?'منجز✓':job.status==='RUNNING'?'جاري...':job.status==='PENDING'?'معلق':'فشل'}
                     </span>
@@ -452,13 +610,23 @@ export default function InSARPanel({ polygon }: Props) {
                   <div className="px-3 pb-3 pt-2 border-t border-slate-700/50 space-y-2">
                     <p className="font-mono text-slate-500 text-[10px]">{job.job_id?.slice(0,16)}...</p>
                     {job.granules?.length > 0 && <p className="text-slate-600 text-[10px] truncate">{job.granules[0]?.slice(0,50)}...</p>}
-                    {job.status==='SUCCEEDED' && job.files?.length > 0 && (
+                    {job.status==='SUCCEEDED' && (
                       <div className="space-y-1">
-                        {job.files.filter((f:any)=>f.filename?.endsWith('.tif')).slice(0,3).map((f:any)=>(
-                          <a key={f.filename} href={f.url} target="_blank" rel="noopener noreferrer"
+                        {job.displacement_url && (
+                          <a href={job.displacement_url} target="_blank" rel="noopener noreferrer"
                             className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 rounded border border-emerald-500/20 hover:bg-emerald-500/20">
                             <Download size={11} className="text-emerald-400 shrink-0" />
-                            <span className="truncate text-emerald-300 text-[10px]">{f.filename}</span>
+                            <span className="truncate text-emerald-300 text-[10px]">ملف الإزاحة | Displacement Raster</span>
+                          </a>
+                        )}
+                        {job.files
+                          .filter((f: HistoricalFile) => (f.filename || f.name || '').toLowerCase().endsWith('.tif'))
+                          .slice(0,3)
+                          .map((f: HistoricalFile, i: number)=>(
+                          <a key={`${f.filename || f.name || 'file'}-${i}`} href={f.url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 rounded border border-emerald-500/20 hover:bg-emerald-500/20">
+                            <Download size={11} className="text-emerald-400 shrink-0" />
+                            <span className="truncate text-emerald-300 text-[10px]">{f.filename || f.name}</span>
                           </a>
                         ))}
                         {job.browse_images?.[0] && (
@@ -466,12 +634,84 @@ export default function InSARPanel({ polygon }: Props) {
                             className="w-full rounded border border-slate-700 max-h-36 object-contain bg-black mt-1"
                             onError={e=>(e.currentTarget.style.display='none')} />
                         )}
+                        {!job.displacement_url && (job.files?.length ?? 0) === 0 && (
+                          <p className="text-[10px] text-slate-500">
+                            لا توجد مخرجات قابلة للعرض حالياً. قد تكون الملفات تحت الأرشفة في HyP3.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
             ))}
+
+            {selectedResult?.ok && (
+              <div className="mt-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-violet-200">تقرير مهمة InSAR المختارة</p>
+                  <span className="text-[10px] text-violet-300">{selectedResult?.status || 'SUCCEEDED'}</span>
+                </div>
+                {selectedResult?.message_ar && (
+                  <p className="text-[11px] text-slate-300">{selectedResult.message_ar}</p>
+                )}
+
+                {selectedResult?.measurements_available === false && (
+                  <div className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-200 leading-relaxed">
+                    لا توجد قياسات رقمية حقيقية لهذه المهمة حالياً. تم إيقاف أي قيم fallback لتفادي التضليل.
+                  </div>
+                )}
+
+                {selectedResult?.measurements_available === true && (
+                  <div className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200 leading-relaxed">
+                    القيم المعروضة مستخرجة مباشرة من ملف الإزاحة InSAR (GeoTIFF).
+                  </div>
+                )}
+
+                {!selectedResult?.has_precise_bounds && (
+                  <div className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[10px] text-sky-200 leading-relaxed">
+                    ملاحظة: حدود المنطقة غير متاحة لهذه المهمة حالياً، لذلك قد لا يظهر توجيه الخريطة أو الطبقة المكانية بشكل كامل.
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded border border-slate-700/60 bg-slate-900/40 px-2 py-1.5">
+                    <p className="text-[10px] text-slate-500">أقصى هبوط | Max Subsidence</p>
+                    <p className="text-sm font-bold text-red-300">{selectedResult?.stats?.max_subsidence_mm ?? '—'} مم</p>
+                  </div>
+                  <div className="rounded border border-slate-700/60 bg-slate-900/40 px-2 py-1.5">
+                    <p className="text-[10px] text-slate-500">أقصى ارتفاع | Max Uplift</p>
+                    <p className="text-sm font-bold text-blue-300">{selectedResult?.stats?.max_uplift_mm ?? '—'} مم</p>
+                  </div>
+                  <div className="rounded border border-slate-700/60 bg-slate-900/40 px-2 py-1.5">
+                    <p className="text-[10px] text-slate-500">متوسط الإزاحة | Mean</p>
+                    <p className="text-sm font-bold text-slate-200">{selectedResult?.stats?.mean_displacement_mm ?? '—'} مم</p>
+                  </div>
+                  <div className="rounded border border-slate-700/60 bg-slate-900/40 px-2 py-1.5">
+                    <p className="text-[10px] text-slate-500">معدل سنوي | Annual Rate</p>
+                    <p className="text-sm font-bold text-amber-300">{selectedResult?.stats?.annual_rate_mm_year ?? '—'} مم/سنة</p>
+                  </div>
+                </div>
+
+                {Array.isArray(selectedResult?.time_series_data) && selectedResult.time_series_data.length > 0 && (
+                  <div className="rounded border border-slate-700/60 bg-slate-900/40 px-2 py-2">
+                    <p className="text-[10px] text-slate-500 mb-1">التغير الزمني | Time-Series</p>
+                    <div className="space-y-1 max-h-28 overflow-y-auto">
+                      {selectedResult.time_series_data.map((pt: any, idx: number) => (
+                        <div key={`${pt?.at || 't'}-${idx}`} className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400">{pt?.at || '—'}</span>
+                          <span className="text-slate-200 font-mono">{pt?.displacement_mm ?? '—'} mm</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedResult?.report?.ar && (
+                  <p className="text-[11px] text-slate-300 leading-relaxed">{selectedResult.report.ar}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Legend */}

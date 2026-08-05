@@ -66,7 +66,25 @@ function HealthRing({ score }: { score: number }) {
   const dash = (score / 100) * circ;
   const color = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#f43f5e';
   const label = score >= 70 ? 'جيد' : score >= 40 ? 'متوسط' : 'حرج';
-  return (
+  
+  const handleSelectJob = async (job: any) => {
+    try {
+      console.log('Fetching results for job:', job);
+      const res = await fetch('/api/gis/insar-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job?.id || job?.job_id, name: job?.name })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('تم جلب بيانات الهبوط والتشوه بنجاح لهذه الوظيفة!');
+      }
+    } catch (e) {
+      console.error('Error fetching InSAR results:', e);
+    }
+  };
+
+return (
     <svg width="108" height="108" viewBox="0 0 108 108">
       <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
       <circle cx={cx} cy={cy} r={R} fill="none" stroke={color} strokeWidth="10"
