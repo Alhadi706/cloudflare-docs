@@ -76,18 +76,34 @@ type AssetContextMenuState = {
   clientY: number;
 };
 
+type AssetCenterLike = {
+  asset?: Record<string, any>;
+  documents?: Array<Record<string, any>>;
+};
+
+type AssetDocsPopupDoc = {
+  id: string;
+  title: string;
+  doc_type: string;
+  file_url?: string;
+  created_at?: string;
+  extraction_status?: 'pending' | 'ingested' | 'needs_ocr' | 'failed';
+  content_excerpt?: string | null;
+};
+
 type AssetDocsPopupState = {
   assetId: string;
   title: string;
   clientX: number;
   clientY: number;
-  docs: Array<{
-    id: string;
-    title: string;
-    doc_type: string;
-    file_url?: string;
-    created_at?: string;
-  }>;
+  docs: AssetDocsPopupDoc[];
+  ingestDone?: boolean;
+  ingestSummary?: string;
+};
+
+type AssetDocPreviewState = {
+  title: string;
+  url: string;
 };
 
 function mapQuickDocType(value: QuickDocType): { docType: string; department: string } {
@@ -118,6 +134,32 @@ function toApiErrorMessage(res: Response, payload: any, fallback = 'فشل تن�
     return `${fallback}: ${detail}`;
   }
   return `${fallback}: HTTP ${res.status}`;
+}
+
+type DocConflictDecision = 'replace' | 'add' | 'cancel';
+
+function normalizeDocText(input: unknown): string {
+  return String(input || '').trim().toLowerCase();
+}
+
+async function askDocConflictDecision(title: string): Promise<DocConflictDecision> {
+  if (typeof window === 'undefined') return 'cancel';
+  const userInput = window.prompt(
+    [
+      `الملف "${title || 'بدون عنوان'}" موجود مسبقًا على هذا الأصل.`,
+      'اختر الإجراء:',
+      '1 = استبدال الملف الحالي',
+      '2 = إضافة نسخة جديدة',
+      '3 = إلغاء الرفع',
+    ].join('\n'),
+    '3'
+  );
+
+  if (userInput == null) return 'cancel';
+  const normalized = String(userInput).trim();
+  if (normalized === '1') return 'replace';
+  if (normalized === '2') return 'add';
+  return 'cancel';
 }
 
 function isRiverRouteFeature(feature: any): boolean {
@@ -390,9 +432,71 @@ function EngineeringWorkspaceInner() {
   const [panelWidth, setPanelWidth] = useState(300);
   const [assetContextMenu, setAssetContextMenu] = useState<AssetContextMenuState | null>(null);
   const [assetDocsPopup, setAssetDocsPopup] = useState<AssetDocsPopupState | null>(null);
+  const [assetDocPreview, setAssetDocPreview] = useState<AssetDocPreviewState | null>(null);
+  const [assetDocsWindowPos, setAssetDocsWindowPos] = useState<{ x: number; y: number }>({ x: 24, y: 160 });
   const [quickUpload, setQuickUpload] = useState<{ assetId: string; kind: QuickDocType } | null>(null);
   const [assetAssistant, setAssetAssistant] = useState<AssetAssistantState | null>(null);
   const quickFileInputRef = useRef<HTMLInputElement | null>(null);
+  const assetDocsDragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null);
+  const resolveCenterWithFallback = useCallback(async (preferredAssetId: string): Promise<AssetCenterLike | null> => {
+    const candidates = [preferredAssetId, selectedAssetId || '']
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+    const uniq = Array.from(new Set(candidates));
+
+    let lastErr: any = null;
+    for (const id of uniq) {
+      try {
+        const center = await workspaceApi.getAssetCenter(id);
+        if (center && (center.asset || center.documents)) {
+          return center as AssetCenterLike;
+        }
+      } catch (e: any) {
+        lastErr = e;
+      }
+    }
+
+    if (lastErr) throw lastErr;
+    return null;
+  }, [selectedAssetId]);
+
+  const beginAssetDocsDrag = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    assetDocsDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: assetDocsWindowPos.x,
+      baseY: assetDocsWindowPos.y,
+    };
+
+    const handleMove = (moveEvent: MouseEvent) => {
+      const drag = assetDocsDragRef.current;
+      if (!drag) return;
+
+      const dx = moveEvent.clientX - drag.startX;
+      const dy = moveEvent.clientY - drag.startY;
+      const nextX = drag.baseX + dx;
+      const nextY = drag.baseY + dy;
+
+      const maxX = Math.max(8, window.innerWidth - 620);
+      const maxY = Math.max(8, window.innerHeight - 180);
+
+      setAssetDocsWindowPos({
+        x: Math.max(8, Math.min(maxX, nextX)),
+        y: Math.max(8, Math.min(maxY, nextY)),
+      });
+    };
+
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+      assetDocsDragRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [assetDocsWindowPos.x, assetDocsWindowPos.y]);
 
   // Create principal asset modal
   const [showCreateModal, setShowCreateModal]       = useState(false);
@@ -1074,20 +1178,103 @@ function EngineeringWorkspaceInner() {
   }, [selectEntity]);
 
   const openAssetDocsPopup = useCallback(async (assetId: string, x: number, y: number) => {
+    const defaultY = typeof window !== 'undefined' ? Math.max(96, window.innerHeight - 620) : 160;
+    setAssetDocsWindowPos({ x: 24, y: defaultY });
+
+    // Show popup immediately with loading state
+    setAssetDocsPopup({
+      assetId,
+      title: 'جارٍ التحميل...',
+      clientX: x,
+      clientY: y,
+      docs: [],
+    });
+    setAssetDocPreview(null);
+
     try {
-      const center = await workspaceApi.getAssetCenter(assetId);
-      const docs = Array.isArray(center?.documents) ? center.documents : [];
+      const center = await resolveCenterWithFallback(assetId);
+      const docsRaw = Array.isArray(center?.documents) ? center.documents : [];
+      const docs: AssetDocsPopupDoc[] = docsRaw.map((d: any, idx: number) => ({
+        id: String(d?.id ?? d?.doc_id ?? `${assetId}:doc:${idx}`),
+        title: String(d?.title ?? d?.file_name ?? 'وثيقة بلا عنوان'),
+        doc_type: String(d?.doc_type ?? 'other'),
+        file_url: d?.file_url ? String(d.file_url) : undefined,
+        created_at: d?.created_at ? String(d.created_at) : undefined,
+        extraction_status: 'pending',
+      }));
+
+      const effectiveAssetId = String(center?.asset?.id || assetId);
       setAssetDocsPopup({
-        assetId,
+        assetId: effectiveAssetId,
         title: String(center?.asset?.asset_name || 'وثائق الأصل'),
         clientX: x,
         clientY: y,
-        docs: docs.slice(0, 15),
+        docs: docs.slice(0, 20),
       });
+
+      const previewDoc = docs.find((d) => Boolean(d.file_url));
+      setAssetDocPreview(previewDoc?.file_url ? { title: previewDoc.title, url: previewDoc.file_url } : null);
+
+      // Auto-ingest in background, then fetch per-doc extraction status
+      void (async () => {
+        try {
+          const ingestRes = await fetch(`/api/knowledge/assets/${encodeURIComponent(effectiveAssetId)}/ingest`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {}) },
+            body: JSON.stringify({}),
+          });
+          const ingestData = await ingestRes.json().catch(() => ({}));
+
+          const sourcesRes = await fetch(`/api/knowledge/assets/${encodeURIComponent(effectiveAssetId)}/sources`, {
+            headers: { ...(TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {}) },
+          });
+          const sourcesData = await sourcesRes.json().catch(() => ({}));
+          const sourcesByUrl: Record<string, { extraction_status: string; content_excerpt: string | null }> = {};
+          if (Array.isArray(sourcesData?.items)) {
+            for (const s of sourcesData.items) {
+              sourcesByUrl[String(s.file_url)] = {
+                extraction_status: String(s.extraction_status || 'pending'),
+                content_excerpt: s.content_excerpt ? String(s.content_excerpt) : null,
+              };
+            }
+          }
+
+          const ingested = Number(ingestData?.stats?.ingested_sources || 0);
+          const needsOcr = Number(ingestData?.stats?.needs_ocr_sources || 0);
+          const summary = ingested > 0
+            ? `تم استخراج محتوى ${ingested} ملف وتصنيفه في قاعدة المعرفة`
+            : needsOcr > 0
+              ? `${needsOcr} ملف يحتاج OCR أو تحويل يدوي`
+              : 'لا توجد ملفات نصية قابلة للاستخراج التلقائي';
+
+          setAssetDocsPopup((prev) => {
+            if (!prev || prev.assetId !== effectiveAssetId) return prev;
+            return {
+              ...prev,
+              ingestDone: true,
+              ingestSummary: summary,
+              docs: prev.docs.map((d) => {
+                const src = d.file_url ? sourcesByUrl[d.file_url] : null;
+                return src ? { ...d, extraction_status: src.extraction_status as any, content_excerpt: src.content_excerpt } : d;
+              }),
+            };
+          });
+        } catch {
+          // Ingest failure is non-blocking
+        }
+      })();
     } catch (e: any) {
-      showToast(`تعذر تحميل المرفقات: ${e?.message || 'خطأ غير معروف'}`, 'error');
+      setAssetDocsPopup({
+        assetId,
+        title: 'وثائق الأصل',
+        clientX: x,
+        clientY: y,
+        docs: [],
+      });
+      setAssetDocPreview(null);
+      showToast('تعذر تحميل المرفقات من الخادم الآن.', 'error');
     }
-  }, [showToast]);
+  }, [resolveCenterWithFallback, showToast]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1103,7 +1290,6 @@ function EngineeringWorkspaceInner() {
 
   useEffect(() => {
     let cancelled = false;
-
     const publishAssetDocsOverlay = async () => {
       if (!selectedAssetId) {
         window.dispatchEvent(new CustomEvent('engineering:clear-asset-doc-overlay'));
@@ -1140,7 +1326,7 @@ function EngineeringWorkspaceInner() {
     setTimeout(() => quickFileInputRef.current?.click(), 0);
   }, [assetContextMenu]);
 
-  const triggerAssetKnowledgeIngest = useCallback(async (assetId: string) => {
+  const triggerAssetKnowledgeIngest = useCallback(async (assetId: string, onlyFileUrls?: string[]) => {
     try {
       const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ingest`, {
         method: 'POST',
@@ -1148,7 +1334,7 @@ function EngineeringWorkspaceInner() {
           'Content-Type': 'application/json',
           ...(TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {}),
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify(Array.isArray(onlyFileUrls) && onlyFileUrls.length > 0 ? { onlyFileUrls } : {}),
       });
       const data = await readApiPayload(res);
       if (!res.ok || !data?.ok) return null;
@@ -1163,27 +1349,35 @@ function EngineeringWorkspaceInner() {
   }, []);
 
   const openAssetAssistant = useCallback(async (assetId: string) => {
+    setAssetAssistant({
+      assetId,
+      assetName: 'جارٍ تحميل بيانات الأصل...',
+      input: '',
+      loading: false,
+      err: '',
+      messages: [
+        {
+          id: `assistant:init:${Date.now()}`,
+          role: 'assistant',
+          text: 'أنا مساعد هذا الأصل. اسأل بأي صيغة تريد، وسأجيب فقط من المعرفة المفهرسة الخاصة بهذا الأصل مع المراجع. إذا لم توجد بيانات كافية سأخبرك بذلك.',
+        },
+      ],
+    });
+
     try {
-      const center = await workspaceApi.getAssetCenter(assetId);
+      const center = await resolveCenterWithFallback(assetId);
       const assetName = String(center?.asset?.asset_name || 'الأصل');
-      setAssetAssistant({
-        assetId,
-        assetName,
-        input: '',
-        loading: false,
-        err: '',
-        messages: [
-          {
-            id: `assistant:init:${Date.now()}`,
-            role: 'assistant',
-            text: 'أنا مساعد هذا الأصل. اسأل بأي صيغة تريد، وسأجيب فقط من المعرفة المفهرسة الخاصة بهذا الأصل مع المراجع. إذا لم توجد بيانات كافية سأخبرك بذلك.',
-          },
-        ],
+      setAssetAssistant((prev) => {
+        if (!prev || prev.assetId !== assetId) return prev;
+        return { ...prev, assetName };
       });
     } catch (e: any) {
-      showToast(`تعذر فتح مساعد الأصل: ${e?.message || 'خطأ غير معروف'}`, 'error');
+      setAssetAssistant((prev) => {
+        if (!prev || prev.assetId !== assetId) return prev;
+        return { ...prev, assetName: 'الأصل', err: String(e?.message || 'تعذر تحميل اسم الأصل') };
+      });
     }
-  }, [showToast]);
+  }, [resolveCenterWithFallback]);
 
   const sendAssistantQuestion = useCallback(async () => {
     const st = assetAssistant;
@@ -1275,10 +1469,37 @@ function EngineeringWorkspaceInner() {
         throw new Error(uploadData?.error || `Upload failed (${uploadRes.status})`);
       }
 
+      const uploadedFileUrl = String(uploadData.fileUrl);
+      const centerBeforeAdd = await workspaceApi.getAssetCenter(quickUpload.assetId);
+      const existingDocs = Array.isArray(centerBeforeAdd?.documents) ? centerBeforeAdd.documents : [];
+      const titleNorm = normalizeDocText(file.name);
+      const conflicts = existingDocs.filter((d: any) => {
+        const sameFile = String(d?.file_url || '').trim() === uploadedFileUrl;
+        const sameTitle = titleNorm.length > 0 && normalizeDocText(d?.title) === titleNorm;
+        return sameFile || sameTitle;
+      });
+
+      if (conflicts.length > 0) {
+        const decision = await askDocConflictDecision(file.name);
+        if (decision === 'cancel') {
+          showToast('تم إلغاء عملية الرفع.', 'info');
+          return;
+        }
+
+        if (decision === 'replace') {
+          for (const doc of conflicts) {
+            const docId = String(doc?.id || '').trim();
+            if (!docId) continue;
+            await workspaceApi.deleteAssetDocument(quickUpload.assetId, docId);
+          }
+          showToast(`تمت إزالة ${conflicts.length} ملف قديم وسيتم الاستبدال الآن.`, 'info');
+        }
+      }
+
       await workspaceApi.addAssetDocument(quickUpload.assetId, {
         doc_type: mapped.docType,
         title: file.name,
-        file_url: String(uploadData.fileUrl),
+        file_url: uploadedFileUrl,
         file_size: Number(uploadData.fileSize) || undefined,
         department: mapped.department,
         notes: '[source:context-menu-upload]',
@@ -1288,7 +1509,7 @@ function EngineeringWorkspaceInner() {
         detail: { assetId: quickUpload.assetId, delta: 1 },
       }));
 
-      const ingestStats = await triggerAssetKnowledgeIngest(quickUpload.assetId);
+      const ingestStats = await triggerAssetKnowledgeIngest(quickUpload.assetId, [uploadedFileUrl]);
       const center = await workspaceApi.getAssetCenter(quickUpload.assetId);
       const docs = Array.isArray(center?.documents) ? center.documents : [];
       window.dispatchEvent(new CustomEvent('engineering:show-asset-doc-overlay', {
@@ -1457,135 +1678,258 @@ function EngineeringWorkspaceInner() {
 
             {assetDocsPopup && (
               <div
-                className="fixed z-[9300] w-[360px] max-w-[92vw] rounded-2xl border border-slate-600 bg-slate-950/95 shadow-2xl backdrop-blur"
-                style={{ top: assetDocsPopup.clientY + 8, left: assetDocsPopup.clientX + 8 }}
+                className="fixed z-[9300] w-[560px] max-w-[96vw] max-h-[72vh] rounded-2xl border border-slate-600 bg-slate-950/95 shadow-2xl backdrop-blur flex flex-col"
+                style={{ left: assetDocsWindowPos.x, top: assetDocsWindowPos.y }}
                 onClick={(evt) => evt.stopPropagation()}
               >
-                <div className="px-3 py-2 border-b border-slate-700 flex items-center justify-between">
-                  <div>
+                <div className="px-3 py-2 border-b border-slate-700 flex items-center justify-between gap-2">
+                  <div className="flex-1 cursor-move select-none" onMouseDown={beginAssetDocsDrag}>
                     <p className="text-xs text-slate-300 font-semibold">مرفقات الأصل</p>
                     <p className="text-[11px] text-slate-500 truncate">{assetDocsPopup.title}</p>
                   </div>
-                  <button onClick={() => setAssetDocsPopup(null)} className="text-slate-400 hover:text-white text-xs">إغلاق</button>
+                  <button
+                    onClick={() => void triggerAssetKnowledgeIngest(assetDocsPopup.assetId).then((s) => {
+                      if (s) showToast(`تمت الفهرسة: ${s.ingested} معالجة نصية، ${s.needsOcr} تحتاج OCR`, 'success');
+                      else showToast('تعذرت الفهرسة', 'error');
+                    })}
+                    className="px-2 py-1 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-[11px] font-semibold whitespace-nowrap"
+                  >
+                    فهرسة الآن
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAssetDocsPopup(null);
+                      setAssetDocPreview(null);
+                    }}
+                    className="text-slate-400 hover:text-white text-xs"
+                  >
+                    إغلاق
+                  </button>
                 </div>
-                <div className="max-h-[320px] overflow-y-auto divide-y divide-slate-800">
-                  {assetDocsPopup.docs.length === 0 ? (
-                    <p className="px-3 py-5 text-center text-xs text-slate-500">لا توجد مرفقات بعد</p>
-                  ) : (() => {
-                    const groups: Array<{ key: string; label: string; docs: typeof assetDocsPopup.docs }> = [
-                      { key: 'financial', label: 'وثائق مالية', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'financial') },
-                      { key: 'admin', label: 'وثائق إدارية', docs: assetDocsPopup.docs.filter((d) => ['admin', 'contract'].includes(d.doc_type)) },
-                      { key: 'technical', label: 'وثائق فنية', docs: assetDocsPopup.docs.filter((d) => ['technical', 'manual'].includes(d.doc_type)) },
-                      { key: 'photos', label: 'الصور', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'photo') },
-                      { key: 'maps', label: 'خرائط ورسومات', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'drawing') },
-                      { key: 'other', label: 'أخرى', docs: assetDocsPopup.docs.filter((d) => !['financial', 'admin', 'contract', 'technical', 'manual', 'photo', 'drawing'].includes(d.doc_type)) },
-                    ];
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-0 flex-1 min-h-0">
+                  <div className="min-h-0 overflow-y-auto divide-y divide-slate-800 border-b md:border-b-0 md:border-l border-slate-800">
 
-                    return groups.filter((g) => g.docs.length > 0).map((g) => (
-                      <div key={g.key} className="px-3 py-2">
-                        <p className="text-[11px] font-semibold text-slate-300 mb-1.5">{g.label}</p>
-                        <div className="space-y-1.5">
-                          {g.docs.map((d) => (
-                            <div key={d.id} className="px-2 py-1.5 rounded-lg bg-slate-900/70 border border-slate-800">
-                              <p className="text-xs text-slate-100 truncate">{d.title}</p>
-                              <div className="flex items-center justify-between mt-1 gap-2">
-                                <span className="text-[10px] text-slate-500">{d.doc_type}</span>
-                                <div className="flex items-center gap-2">
-                                  {d.file_url ? (
-                                    <>
-                                      <a href={d.file_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-300 hover:text-cyan-200">فتح</a>
-                                      <a href={`${d.file_url}${d.file_url.includes('?') ? '&' : '?'}download=1`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-300 hover:text-emerald-200">تنزيل</a>
-                                    </>
-                                  ) : (
-                                    <span className="text-[10px] text-slate-500">بدون رابط ملف</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-                      {assetAssistant && (
-                        <div
-                          className="fixed z-[9400] right-6 bottom-6 w-[460px] max-w-[95vw] max-h-[78vh] rounded-2xl border border-slate-600 bg-slate-950/95 shadow-2xl backdrop-blur flex flex-col"
-                          onClick={(evt) => evt.stopPropagation()}
-                        >
-                          <div className="px-4 py-3 border-b border-slate-700 flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-fuchsia-300">مساعد الأصل الذكي</p>
-                              <p className="text-[11px] text-slate-400 truncate">{assetAssistant.assetName}</p>
-                              <p className="text-[10px] text-amber-300 mt-1">الإجابة مقيدة ببيانات هذا الأصل المفهرسة فقط.</p>
-                            </div>
-                            <button
-                              onClick={() => setAssetAssistant(null)}
-                              className="text-slate-400 hover:text-white text-xs"
-                            >
-                              إغلاق
-                            </button>
-                          </div>
+                    {/* Ingestion status bar */}
+                    <div className="px-3 py-2 bg-slate-900/60">
+                      {!assetDocsPopup.ingestDone ? (
+                        <p className="text-[11px] text-amber-300 flex items-center gap-1.5">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
+                          جارٍ استخراج محتوى الملفات وتصنيفها...
+                        </p>
+                      ) : (
+                        <p className={`text-[11px] ${assetDocsPopup.ingestSummary?.startsWith('تم') ? 'text-emerald-300' : 'text-amber-300'}`}>
+                          {assetDocsPopup.ingestSummary}
+                        </p>
+                      )}
+                    </div>
 
-                          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                            {assetAssistant.messages.map((msg) => (
-                              <div
-                                key={msg.id}
-                                className={`rounded-xl border px-3 py-2 ${msg.role === 'assistant' ? 'bg-slate-800/80 border-slate-700 text-slate-100' : 'bg-cyan-900/25 border-cyan-700/40 text-cyan-100'}`}
-                              >
-                                <p className="text-xs whitespace-pre-line leading-relaxed">{msg.text}</p>
-                                {msg.references && msg.references.length > 0 && (
-                                  <div className="mt-2 space-y-1">
-                                    {msg.references.map((r) => (
-                                      <a
-                                        key={`${msg.id}:${r.ref}:${r.source_id}`}
-                                        href={r.file_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="block text-[10px] text-cyan-300 hover:text-cyan-200 truncate"
-                                        title={`${r.title} (${r.doc_type})`}
-                                      >
-                                        [{r.ref}] {r.title}
-                                      </a>
-                                    ))}
+                    {assetDocsPopup.docs.length === 0 ? (
+                      <p className="px-3 py-5 text-center text-xs text-slate-500">لا توجد مرفقات بعد</p>
+                    ) : (() => {
+                      const groups: Array<{ key: string; label: string; docs: typeof assetDocsPopup.docs }> = [
+                        { key: 'financial', label: 'وثائق مالية', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'financial') },
+                        { key: 'admin', label: 'وثائق إدارية', docs: assetDocsPopup.docs.filter((d) => ['admin', 'contract'].includes(d.doc_type)) },
+                        { key: 'technical', label: 'وثائق فنية', docs: assetDocsPopup.docs.filter((d) => ['technical', 'manual'].includes(d.doc_type)) },
+                        { key: 'photos', label: 'الصور', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'photo') },
+                        { key: 'maps', label: 'خرائط ورسومات', docs: assetDocsPopup.docs.filter((d) => d.doc_type === 'drawing') },
+                        { key: 'other', label: 'أخرى', docs: assetDocsPopup.docs.filter((d) => !['financial', 'admin', 'contract', 'technical', 'manual', 'photo', 'drawing'].includes(d.doc_type)) },
+                      ];
+
+                      return groups.filter((g) => g.docs.length > 0).map((g) => (
+                        <div key={g.key} className="px-3 py-2">
+                          <p className="text-[11px] font-semibold text-slate-300 mb-1.5">{g.label}</p>
+                          <div className="space-y-1.5">
+                            {g.docs.map((d) => {
+                              const statusColor =
+                                d.extraction_status === 'ingested' ? 'text-emerald-400' :
+                                d.extraction_status === 'needs_ocr' ? 'text-amber-400' :
+                                d.extraction_status === 'failed' ? 'text-red-400' :
+                                'text-slate-500';
+                              const statusLabel =
+                                d.extraction_status === 'ingested' ? '✓ مفهرس' :
+                                d.extraction_status === 'needs_ocr' ? '⚠ يحتاج OCR' :
+                                d.extraction_status === 'failed' ? '✕ فشل' :
+                                '○ في الانتظار';
+                              return (
+                                <div key={d.id} className="rounded-lg bg-slate-900/70 border border-slate-800 overflow-hidden">
+                                  <div className="px-2 py-1.5">
+                                    <div className="flex items-start justify-between gap-1">
+                                      <p className="text-xs text-slate-100 truncate flex-1">{d.title}</p>
+                                      <span className={`text-[10px] flex-shrink-0 ${statusColor}`}>{statusLabel}</span>
+                                    </div>
+                                    {d.content_excerpt && (
+                                      <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">{d.content_excerpt}</p>
+                                    )}
+                                    <div className="flex items-center justify-between mt-1 gap-2">
+                                      <span className="text-[10px] text-slate-600">{d.doc_type}</span>
+                                      <div className="flex items-center gap-2">
+                                        {d.file_url ? (
+                                          <>
+                                            <button
+                                              onClick={() => setAssetDocPreview({ title: d.title, url: d.file_url as string })}
+                                              className="text-[10px] text-violet-300 hover:text-violet-200"
+                                            >
+                                              معاينة
+                                            </button>
+                                            <a href={d.file_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-300 hover:text-cyan-200">فتح</a>
+                                            <a href={`${d.file_url}${d.file_url.includes('?') ? '&' : '?'}download=1`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-300 hover:text-emerald-200">تنزيل</a>
+                                          </>
+                                        ) : (
+                                          <span className="text-[10px] text-slate-500">بدون رابط ملف</span>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                            ))}
+                                </div>
+                              );
+                            })}
                           </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
 
-                          <div className="p-3 border-t border-slate-700 space-y-2">
-                            <textarea
-                              value={assetAssistant.input}
-                              onChange={(e) => setAssetAssistant((prev) => prev ? { ...prev, input: e.target.value } : prev)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  void sendAssistantQuestion();
-                                }
-                              }}
-                              rows={2}
-                              placeholder="اسأل بحرية: تاريخ الصيانة، وضع الأصل، المخاطر، الإجراءات..."
-                              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                  <div className="min-h-0 flex flex-col">
+                    <div className="px-3 py-2 border-b border-slate-800">
+                      <p className="text-[11px] font-semibold text-slate-300">معاينة المحتوى</p>
+                      <p className="text-[10px] text-slate-500 truncate">{assetDocPreview?.title || 'اختر ملفًا من القائمة للمعاينة'}</p>
+                    </div>
+                    <div className="flex-1 min-h-0 bg-slate-950/70">
+                      {assetDocPreview?.url ? (() => {
+                        const ext = assetDocPreview.url.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+                        const isPdf = ext === 'pdf';
+                        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
+                        if (isPdf) {
+                          return (
+                            <iframe
+                              title={assetDocPreview.title}
+                              src={assetDocPreview.url}
+                              className="w-full h-full border-0"
                             />
-
-                            {assetAssistant.err && (
-                              <p className="text-[11px] text-red-300">{assetAssistant.err}</p>
-                            )}
-
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] text-slate-500">Enter للإرسال • Shift+Enter لسطر جديد</p>
-                              <button
-                                onClick={() => void sendAssistantQuestion()}
-                                disabled={assetAssistant.loading || !assetAssistant.input.trim()}
-                                className="px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-semibold disabled:opacity-50"
+                          );
+                        }
+                        if (isImage) {
+                          return (
+                            <div className="h-full flex items-center justify-center p-2">
+                              <img
+                                src={assetDocPreview.url}
+                                alt={assetDocPreview.title}
+                                className="max-h-full max-w-full object-contain rounded"
+                              />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="h-full flex flex-col items-center justify-center gap-3 px-4 text-center">
+                            <p className="text-xs text-slate-400">لا يمكن معاينة هذا النوع من الملفات مباشرة</p>
+                            <p className="text-[11px] text-slate-500 truncate max-w-full">{assetDocPreview.title}</p>
+                            <div className="flex gap-2">
+                              <a
+                                href={assetDocPreview.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs"
                               >
-                                {assetAssistant.loading ? 'جارٍ التحليل...' : 'إرسال'}
-                              </button>
+                                فتح الملف
+                              </a>
+                              <a
+                                href={`${assetDocPreview.url}${assetDocPreview.url.includes('?') ? '&' : '?'}download=1`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs"
+                              >
+                                تنزيل
+                              </a>
                             </div>
                           </div>
+                        );
+                      })() : (
+                        <div className="h-full flex items-center justify-center px-3 text-center text-xs text-slate-500">
+                          اختر مرفقًا واضغط "معاينة" لقراءة المحتوى داخل النظام.
                         </div>
                       )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {assetAssistant && (
+              <div
+                className="fixed z-[9400] right-6 bottom-6 w-[460px] max-w-[95vw] max-h-[78vh] rounded-2xl border border-slate-600 bg-slate-950/95 shadow-2xl backdrop-blur flex flex-col"
+                onClick={(evt) => evt.stopPropagation()}
+              >
+                <div className="px-4 py-3 border-b border-slate-700 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-fuchsia-300">مساعد الأصل الذكي</p>
+                    <p className="text-[11px] text-slate-400 truncate">{assetAssistant.assetName}</p>
+                    <p className="text-[10px] text-amber-300 mt-1">الإجابة مقيدة ببيانات هذا الأصل المفهرسة فقط.</p>
+                  </div>
+                  <button
+                    onClick={() => setAssetAssistant(null)}
+                    className="text-slate-400 hover:text-white text-xs"
+                  >
+                    إغلاق
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {assetAssistant.messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`rounded-xl border px-3 py-2 ${msg.role === 'assistant' ? 'bg-slate-800/80 border-slate-700 text-slate-100' : 'bg-cyan-900/25 border-cyan-700/40 text-cyan-100'}`}
+                    >
+                      <p className="text-xs whitespace-pre-line leading-relaxed">{msg.text}</p>
+                      {msg.references && msg.references.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {msg.references.map((r) => (
+                            <a
+                              key={`${msg.id}:${r.ref}:${r.source_id}`}
+                              href={r.file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block text-[10px] text-cyan-300 hover:text-cyan-200 truncate"
+                              title={`${r.title} (${r.doc_type})`}
+                            >
+                              [{r.ref}] {r.title}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-3 border-t border-slate-700 space-y-2">
+                  <textarea
+                    value={assetAssistant.input}
+                    onChange={(e) => setAssetAssistant((prev) => prev ? { ...prev, input: e.target.value } : prev)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void sendAssistantQuestion();
+                      }
+                    }}
+                    rows={2}
+                    placeholder="اسأل بحرية: تاريخ الصيانة، وضع الأصل، المخاطر، الإجراءات..."
+                    className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                  />
+
+                  {assetAssistant.err && (
+                    <p className="text-[11px] text-red-300">{assetAssistant.err}</p>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-slate-500">Enter للإرسال • Shift+Enter لسطر جديد</p>
+                    <button
+                      onClick={() => void sendAssistantQuestion()}
+                      disabled={assetAssistant.loading || !assetAssistant.input.trim()}
+                      className="px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-semibold disabled:opacity-50"
+                    >
+                      {assetAssistant.loading ? 'جارٍ التحليل...' : 'إرسال'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

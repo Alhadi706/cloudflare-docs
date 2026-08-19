@@ -1,33 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPayrollCycle, listPayrollCycles } from '@/lib/payroll-cycle-store';
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
 function tenantIdFromRequest(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function actorFromRequest(req: NextRequest): { name: string; role: string } {
   const name =
     req.headers.get('x-verified-full-name') ||
     req.headers.get('x-verified-email') ||
-    req.cookies.get('user_role')?.value ||
     'system';
 
   const role =
     req.headers.get('x-verified-role') ||
-    req.headers.get('x-user-role') ||
-    req.cookies.get('user_role')?.value ||
-    'hr_manager';
+    '';
 
   return { name: String(name).trim(), role: String(role).trim().toLowerCase() };
 }
 
 export async function GET(req: NextRequest) {
   const tenantId = tenantIdFromRequest(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const statusFilter = String(req.nextUrl.searchParams.get('status') || '').trim();
 
   const rows = listPayrollCycles(tenantId);
@@ -37,6 +33,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const tenantId = tenantIdFromRequest(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const actor = actorFromRequest(req);
   const body = await req.json().catch(() => ({}));
 

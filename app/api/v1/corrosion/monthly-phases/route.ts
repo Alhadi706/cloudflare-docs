@@ -9,12 +9,9 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), '.data', 'corrosion-monthly-phases');
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header.
 function getTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    'aaaaaaaa-0000-4000-a000-000000000001'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function getFile(tenantId: string) {
@@ -37,11 +34,17 @@ function writePhases(tenantId: string, phases: any[]) {
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   return NextResponse.json({ phases: readPhases(tenantId) });
 }
 
 export async function POST(req: NextRequest) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   let body: any;
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: 'بيانات غير صالحة' }, { status: 400 });

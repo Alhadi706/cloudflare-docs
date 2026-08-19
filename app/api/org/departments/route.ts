@@ -28,6 +28,8 @@ const DB_CFG = {
 export async function GET(req: NextRequest) {
   const auth = authorize(req, 'user.review');
   if (auth instanceof NextResponse) return auth;
+  const tenantId = auth.tenantId.trim();
+  if (!tenantId) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
 
   const orgRoles = readOrgRoles();
 
@@ -51,9 +53,9 @@ export async function GET(req: NextRequest) {
       const deptRes = await pool.query(`
         SELECT id::text, code, name_ar, COALESCE(name_ar, code) AS name_en, status
         FROM workspace.departments
-        WHERE (parent_id IS NULL OR parent_id = 0)
+        WHERE tenant_id = $1 AND (parent_id IS NULL OR parent_id = 0)
         ORDER BY name_ar
-      `);
+      `, [tenantId]);
       departments = deptRes.rows.map((d: any) => {
         const mgr = orgRoles.find((r: any) => r.org_role === 'dept_manager' && r.department_code === d.code);
         return {
@@ -71,14 +73,16 @@ export async function GET(req: NextRequest) {
           COALESCE(s.section_name_ar, s.section_name) AS name_ar,
           s.section_name AS name_en,
           s.department_id::text AS department_id, s.is_active
-        FROM admin_core.sections s WHERE s.is_active = true ORDER BY s.section_name_ar NULLS LAST
-      `);
+        FROM admin_core.sections s
+        WHERE s.tenant_id = $1 AND s.is_active = true
+        ORDER BY s.section_name_ar NULLS LAST
+      `, [tenantId]);
       // Also legacy: workspace.departments with parent_id
       const subRes = await pool.query(`
         SELECT id::text, code, name_ar, parent_id::text AS department_id, status
-        FROM workspace.departments WHERE parent_id IS NOT NULL AND parent_id::text != '0'
+        FROM workspace.departments WHERE tenant_id = $1 AND parent_id IS NOT NULL AND parent_id::text != '0'
         ORDER BY name_ar
-      `);
+      `, [tenantId]);
 
       const adminSections = sectRes.rows.map((s: any) => {
         const mgr = orgRoles.find((r: any) => r.org_role === 'section_manager' && r.section_id === s.id);

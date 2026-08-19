@@ -1,22 +1,15 @@
 import { NextRequest } from 'next/server';
 
 export function resolveTenantIdFromRequest(req: NextRequest): string {
-  const fromHeader = (req.headers.get('x-tenant-id') || req.headers.get('X-Tenant-ID') || '').trim();
-  if (fromHeader) return fromHeader;
-
-  const fromCookie = (req.cookies.get('tenant_id')?.value || '').trim();
-  if (fromCookie) return fromCookie;
-
-  const fromEnv = String(process.env.NEXT_PUBLIC_TENANT_ID || '').trim();
-  return fromEnv;
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 export function forwardAuthHeaders(req: NextRequest): Record<string, string> {
   const headers: Record<string, string> = {};
   const tenantId = resolveTenantIdFromRequest(req);
   const auth = (req.headers.get('authorization') || '').trim();
-  const userId = (req.headers.get('x-user-id') || 'system').trim();
-  const userRole = (req.headers.get('x-user-role') || 'viewer').trim();
+  const userId = (req.headers.get('x-verified-user-id') || '').trim();
+  const userRole = (req.headers.get('x-verified-role') || '').trim();
 
   if (tenantId) headers['X-Tenant-ID'] = tenantId;
   if (auth) headers.Authorization = auth;

@@ -2,22 +2,21 @@
  * GET /api/v1/satellite/registered-assets
  * جلب الأصول المسجلة من إدارة الأصول لمركز الاستشعار عن بعد
  *
- * Public endpoint (لا يحتاج JWT) — يستخدم tenant_id من الهيدر أو query param
+ * Requires an authenticated session (Bearer token or auth_session cookie) so
+ * middleware can populate a cryptographically-verified x-verified-tenant-id.
+ * This route never trusts a client-supplied header/query-param/cookie tenant_id.
  * يُستخدم من WaterScannerPanel لعرض الأصول في وضع "أصل"
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { BACKEND } from '@/lib/backendProxy';
 
 export async function GET(req: NextRequest) {
-  // Extract tenant ID from multiple sources (no JWT required)
-  const tenantId = (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    req.nextUrl.searchParams.get('tenant_id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'aaaaaaaa-0000-4000-a000-000000000001' // fallback to default INFRA_OPS tenant
-  ).trim();
+  // Tenant identity must come from middleware's verified JWT/session — never a
+  // client-supplied header, query parameter, or cookie.
+  const tenantId = (req.headers.get('x-verified-tenant-id') || '').trim();
+  if (!tenantId) {
+    return NextResponse.json({ assets: [], error: 'غير مصرح' }, { status: 401 });
+  }
 
   const limit = req.nextUrl.searchParams.get('limit') ?? '500';
 
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
       headers: {
         'Content-Type':  'application/json',
         'X-Tenant-ID':   tenantId,
-        'X-User-Role':   'super_admin',
+        'X-User-Role':   req.headers.get('x-verified-role') || '',
       },
       signal: AbortSignal.timeout(10_000),
     });

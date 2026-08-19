@@ -5,17 +5,16 @@ import {
   listMaterialRequests,
 } from '@/lib/material-requests-store';
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
 function resolveTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant'
-  ).trim();
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 export async function GET(req: NextRequest) {
   const tenantId = resolveTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const templates = getDepartmentTemplates();
   const rows = listMaterialRequests(tenantId);
   return NextResponse.json({ requests: rows, templates, source: 'gateway_store' });
@@ -23,6 +22,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const tenantId = resolveTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const body = await req.json().catch(() => ({}));
 
   const requesterDept = String(body?.requester_dept || '').trim();

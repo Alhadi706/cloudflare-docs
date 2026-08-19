@@ -169,10 +169,15 @@ export async function POST(req: NextRequest) {
       geometrySource = 'asset';
     } else {
       // Fallback: try fetching from backend list and filtering by ID
-      const tenantId = extractTenantId(req) || 'aaaaaaaa-0000-4000-a000-000000000001';
+      const tenantId = extractTenantId(req);
+      if (!tenantId) {
+        return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+      }
       try {
         const assetRes = await fetch(`${BACKEND}/api/v1/workspace/assets?tenant_id=${tenantId}&limit=500`, {
-          headers: buildBackendHeaders(tenantId),
+          headers: buildBackendHeaders(tenantId, {
+            'X-User-Role': req.headers.get('x-verified-role') || '',
+          }),
           signal: AbortSignal.timeout(10_000),
         });
         if (!assetRes.ok) throw new Error(`Asset list fetch: HTTP ${assetRes.status}`);

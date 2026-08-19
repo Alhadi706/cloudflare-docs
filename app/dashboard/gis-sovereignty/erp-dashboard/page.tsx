@@ -33,11 +33,9 @@ type BaseMap = 'dark'|'satellite'|'light';
 
 function getAuthHeaders():Record<string,string> {
   if (typeof window==='undefined') return { 'Content-Type': 'application/json' };
-  const tenantId = getTenantId();
+  const token = localStorage.getItem('auth_token') || '';
   return {
-    ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}),
-    'x-user-id': localStorage.getItem('user_id')?? '1',
-    'x-user-role': localStorage.getItem('admin_mode')==='1'?'super_admin':(localStorage.getItem('user_role')?? 'viewer'),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     'Content-Type': 'application/json',
   };
 }
@@ -82,7 +80,7 @@ export default function ERPGisDashboardPage() {
   const fetchPins = useCallback(async()=>{
     setLoad(true);
     try {
-      const r = await fetch(`/api/v1/erp-spatial/dashboard/geojson?tenant_id=${getTenantId()}`,{headers:getAuthHeaders()});
+      const r = await fetch('/api/v1/erp-spatial/dashboard/geojson',{headers:getAuthHeaders()});
       const d = await r.json();
       const feats=(d.features??[]).filter((f:any)=>f.properties?.entity_type==='project');
       setPins(feats.map((f:any)=>({

@@ -1,5 +1,4 @@
 export const API_BASE = '/api';
-import { getClientTenantId } from '@/lib/getClientTenantId';
 import {
   applyHandoverBoundary,
   validateChildAssetCreatePayload,
@@ -10,20 +9,8 @@ const BASE = '/api/v1/workspace';
 
 function getAuthHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return {};
-  const adminMode = localStorage.getItem('admin_mode');
-  const userId    = localStorage.getItem('user_id') ?? localStorage.getItem('employee_id') ?? '0';
-  const tenantId  = getClientTenantId();
-
-  // Admin users bypass project-membership checks via super_admin role
-  const role = adminMode === '1' ? 'super_admin'
-    : (localStorage.getItem('user_role') ?? 'viewer');
-
-  const headers: Record<string, string> = {
-    'x-user-id':   userId,
-    'x-user-role': role,
-  };
-  if (tenantId) headers['X-Tenant-ID'] = tenantId;
-  return headers;
+  const token = localStorage.getItem('auth_token') || '';
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 function assertValid(result: { ok: boolean; error?: string }) {

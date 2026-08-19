@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'tenant_id مطلوب' }, { status: 401 });
   }
 
-  const headers = buildBackendHeaders(tenantId);
+  const headers = buildBackendHeaders(tenantId, {
+    'X-User-Role': req.headers.get('x-verified-role') || '',
+  });
 
   try {
     // Step 1: get all projects

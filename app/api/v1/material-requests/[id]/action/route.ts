@@ -103,18 +103,14 @@ function normalizeRole(raw: string): string {
 
 function resolveActorRole(req: NextRequest): string {
   return normalizeRole(
-    req.headers.get('x-verified-role') ||
-      req.headers.get('x-user-role') ||
-      req.cookies.get('user_role')?.value ||
-      ''
+    req.headers.get('x-verified-role') || ''
   );
 }
 
 function resolveActorName(req: NextRequest): string {
   const fullNameAr = (req.headers.get('x-verified-full-name') || '').trim();
   const email = (req.headers.get('x-verified-email') || '').trim();
-  const cookieRole = (req.cookies.get('user_role')?.value || '').trim();
-  return fullNameAr || email || cookieRole || 'system';
+  return fullNameAr || email || 'system';
 }
 
 function resolveCurrentStatus(payload: any): RequestStatus | '' {
@@ -128,11 +124,8 @@ function resolveCurrentStatus(payload: any): RequestStatus | '' {
 }
 
 async function fetchRequestStatus(req: NextRequest, id: string): Promise<RequestStatus | ''> {
-  const tenantId =
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant';
+  // Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
+  const tenantId = (req.headers.get('x-verified-tenant-id') || '').trim();
 
   const local = getMaterialRequestById(tenantId, id);
   return (local?.status || '') as RequestStatus | '';
@@ -140,6 +133,11 @@ async function fetchRequestStatus(req: NextRequest, id: string): Promise<Request
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const id = params.id;
+  // Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
+  const tenantIdGuard = (req.headers.get('x-verified-tenant-id') || '').trim();
+  if (!tenantIdGuard) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const body = await req.json().catch(() => ({}));
 
   const action = String(body?.action || '') as WorkflowAction;
@@ -181,9 +179,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const tenantId =
     req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant';
+    '';
   const actorName = resolveActorName(req);
 
   const forwardPayload = {

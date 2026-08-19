@@ -1184,60 +1184,64 @@ export default function SatIntelRightPanel({
 
       <div className="flex-1 overflow-y-auto">
 
-        <div className="mx-3 mt-3 mb-1 flex flex-wrap items-center gap-2">
-          <button
-            onClick={runFullAudit}
-            disabled={fullAuditRunning || !sceneUid}
-            className="px-3 py-2 rounded-lg border border-cyan-700/40 bg-cyan-900/25 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/35 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {fullAuditRunning ? 'جارٍ الفحص الشامل…' : 'تشغيل فحص شامل'}
-          </button>
-          <button
-            onClick={exportAcceptanceReport}
-            disabled={!fullAuditSnapshot}
-            className="px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-800/40 text-xs font-semibold text-slate-300 hover:bg-slate-700/40 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            تصدير PDF
-          </button>
-          <button
-            onClick={exportGisInteroperabilityBundle}
-            disabled={!bbox && (!drawnPolygon || drawnPolygon.length < 3)}
-            className="px-3 py-2 rounded-lg border border-indigo-700/40 bg-indigo-900/25 text-xs font-semibold text-indigo-300 hover:bg-indigo-900/35 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            حزمة GIS
-          </button>
-          {fullAuditStatus && (
-            <span className="text-xs text-slate-400 leading-tight">{fullAuditStatus}</span>
-          )}
-        </div>
+        {tab === 'compliance' && (
+          <>
+            <div className="mx-3 mt-3 mb-1 flex flex-wrap items-center gap-2">
+              <button
+                onClick={runFullAudit}
+                disabled={fullAuditRunning || !sceneUid}
+                className="px-3 py-2 rounded-lg border border-cyan-700/40 bg-cyan-900/25 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/35 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fullAuditRunning ? 'جارٍ الفحص الشامل…' : 'تشغيل فحص شامل'}
+              </button>
+              <button
+                onClick={exportAcceptanceReport}
+                disabled={!fullAuditSnapshot}
+                className="px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-800/40 text-xs font-semibold text-slate-300 hover:bg-slate-700/40 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                تصدير PDF
+              </button>
+              <button
+                onClick={exportGisInteroperabilityBundle}
+                disabled={!bbox && (!drawnPolygon || drawnPolygon.length < 3)}
+                className="px-3 py-2 rounded-lg border border-indigo-700/40 bg-indigo-900/25 text-xs font-semibold text-indigo-300 hover:bg-indigo-900/35 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                حزمة GIS
+              </button>
+              {fullAuditStatus && (
+                <span className="text-xs text-slate-400 leading-tight">{fullAuditStatus}</span>
+              )}
+            </div>
 
-        {fullAuditSnapshot && (
-          <div className="mx-3 mb-2 rounded-xl border border-slate-700/40 bg-slate-800/20 p-3">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-bold text-slate-200">ملخص آخر فحص شامل</p>
-              <p className="text-xs text-slate-400">{new Date(fullAuditSnapshot.ranAt).toLocaleTimeString('ar-SA')}</p>
-            </div>
-            <p className="text-xs text-cyan-300/80 mb-2 font-mono">Run: {fullAuditSnapshot.runId.slice(0, 12)}…</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                ['الصورة', fullAuditSnapshot.scene],
-                ['مكاني', fullAuditSnapshot.spatial],
-                ['جودة', fullAuditSnapshot.qualityGate],
-                ['زمني', fullAuditSnapshot.temporal],
-                ['محاكاة', fullAuditSnapshot.simulation],
-                ['3D', fullAuditSnapshot.terrain3d],
-                ['Benchmark', fullAuditSnapshot.benchmark],
-              ].map(([label, status]) => (
-                <span
-                  key={label}
-                  className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center justify-between ${statusPillClass(status as AuditAxisStatus)}`}
-                >
-                  <span>{label}</span>
-                  <span>{statusLabel(status as AuditAxisStatus)}</span>
-                </span>
-              ))}
-            </div>
-          </div>
+            {fullAuditSnapshot && (
+              <div className="mx-3 mb-2 rounded-xl border border-slate-700/40 bg-slate-800/20 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-bold text-slate-200">ملخص آخر فحص شامل</p>
+                  <p className="text-xs text-slate-400">{new Date(fullAuditSnapshot.ranAt).toLocaleTimeString('ar-SA')}</p>
+                </div>
+                <p className="text-xs text-cyan-300/80 mb-2 font-mono">Run: {fullAuditSnapshot.runId.slice(0, 12)}…</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    ['الصورة', fullAuditSnapshot.scene],
+                    ['مكاني', fullAuditSnapshot.spatial],
+                    ['جودة', fullAuditSnapshot.qualityGate],
+                    ['زمني', fullAuditSnapshot.temporal],
+                    ['محاكاة', fullAuditSnapshot.simulation],
+                    ['3D', fullAuditSnapshot.terrain3d],
+                    ['Benchmark', fullAuditSnapshot.benchmark],
+                  ].map(([label, status]) => (
+                    <span
+                      key={label}
+                      className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center justify-between ${statusPillClass(status as AuditAxisStatus)}`}
+                    >
+                      <span>{label}</span>
+                      <span>{statusLabel(status as AuditAxisStatus)}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {dataSyncWarning && (

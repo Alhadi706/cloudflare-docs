@@ -1,0 +1,57 @@
+directories:
+  output: dist-electron/maintenance
+  buildResources: build
+appId: ly.d-me.maintenance
+productName: DSF - إدارة الهندسة والدعم الفني
+copyright: Copyright © 2026 DSF
+files:
+  - filter:
+      - electron/**/*
+      - '!node_modules'
+      - package.json
+extraResources: []
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+    - nsis
+  icon: electron/assets/icon.ico
+  signAndEditExecutable: false
+  artifactName: maintenance-${version}-setup.${ext}
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - AppImage
+  icon: electron/assets/icon.png
+  category: Office
+  artifactName: maintenance-${version}-${arch}.${ext}
+mac:
+  target:
+    - dmg
+  icon: electron/assets/icon.icns
+  category: public.app-category.productivity
+  artifactName: maintenance-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DSF Gateway
+extraMetadata:
+  main: electron/main.js
+  dsfLaunch:
+    appId: maintenance
+    name: DSF - إدارة الهندسة والدعم الفني
+    scope: maintenance
+    redirect: /dashboard/admin-gateway/maintenance
+    baseUrl: https://dev.d-me.ly
+electronVersion: 41.7.1

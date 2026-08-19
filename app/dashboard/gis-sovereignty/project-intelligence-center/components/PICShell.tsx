@@ -95,10 +95,6 @@ const TYPE_LABELS: Record<ProjectType, string> = {
   public_facility: 'منشأة عامة', other: 'أخرى',
 };
 
-const TENANT_ID = typeof window !== 'undefined'
-  ? (localStorage.getItem('tenant_id') || 'aaaaaaaa-0000-4000-a000-000000000001')
-  : 'aaaaaaaa-0000-4000-a000-000000000001';
-
 // ─────────────────────────────────────────────
 //  Main Shell
 // ─────────────────────────────────────────────
@@ -145,7 +141,6 @@ export default function PICShell() {
     setLoading(true);
     try {
       const res = await fetch(`/api/v1/pic/projects?limit=500`, {
-        headers: { 'X-Tenant-ID': TENANT_ID },
       });
       if (res.ok) {
         const d = await res.json();
@@ -157,7 +152,7 @@ export default function PICShell() {
 
   const loadDashboard = useCallback(async () => {
     try {
-      const res = await fetch(`/api/v1/pic/dashboard`, { headers: { 'X-Tenant-ID': TENANT_ID } });
+      const res = await fetch(`/api/v1/pic/dashboard`);
       if (res.ok) { const d = await res.json(); setDashStats(d.stats); setAlerts(d.recent_alerts ?? []); }
     } catch { /* silent */ }
   }, []);
@@ -204,7 +199,6 @@ export default function PICShell() {
     if (!selectedId) { setProjectDetail(null); setArchiveScenes([]); setImageOverlay(null); return; }
     setDetailLoading(true);
     fetch(`/api/v1/pic/projects/${selectedId}?include=scans,events,timeline`, {
-      headers: { 'X-Tenant-ID': TENANT_ID },
     })
       .then(r => r.json())
       .then(d => {
@@ -219,7 +213,6 @@ export default function PICShell() {
     if (!selectedId) return;
     setScenesLoading(true);
     fetch(`/api/v1/pic/projects/${selectedId}?include=archive`, {
-      headers: { 'X-Tenant-ID': TENANT_ID },
     })
       .then(r => r.json())
       .then(d => {
@@ -326,7 +319,7 @@ export default function PICShell() {
     try {
       const res = await fetch('/api/v1/pic/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': TENANT_ID },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newProject, geometry_json: geometry }),
       });
       if (res.ok) {
@@ -348,14 +341,14 @@ export default function PICShell() {
     try {
       const res = await fetch(`/api/v1/pic/projects/${projectId}?action=analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': TENANT_ID },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date_from: '2026-01-01' }),
       });
       if (res.ok) {
         await loadProjects();
         if (selectedId === projectId) {
           // Refresh detail
-          const r2 = await fetch(`/api/v1/pic/projects/${projectId}?include=scans,events,timeline`, { headers: { 'X-Tenant-ID': TENANT_ID } });
+          const r2 = await fetch(`/api/v1/pic/projects/${projectId}?include=scans,events,timeline`);
           if (r2.ok) { const d = await r2.json(); setProjectDetail({ project: d.project, scans: d.scans ?? [], timeline: d.timeline }); }
         }
       }

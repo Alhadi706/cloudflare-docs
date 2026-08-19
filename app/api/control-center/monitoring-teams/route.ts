@@ -8,31 +8,26 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
-const DEFAULT_TENANT = 'aaaaaaaa-0000-4000-a000-000000000001';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function getTenantHeader(req: NextRequest): string {
-  // Try middleware-injected verified header first
-  const verified = req.headers.get('x-verified-tenant-id')?.trim();
-  // Only use if it's a valid UUID (dev-tenant and similar non-UUID values are rejected)
-  if (verified && UUID_RE.test(verified)) return verified;
-  // Fallback: extract tenant_id from JWT payload (base64 middle part)
-  const auth = req.headers.get('authorization') || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : (req.cookies.get('auth_token')?.value ?? '');
-  if (token) {
-    try {
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-      if (payload.tenant_id) return String(payload.tenant_id);
-    } catch { /* ignore */ }
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
+}
+
+function sanitizeBody(body: unknown): unknown {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  const safe = { ...(body as Record<string, unknown>) };
+  for (const key of ['tenant_id', 'tenantId', 'organization_id', 'organizationId', 'actor_id', 'actorId', 'user_id', 'userId', 'role', 'user_role']) {
+    delete safe[key];
   }
-  return DEFAULT_TENANT;
+  return safe;
 }
 
 export async function GET(req: NextRequest) {
+  const tenantId = getTenantHeader(req);
+  if (!tenantId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   try {
     const res = await fetch(`${B}/api/v1/ctrl/monitoring-teams`, {
       cache: 'no-store',
-      headers: { 'X-Tenant-ID': getTenantHeader(req) },
+      headers: { 'X-Tenant-ID': tenantId },
       signal: AbortSignal.timeout(8000),
     });
     const data = await res.json();
@@ -43,13 +38,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const tenantId = getTenantHeader(req);
+  if (!tenantId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   try {
     const body = await req.json();
-    const tenantId = getTenantHeader(req);
     const res = await fetch(`${B}/api/v1/ctrl/monitoring-teams`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': tenantId },
-      body: JSON.stringify(body),
+      body: JSON.stringify(sanitizeBody(body)),
       signal: AbortSignal.timeout(8000),
     });
     const data = await res.json();

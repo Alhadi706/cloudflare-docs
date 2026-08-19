@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { canAccessRoute, getHomeRoute, ROLE_LEVEL } from './lib/rbac';
 import type { UserRole, DepartmentCode } from './lib/user-store';
 import { canAccessPathForScope, getDefaultRouteForScope, normalizeAppScope } from './lib/appScope';
+import { verifyAuthTokenEdge } from './lib/auth-tokens';
 
 /**
  * Auth middleware — enforces the routing model:
@@ -41,7 +42,6 @@ const PUBLIC_API_PATHS = [
   '/api/onboarding/tenant-request', // new org registration form (POST)
   '/api/v1/satellite/',       // satellite intelligence APIs (fire, thermal, scenes, etc.)
   '/api/v1/gis/',             // GIS data APIs (buildings, parcels, etc.)
-  '/api/v1/pic/',             // Project Intelligence Center APIs
 ];
 
 function isPublicApiPath(pathname: string): boolean {
@@ -58,82 +58,82 @@ function requiresApiAuth(pathname: string): boolean {
 }
 
 /**
- * Decode a Bearer JWT payload and return enriched Headers.
- * Returns null if no valid Bearer token with tenant_id is present.
+ * Verify a Bearer JWT and return enriched Headers (Phase 0: real signature check).
  */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Fallback: when no Bearer token is present, inject x-verified-* headers
  * from the httpOnly session cookies set by /api/auth/session.
- * Also falls back to the X-Tenant-ID request header sent by TenantFetchGuard
- * (which reads from localStorage, itself falling back to NEXT_PUBLIC_TENANT_ID).
+ *
+ * Phase 0 security fix: this NO LONGER falls back to the client-supplied
+ * X-Tenant-ID request header. That header is fully attacker-controlled
+ * (any fetch() call can set it) and previously let a request masquerade as
+ * belonging to an arbitrary tenant whenever the tenant_id cookie was absent.
+ * Tenant context must come ONLY from the verified, httpOnly `tenant_id`
+ * cookie (itself only ever set by /api/auth/session after signature
+ * verification) — never from anything the browser can freely set.
  */
-function buildCookieVerifiedHeaders(request: NextRequest): Headers | null {
-  if (!request.cookies.has('auth_session')) return null;
+async function buildCookieVerifiedHeaders(request: NextRequest): Promise<Headers | null> {
+  const sessionToken = request.cookies.get('auth_session')?.value?.trim() ?? '';
+  if (!sessionToken || sessionToken === '1' || sessionToken === 'true') return null;
 
-  // Primary: tenant_id from httpOnly session cookie
-  let tenantId = request.cookies.get('tenant_id')?.value?.trim() ?? '';
-
-  // Fallback: X-Tenant-ID header sent by TenantFetchGuard from localStorage
-  if (!tenantId) {
-    const headerTenant = request.headers.get('x-tenant-id') || '';
-    if (UUID_RE.test(headerTenant)) tenantId = headerTenant;
-  }
-
-  if (!tenantId) return null;
+  const claims = await verifyAuthTokenEdge(sessionToken);
+  if (!claims?.tenant_id || !claims.role) return null;
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-verified-tenant-id',  tenantId);
-  requestHeaders.set('x-verified-tenant-code', request.cookies.get('tenant_code')?.value ?? '');
-  requestHeaders.set('x-verified-role',        request.cookies.get('user_role')?.value   ?? '');
-  requestHeaders.set('x-verified-dept-code',   request.cookies.get('user_dept')?.value   ?? '');
-  requestHeaders.set('x-verified-email',       '');
-  requestHeaders.set('x-verified-full-name',   '');
-  requestHeaders.set('x-verified-employee-no', '');
-  requestHeaders.set('x-verified-section-id',  '');
-  requestHeaders.set('x-verified-section-code','');
+  requestHeaders.set('x-verified-tenant-id', String(claims.tenant_id));
+  requestHeaders.set('x-verified-tenant-code', String(claims.tenant_code ?? ''));
+  requestHeaders.set('x-verified-role', String(claims.role));
+  requestHeaders.set('x-verified-dept-code', String(claims.department_code ?? ''));
+  requestHeaders.set('x-verified-email', String(claims.email ?? ''));
+  requestHeaders.set('x-verified-full-name', String(claims.full_name ?? ''));
+  requestHeaders.set('x-verified-employee-no', String(claims.employee_no ?? ''));
+  requestHeaders.set('x-verified-section-id', String(claims.section_id ?? ''));
+  requestHeaders.set('x-verified-section-code', String(claims.section_code ?? ''));
   return requestHeaders;
 }
 
-function buildVerifiedHeaders(request: NextRequest): Headers | null {
+/**
+ * Phase 0 security fix: this used to do a "payload-only decode" of the
+ * Bearer token — i.e. it trusted whatever tenant_id/role/email an attacker
+ * put in the JWT payload, WITHOUT checking the HMAC signature at all
+ * (any string after the last '.' was accepted as a "signature"). Any
+ * route that consumed the resulting x-verified-* headers directly
+ * (lib/authorize.ts, lib/auth-tenant-context.ts, the API proxy) was
+ * therefore fully bypassable with a forged, unsigned token.
+ *
+ * This now calls verifyAuthTokenEdge() — real HMAC-SHA256 verification via
+ * the Web Crypto API (Edge-Runtime-safe) — so headers are only ever set
+ * from a cryptographically verified token.
+ */
+async function buildVerifiedHeaders(request: NextRequest): Promise<Headers | null> {
   const authHeader = request.headers.get('authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) return null;
 
   const token = authHeader.slice(7).trim();
-  const dot = token.lastIndexOf('.');
-  if (dot < 1) return null;
+  const claims = await verifyAuthTokenEdge(token);
+  if (!claims || !claims.tenant_id) return null;
 
-  try {
-    const payloadB64 = token.slice(0, dot);
-    // base64url → base64: replace - with +, _ with /
-    const padded = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
-    const json = atob(padded);
-    const claims = JSON.parse(json) as Record<string, unknown>;
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-verified-tenant-id',   String(claims.tenant_id        ?? ''));
+  requestHeaders.set('x-verified-tenant-code',  String(claims.tenant_code      ?? ''));
+  requestHeaders.set('x-verified-employee-no',  String(claims.employee_no      ?? ''));
+  requestHeaders.set('x-verified-full-name',    String(claims.full_name        ?? ''));
+  requestHeaders.set('x-verified-email',        String(claims.email            ?? ''));
+  requestHeaders.set('x-verified-role',         String(claims.role             ?? ''));
+  requestHeaders.set('x-verified-dept-code',    String(claims.department_code  ?? ''));
+  requestHeaders.set('x-verified-section-id',   String(claims.section_id       ?? ''));
+  requestHeaders.set('x-verified-section-code',  String(claims.section_code     ?? ''));
 
-    if (!claims.tenant_id) return null;
-
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-verified-tenant-id',   String(claims.tenant_id        ?? ''));
-    requestHeaders.set('x-verified-tenant-code',  String(claims.tenant_code      ?? ''));
-    requestHeaders.set('x-verified-employee-no',  String(claims.employee_no      ?? ''));
-    requestHeaders.set('x-verified-full-name',    String(claims.full_name        ?? ''));
-    requestHeaders.set('x-verified-email',        String(claims.email            ?? ''));
-    requestHeaders.set('x-verified-role',         String(claims.role             ?? ''));
-    requestHeaders.set('x-verified-dept-code',    String(claims.department_code  ?? ''));
-    requestHeaders.set('x-verified-section-id',   String(claims.section_id       ?? ''));
-    requestHeaders.set('x-verified-section-code',  String(claims.section_code     ?? ''));
-
-    return requestHeaders;
-  } catch {
-    return null; // malformed token — ignore
-  }
+  return requestHeaders;
 }
 
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAuthenticated = request.cookies.has('auth_session');
+  const enrichedHeaders = await buildVerifiedHeaders(request);
+  const cookieVerifiedHeaders = enrichedHeaders ? null : await buildCookieVerifiedHeaders(request);
+  const isAuthenticated = Boolean(enrichedHeaders || cookieVerifiedHeaders);
 
   // Always start from the login/entry shell instead of install marketing page.
   if (pathname === '/') {
@@ -176,9 +176,8 @@ export function middleware(request: NextRequest) {
 
   // ── Inject x-verified-* headers from Bearer JWT (for all API routes) ─────
   // Route handlers read these headers for tenant/employee context.
-  // We do a payload-only decode here; full HMAC verification happens per route.
-  const enrichedHeaders = buildVerifiedHeaders(request);
-
+  // buildVerifiedHeaders() fully verifies the HMAC signature (Phase 0 fix) —
+  // headers are only set from a cryptographically verified token.
   const withDashboardNoStore = (res: NextResponse) => {
     if (pathname === '/' || pathname === '/entry' || pathname.startsWith('/dashboard')) {
       // Prevent stale app-shell HTML from being cached by proxies/CDNs.
@@ -207,7 +206,7 @@ export function middleware(request: NextRequest) {
     const authHeader = request.headers.get('authorization') ?? '';
     const hasBearerToken = authHeader.startsWith('Bearer ') && authHeader.length > 10;
     // Also accept cookie-based session for same-origin browser requests
-    const hasCookieSession = request.cookies.has('auth_session');
+    const hasCookieSession = Boolean(cookieVerifiedHeaders);
 
     if (!hasBearerToken && !hasCookieSession) {
       return NextResponse.json(
@@ -258,7 +257,7 @@ export function middleware(request: NextRequest) {
       const allowed = canAccessRoute(role, deptCode, pathname);
       if (!allowed) {
         // Redirect to the user's appropriate home page
-        const home = getHomeRoute(role, deptCode, normalizedScope, sectionCode);
+        const home = getHomeRoute(role, deptCode, normalizedScope);
         return withDashboardNoStore(NextResponse.redirect(new URL(home, request.url)));
       }
     }
@@ -267,11 +266,23 @@ export function middleware(request: NextRequest) {
   // Pass the enriched request (with x-verified-* headers) to the route handler.
   // Prefer Bearer-derived headers; fall back to cookie-derived headers for
   // same-origin browser sessions that don't carry a Bearer token.
-  const headersToForward = enrichedHeaders ?? buildCookieVerifiedHeaders(request);
+  const headersToForward = enrichedHeaders ?? cookieVerifiedHeaders;
   if (headersToForward) {
-    return NextResponse.next({ request: { headers: headersToForward } });
+    return withDashboardNoStore(
+      NextResponse.next({ request: { headers: headersToForward } })
+    );
   }
-  return NextResponse.next();
+
+  // Never allow a client to impersonate middleware-derived identity headers.
+  // This matters especially for intentionally public API paths, which do not
+  // pass through the API authentication gate above.
+  const sanitizedHeaders = new Headers(request.headers);
+  for (const header of Array.from(sanitizedHeaders.keys())) {
+    if (header.startsWith('x-verified-')) sanitizedHeaders.delete(header);
+  }
+  return withDashboardNoStore(
+    NextResponse.next({ request: { headers: sanitizedHeaders } })
+  );
 }
 
 export const config = {

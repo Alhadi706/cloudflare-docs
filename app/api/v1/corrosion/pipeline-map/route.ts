@@ -8,16 +8,16 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND = 'http://127.0.0.1:7860';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header.
 function getTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    'aaaaaaaa-0000-4000-a000-000000000001'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ pipelines: [] }, { status: 401 });
+  }
   try {
     const res = await fetch(`${BACKEND}/api/v1/corrosion/cp-pipelines?page=1&page_size=200&include_sessions=true`, {
       headers: {

@@ -13,6 +13,18 @@ const DEV_TENANT_CODE = 'INFRA_OPS';
 const DEV_ORG_NAME    = 'بيئة التطوير — INFRA_OPS';
 
 export async function POST(_req: NextRequest) {
+  // Phase 0 security fix: this endpoint previously issued a fully-signed
+  // admin/founder token to ANY unauthenticated caller (it sits under the
+  // globally-public /api/auth/ prefix in middleware.ts, so it was NOT
+  // covered by the /api/dev/* dev-portal gate). Require the same explicit
+  // dev-portal flag used to gate /dev and /api/dev/* before issuing anything.
+  if (process.env.DEV_PORTAL_ENABLED !== '1') {
+    return NextResponse.json(
+      { detail: 'dev_quick_login_disabled', code: 'forbidden' },
+      { status: 403 }
+    );
+  }
+
   const token = makeAuthToken('dev@dsf.local', 'admin', {
     department_code:   null,
     section_id:        null,

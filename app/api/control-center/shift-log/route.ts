@@ -7,28 +7,26 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 const B = process.env.BACKEND_URL ?? 'http://localhost:7860';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function getTenant(req: NextRequest): string {
-  try {
-    const cookie = req.cookies.get('auth_session')?.value;
-    const bearer = req.headers.get('authorization')?.replace('Bearer ', '');
-    const token = cookie || bearer;
-    if (token) {
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-      if (payload.tenant_id) return String(payload.tenant_id);
-    }
-  } catch { /* fall through */ }
-  const hdr = req.headers.get('x-verified-tenant-id');
-  if (hdr && UUID_RE.test(hdr.trim())) return hdr.trim();
-  return 'aaaaaaaa-0000-4000-a000-000000000001';
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
+}
+
+function sanitizeBody(body: unknown): unknown {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  const safe = { ...(body as Record<string, unknown>) };
+  for (const key of ['tenant_id', 'tenantId', 'organization_id', 'organizationId', 'actor_id', 'actorId', 'user_id', 'userId', 'role', 'user_role']) {
+    delete safe[key];
+  }
+  return safe;
 }
 
 export async function GET(req: NextRequest) {
+  const tenantId = getTenant(req);
+  if (!tenantId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   try {
     const days = new URL(req.url).searchParams.get('days') || '7';
     const res = await fetch(`${B}/api/v1/ctrl/shift-logs?days=${days}`, {
-      headers: { 'X-Tenant-ID': getTenant(req) },
+      headers: { 'X-Tenant-ID': tenantId },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
@@ -40,12 +38,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const tenantId = getTenant(req);
+  if (!tenantId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   try {
     const body = await req.json().catch(() => ({}));
     const res = await fetch(`${B}/api/v1/ctrl/shift-logs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': getTenant(req) },
-      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': tenantId },
+      body: JSON.stringify(sanitizeBody(body)),
       signal: AbortSignal.timeout(8000),
     });
     const data = await res.json();

@@ -1,0 +1,9 @@
+version: 0.1.0
+files:
+  - url: maintenance-0.1.0-x86_64.AppImage
+    sha512: Ns/kHIvTn4B+B5SqtzTf863++cDYhPD7APyGssYgqK59u1goOCLcLAQF4VKj2EH84RuQJuetfdgL7W2fLmo+BQ==
+    size: 119311602
+    blockMapSize: 126214
+path: maintenance-0.1.0-x86_64.AppImage
+sha512: Ns/kHIvTn4B+B5SqtzTf863++cDYhPD7APyGssYgqK59u1goOCLcLAQF4VKj2EH84RuQJuetfdgL7W2fLmo+BQ==
+releaseDate: '2026-08-16T09:39:25.938Z'

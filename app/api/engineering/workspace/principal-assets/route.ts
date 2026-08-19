@@ -49,7 +49,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(url, {
-      headers: buildBackendHeaders(tenantId),
+      headers: buildBackendHeaders(tenantId, {
+        'X-User-Role': req.headers.get('x-verified-role') || '',
+      }),
       signal:  AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
@@ -104,7 +106,9 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch(url, {
       method:  'POST',
-      headers: buildBackendHeaders(tenantId),
+      headers: buildBackendHeaders(tenantId, {
+        'X-User-Role': req.headers.get('x-verified-role') || '',
+      }),
       body:    JSON.stringify(backendPayload),
       signal:  AbortSignal.timeout(15_000),
     });

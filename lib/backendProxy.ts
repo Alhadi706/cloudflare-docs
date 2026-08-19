@@ -1,14 +1,8 @@
 /**
  * backendProxy — shared utility for Next.js → Python backend proxying
  * ─────────────────────────────────────────────────────────────────────
- * Reads the verified tenant_id from multiple sources (in priority order):
- *   1. x-verified-tenant-id  — injected by middleware from the JWT Bearer token
- *   2. x-tenant-id           — sent directly by the client (from localStorage)
- *   3. X-Tenant-ID           — alternate capitalisation from client
- *   4. tenant_id cookie      — set by LoginPanel after login
- *
- * This ensures ALL requests to the Python backend carry a valid X-Tenant-ID,
- * even when the client's localStorage doesn't have it stored.
+ * Tenant identity is supplied only by middleware after JWT/session verification.
+ * Client headers, query parameters, and cookies are never tenant authorities.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -16,25 +10,15 @@ import { NextRequest, NextResponse } from 'next/server';
 export const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:7860';
 const STAFF_API_KEY  = process.env.STAFF_API_KEY || '';
 
-/** Extract the best available tenant_id from the incoming Next.js request */
+/** Extract the tenant_id established by the authentication middleware. */
 export function extractTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    req.cookies.get('tenant_id')?.value ||
-    ''
-  ).trim();
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 /** Build backend request headers with injected tenant context */
 export function buildBackendHeaders(tenantId: string, extra: Record<string, string> = {}): Record<string, string> {
   const h: Record<string, string> = {
     'Content-Type': 'application/json',
-    // super_admin role bypasses project-membership check — safe because
-    // this function is only called from server-side Next.js API routes
-    // which are already protected by JWT middleware.
-    'X-User-Role': 'super_admin',
     ...extra,
   };
   if (tenantId) {
@@ -57,13 +41,18 @@ export async function proxyGet(
   timeoutMs = 15_000
 ): Promise<NextResponse> {
   const tenantId = extractTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const url      = `${BACKEND}${backendPath}`;
   const qs       = req.nextUrl.searchParams.toString();
   const fullUrl  = qs ? `${url}?${qs}` : url;
 
   try {
     const res = await fetch(fullUrl, {
-      headers: buildBackendHeaders(tenantId),
+      headers: buildBackendHeaders(tenantId, {
+        'X-User-Role': req.headers.get('x-verified-role') || '',
+      }),
       signal:  AbortSignal.timeout(timeoutMs),
     });
 
@@ -100,6 +89,9 @@ export async function proxyPost(
   timeoutMs = 15_000
 ): Promise<NextResponse> {
   const tenantId = extractTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const url      = `${BACKEND}${backendPath}`;
 
   let bodyText = '';
@@ -108,7 +100,9 @@ export async function proxyPost(
   try {
     const res = await fetch(url, {
       method:  'POST',
-      headers: buildBackendHeaders(tenantId),
+      headers: buildBackendHeaders(tenantId, {
+        'X-User-Role': req.headers.get('x-verified-role') || '',
+      }),
       body:    bodyText || undefined,
       signal:  AbortSignal.timeout(timeoutMs),
     });

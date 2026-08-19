@@ -82,6 +82,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   try {
     const ok = await deleteProject(id, tenantId);
+    if (!ok) return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
     return NextResponse.json({ ok });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });

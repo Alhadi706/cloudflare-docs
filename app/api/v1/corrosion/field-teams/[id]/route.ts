@@ -8,13 +8,9 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), '.data', 'corrosion-field-teams');
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header.
 function getTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    'aaaaaaaa-0000-4000-a000-000000000001'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function getTeamsFile(tenantId: string): string {
@@ -38,6 +34,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   const { id } = params;
   const teams = readTeams(tenantId);
   const filtered = teams.filter((t: any) => t.id !== id);

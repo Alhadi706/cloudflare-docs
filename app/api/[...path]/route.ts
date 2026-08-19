@@ -1,44 +1,61 @@
 // Proxy all /api requests to Backend
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
-const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BACKEND_CANDIDATES = (
   process.env.BACKEND_URLS
     ? process.env.BACKEND_URLS.split(',').map((u) => u.trim()).filter(Boolean)
     : [process.env.BACKEND_URL || 'http://localhost:7860', 'http://localhost:8001']
 );
 
-function getCookieValue(request: Request, key: string): string {
-  const cookie = request.headers.get('cookie') || '';
-  if (!cookie) return '';
-  const parts = cookie.split(';').map(p => p.trim());
-  const hit = parts.find(p => p.startsWith(`${key}=`));
-  if (!hit) return '';
-  return decodeURIComponent(hit.slice(key.length + 1)).trim();
+/**
+ * Phase 0 security fix: tenant/role are now read ONLY from the
+ * x-verified-* headers set by middleware.ts after it cryptographically
+ * verifies the caller's Bearer token (or verified session cookies).
+ * Previously this read the client-supplied `X-Tenant-ID` request header
+ * directly (and unconditionally forwarded `X-User-Role: super_admin` for
+ * every request) — letting any browser request pick an arbitrary tenant
+ * and always get super_admin on the downstream backend. CANNOT CONFIRM how
+ * the external backend (source not in this repo) behaves for non-super_admin
+ * roles — flagged as a residual risk in the Phase 0 report.
+ */
+function resolveVerifiedTenantId(request: Request): string {
+  return (request.headers.get('x-verified-tenant-id') || '').trim();
 }
 
-function resolveTenantId(request: Request): string {
-  const headerTenant = (request.headers.get('X-Tenant-ID') || '').trim();
-  if (UUID_LIKE.test(headerTenant)) return headerTenant;
-
-  const cookieTenant = getCookieValue(request, 'tenant_id');
-  if (UUID_LIKE.test(cookieTenant)) return cookieTenant;
-
-  const envTenant = (process.env.NEXT_PUBLIC_TENANT_ID || '').trim();
-  return UUID_LIKE.test(envTenant) ? envTenant : '';
+function resolveVerifiedRole(request: Request): string {
+  return (request.headers.get('x-verified-role') || '').trim();
 }
 
 function tenantHeaders(request: Request): Record<string, string> {
+  const tenantId = resolveVerifiedTenantId(request);
+  const role = resolveVerifiedRole(request);
+
   const headers: Record<string, string> = {
-    'X-Tenant-Code': request.headers.get('X-Tenant-Code') || 'INFRA_OPS',
+    'X-Tenant-Code': request.headers.get('x-verified-tenant-code') || '',
     'X-Staff-Api-Key': STAFF_API_KEY,
-    // super_admin bypasses project-membership check — safe because:
-    // (a) request already validated by Next.js middleware JWT,
-    // (b) STAFF_API_KEY is a server-only secret (never sent from client).
-    'X-User-Role': 'super_admin',
+    // Forward the caller's REAL, verified role instead of a hardcoded
+    // super_admin — the proxy must never manufacture elevated privileges.
+    'X-User-Role': role,
   };
-  const tenantId = resolveTenantId(request);
   if (tenantId) headers['X-Tenant-ID'] = tenantId;
   return headers;
+}
+
+function sanitizeTenantQuery(search: string): string {
+  const params = new URLSearchParams(search);
+  params.delete('tenant_id');
+  return params.toString() ? `?${params.toString()}` : '';
+}
+
+function sanitizeJsonBody(body: string): string {
+  if (!body.trim()) return body;
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      delete parsed.tenant_id;
+      return JSON.stringify(parsed);
+    }
+  } catch { /* preserve non-JSON body for backend validation */ }
+  return body;
 }
 
 function buildBackendApiUrl(baseUrl: string, path: string, search: string): string {
@@ -73,15 +90,22 @@ async function fetchWithBackendFallback(path: string, search: string, init: Requ
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const path = url.pathname.replace('/api', '');
-  const search = url.search;
+  const search = sanitizeTenantQuery(url.search);
+
+  if (!resolveVerifiedTenantId(request)) {
+    return new Response(JSON.stringify({ error: 'unauthorized: no verified tenant context' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   try {
     const response = await fetchWithBackendFallback(path, search, {
       method: 'GET',
       headers: {
         ...tenantHeaders(request),
-        'x-user-id': request.headers.get('x-user-id') || 'system',
-        'x-user-role': request.headers.get('x-user-role') || 'admin',
+        'x-user-id': request.headers.get('x-verified-email') || '',
+        'x-user-role': request.headers.get('x-verified-role') || '',
       },
       signal: AbortSignal.timeout(20000),
     });
@@ -115,7 +139,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const path = url.pathname.replace('/api', '');
-  const search = url.search;
+  const search = sanitizeTenantQuery(url.search);
+
+  if (!resolveVerifiedTenantId(request)) {
+    return new Response(JSON.stringify({ error: 'unauthorized: no verified tenant context' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   const scopedTenantHeaders = tenantHeaders(request);
 
@@ -165,7 +196,7 @@ export async function POST(request: Request) {
     }
 
     // Standard JSON POST
-    const body = await request.text();
+    const body = sanitizeJsonBody(await request.text());
     const response = await fetchWithBackendFallback(path, search, {
       method: 'POST',
       headers: {
@@ -200,12 +231,19 @@ export async function POST(request: Request) {
 async function forwardWithBody(method: string, request: Request) {
   const url = new URL(request.url);
   const path = url.pathname.replace('/api', '');
-  const search = url.search;
+  const search = sanitizeTenantQuery(url.search);
+
+  if (!resolveVerifiedTenantId(request)) {
+    return new Response(JSON.stringify({ error: 'unauthorized: no verified tenant context' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   const scopedTenantHeaders = tenantHeaders(request);
 
   try {
-    const body = await request.text();
+    const body = sanitizeJsonBody(await request.text());
     const response = await fetchWithBackendFallback(path, search, {
       method,
       headers: {

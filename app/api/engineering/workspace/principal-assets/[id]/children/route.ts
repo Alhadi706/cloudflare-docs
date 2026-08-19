@@ -12,7 +12,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   // Try children endpoint first
   const url = `${BACKEND}/api/v1/workspace/assets/${params.id}/children?tenant_id=${tenantId}`;
   try {
-    const res = await fetch(url, { headers: buildBackendHeaders(tenantId), signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { headers: buildBackendHeaders(tenantId, {
+      'X-User-Role': req.headers.get('x-verified-role') || '',
+    }), signal: AbortSignal.timeout(10_000) });
     if (res.ok) {
       const data = await res.json();
       const items = Array.isArray(data) ? data : data?.features ?? data?.results ?? [];
@@ -63,7 +65,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const url = `${BACKEND}/api/v1/workspace/assets/${params.id}/children?tenant_id=${tenantId}`;
   try {
     const res = await fetch(url, {
-      method: 'POST', headers: buildBackendHeaders(tenantId),
+      method: 'POST', headers: buildBackendHeaders(tenantId, {
+        'X-User-Role': req.headers.get('x-verified-role') || '',
+      }),
       body: JSON.stringify(backendPayload), signal: AbortSignal.timeout(10_000),
     });
     const data = await res.json().catch(() => ({}));

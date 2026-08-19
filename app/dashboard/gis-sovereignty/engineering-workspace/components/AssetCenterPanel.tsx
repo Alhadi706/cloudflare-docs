@@ -269,6 +269,32 @@ function fmtDate(s?: string | null): string {
   }
 }
 
+type DocConflictDecision = 'replace' | 'add' | 'cancel';
+
+function normalizeDocText(input: unknown): string {
+  return String(input || '').trim().toLowerCase();
+}
+
+async function askDocConflictDecision(title: string): Promise<DocConflictDecision> {
+  if (typeof window === 'undefined') return 'cancel';
+  const userInput = window.prompt(
+    [
+      `الملف "${title || 'بدون عنوان'}" موجود مسبقًا على هذا الأصل.`,
+      'اختر الإجراء:',
+      '1 = استبدال الملف الحالي',
+      '2 = إضافة نسخة جديدة',
+      '3 = إلغاء الرفع',
+    ].join('\n'),
+    '3'
+  );
+
+  if (userInput == null) return 'cancel';
+  const normalized = String(userInput).trim();
+  if (normalized === '1') return 'replace';
+  if (normalized === '2') return 'add';
+  return 'cancel';
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, onSelectChild, onRedrawGeometry }: Props) {
@@ -572,6 +598,34 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
         resolvedFileSize = Number(uploadData.fileSize) || undefined;
       }
 
+      const latestCenter = await workspaceApi.getAssetCenter(assetId);
+      const existingDocs = Array.isArray(latestCenter?.documents) ? latestCenter.documents : [];
+      const targetTitle = String(formData.title || selectedDocFile?.name || '').trim();
+      const targetTitleNorm = normalizeDocText(targetTitle);
+      const conflicts = existingDocs.filter((d: any) => {
+        const sameFile = resolvedFileUrl && String(d?.file_url || '').trim() === resolvedFileUrl;
+        const sameTitle = targetTitleNorm.length > 0 && normalizeDocText(d?.title) === targetTitleNorm;
+        return Boolean(sameFile || sameTitle);
+      });
+
+      if (conflicts.length > 0) {
+        const decision = await askDocConflictDecision(targetTitle || 'وثيقة');
+        if (decision === 'cancel') {
+          showToast('تم إلغاء عملية الرفع.', 'info');
+          setSaving(false);
+          return;
+        }
+
+        if (decision === 'replace') {
+          for (const doc of conflicts) {
+            const docId = String(doc?.id || '').trim();
+            if (!docId) continue;
+            await workspaceApi.deleteAssetDocument(assetId, docId);
+          }
+          showToast(`تمت إزالة ${conflicts.length} ملف قديم وسيتم الاستبدال الآن.`, 'info');
+        }
+      }
+
       await workspaceApi.addAssetDocument(assetId, {
         doc_type:   formData.doc_type   || 'other',
         title:      formData.title,
@@ -586,7 +640,7 @@ export default function AssetCenterPanel({ assetId, panelWidth = 300, onClose, o
         const ingestRes = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ingest`, {
           method: 'POST',
           headers: getTenantHeader({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({}),
+          body: JSON.stringify(resolvedFileUrl ? { onlyFileUrls: [resolvedFileUrl] } : {}),
         });
         const ingestData = await ingestRes.json().catch(() => ({}));
         if (ingestRes.ok && ingestData?.ok) {
@@ -2043,6 +2097,16 @@ type AskReference = {
   extraction_status: string;
 };
 
+type KnowledgeSourceListItem = {
+  id: string;
+  title: string;
+  file_url: string;
+  doc_type: string;
+  extraction_status: 'pending' | 'ingested' | 'needs_ocr' | 'failed';
+  content_excerpt?: string | null;
+  updated_at?: string;
+};
+
 function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }) {
   const ICONS: Record<AuditEvent['kind'], React.ElementType> = {
     asset: Building2,
@@ -2059,18 +2123,69 @@ function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }
   const [sources, setSources] = useState<BriefSource[]>([]);
   const [sentences, setSentences] = useState<BriefSentence[]>([]);
   const [askReferences, setAskReferences] = useState<AskReference[]>([]);
+  const [sourceList, setSourceList] = useState<KnowledgeSourceListItem[]>([]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceErr, setSourceErr] = useState('');
+  const [retryingFileUrl, setRetryingFileUrl] = useState<string | null>(null);
   const [packetCount, setPacketCount] = useState<number | null>(null);
   const [ingestStats, setIngestStats] = useState<{ linked: number; ingested: number; needsOcr: number } | null>(null);
   const [err, setErr] = useState('');
 
-  const askKnowledge = async () => {
+  const loadKnowledgeSources = useCallback(async (silent = false) => {
+    if (!silent) {
+      setSourceLoading(true);
+      setSourceErr('');
+    }
+    try {
+      const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/sources`, {
+        headers: getTenantHeader(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setSourceList(items.map((s: any) => ({
+        id: String(s.id || ''),
+        title: String(s.title || s.id || 'وثيقة'),
+        file_url: String(s.file_url || ''),
+        doc_type: String(s.doc_type || 'other'),
+        extraction_status: String(s.extraction_status || 'pending') as KnowledgeSourceListItem['extraction_status'],
+        content_excerpt: s.content_excerpt ? String(s.content_excerpt) : null,
+        updated_at: s.updated_at ? String(s.updated_at) : undefined,
+      })));
+    } catch (e: any) {
+      setSourceErr(String(e?.message || 'failed_to_load_sources'));
+    } finally {
+      if (!silent) {
+        setSourceLoading(false);
+      }
+    }
+  }, [assetId]);
+
+  useEffect(() => {
+    void loadKnowledgeSources();
+  }, [loadKnowledgeSources]);
+
+  const submitKnowledgeQuestion = async () => {
+    const normalized = question.trim();
+    if (!normalized || loading) return;
+    if (question !== normalized) {
+      setQuestion(normalized);
+    }
+    await askKnowledge(normalized);
+  };
+
+  const askKnowledge = async (questionOverride?: string) => {
+    const effectiveQuestion = String(questionOverride ?? question).trim();
+    if (!effectiveQuestion) return;
     setLoading(true);
     setErr('');
     try {
       const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ask`, {
         method: 'POST',
         headers: getTenantHeader({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question: effectiveQuestion }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
@@ -2155,6 +2270,7 @@ function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }
         ingested: Number(data?.stats?.ingested_sources || 0),
         needsOcr: Number(data?.stats?.needs_ocr_sources || 0),
       });
+      await loadKnowledgeSources(true);
     } catch (e: any) {
       setErr(String(e?.message || 'failed_to_ingest_asset_docs'));
     } finally {
@@ -2180,10 +2296,38 @@ function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }
         ingested: Number(data?.stats?.ingested_sources || 0),
         needsOcr: Number(data?.stats?.needs_ocr_sources || 0),
       });
+      await loadKnowledgeSources(true);
     } catch (e: any) {
       setErr(String(e?.message || 'failed_to_ingest_demo'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const retrySingleSource = async (fileUrl: string) => {
+    if (!fileUrl || loading || retryingFileUrl) return;
+    setRetryingFileUrl(fileUrl);
+    setErr('');
+    try {
+      const res = await fetch(`/api/knowledge/assets/${encodeURIComponent(assetId)}/ingest`, {
+        method: 'POST',
+        headers: getTenantHeader({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ onlyFileUrls: [fileUrl] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setIngestStats({
+        linked: Number(data?.stats?.linked_sources || 0),
+        ingested: Number(data?.stats?.ingested_sources || 0),
+        needsOcr: Number(data?.stats?.needs_ocr_sources || 0),
+      });
+      await loadKnowledgeSources(true);
+    } catch (e: any) {
+      setErr(String(e?.message || 'failed_to_retry_source'));
+    } finally {
+      setRetryingFileUrl(null);
     }
   };
 
@@ -2229,10 +2373,27 @@ function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }
         <textarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void submitKnowledgeQuestion();
+            }
+          }}
           rows={2}
           className="w-full rounded-lg bg-slate-800/80 border border-slate-700 px-2.5 py-2 text-xs text-slate-100"
           placeholder="مثال: ما الوضع الحالي للأصل وما أحدث الوثائق الداعمة؟"
         />
+
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] text-slate-500">Enter للإرسال مباشرة و Shift+Enter لسطر جديد</p>
+          <button
+            onClick={() => void submitKnowledgeQuestion()}
+            disabled={loading || !question.trim()}
+            className="px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-semibold disabled:opacity-50"
+          >
+            إرسال السؤال الآن
+          </button>
+        </div>
 
         <div className="mt-2 flex flex-wrap gap-2">
           <button
@@ -2250,7 +2411,7 @@ function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }
             فهرسة تجريبية سريعة
           </button>
           <button
-            onClick={askKnowledge}
+            onClick={() => void submitKnowledgeQuestion()}
             disabled={loading}
             className="px-3 py-1.5 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-semibold disabled:opacity-50"
           >
@@ -2297,6 +2458,79 @@ function AuditTab({ assetId, events }: { assetId: string; events: AuditEvent[] }
             الفهرسة: ربط {ingestStats.linked} وثيقة | معالجة نصية {ingestStats.ingested} | تحتاج OCR {ingestStats.needsOcr}
           </p>
         )}
+
+        <div className="mt-3 rounded-lg border border-slate-700 bg-slate-800/40 p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-slate-200">حالة فهرسة الملفات</p>
+            <div className="flex items-center gap-2">
+              {sourceLoading && <Loader2 className="w-3.5 h-3.5 text-slate-300 animate-spin" />}
+              <button
+                onClick={() => void loadKnowledgeSources()}
+                disabled={sourceLoading || loading}
+                className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-[10px] text-slate-200 disabled:opacity-50"
+              >
+                تحديث
+              </button>
+            </div>
+          </div>
+
+          {sourceErr && <p className="mt-1 text-[11px] text-red-300">{sourceErr}</p>}
+
+          {sourceList.length === 0 ? (
+            <p className="mt-2 text-[11px] text-slate-500">لا توجد مصادر مفهرسة لهذا الأصل بعد.</p>
+          ) : (
+            <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+              {sourceList.map((s) => {
+                const statusClass =
+                  s.extraction_status === 'ingested'
+                    ? 'text-emerald-300'
+                    : s.extraction_status === 'needs_ocr'
+                      ? 'text-amber-300'
+                      : s.extraction_status === 'failed'
+                        ? 'text-red-300'
+                        : 'text-slate-400';
+                const statusText =
+                  s.extraction_status === 'ingested'
+                    ? 'مفهرس'
+                    : s.extraction_status === 'needs_ocr'
+                      ? 'يحتاج OCR'
+                      : s.extraction_status === 'failed'
+                        ? 'فشل'
+                        : 'قيد الانتظار';
+                const allowRetry = s.extraction_status === 'needs_ocr' || s.extraction_status === 'failed' || s.extraction_status === 'pending';
+
+                return (
+                  <div key={s.id} className="rounded border border-slate-700/70 bg-slate-900/60 p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] text-slate-100 truncate">{s.title}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{s.doc_type} | {s.file_url}</p>
+                      </div>
+                      <span className={`text-[10px] ${statusClass}`}>{statusText}</span>
+                    </div>
+
+                    {s.content_excerpt && (
+                      <p className="mt-1 text-[10px] text-slate-400 line-clamp-2">{s.content_excerpt}</p>
+                    )}
+
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <p className="text-[10px] text-slate-500">{s.updated_at ? `آخر تحديث: ${fmtDate(s.updated_at)}` : 'بدون تاريخ تحديث'}</p>
+                      {allowRetry && s.file_url && (
+                        <button
+                          onClick={() => void retrySingleSource(s.file_url)}
+                          disabled={loading || Boolean(retryingFileUrl)}
+                          className="px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-[10px] text-white disabled:opacity-50"
+                        >
+                          {retryingFileUrl === s.file_url ? 'جارٍ الإعادة...' : 'إعادة المعالجة'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {err && (
           <p className="mt-2 text-xs text-red-300">{err}</p>

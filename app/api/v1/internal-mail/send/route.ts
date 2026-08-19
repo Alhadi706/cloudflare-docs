@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:7860';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DEFAULT_TENANT = 'aaaaaaaa-0000-4000-a000-000000000001';
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
+function resolveTenantId(req: NextRequest): string {
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
+}
 
 // Map workspace department IDs (61-97) → admin_core department IDs (30-35)
 // admin_core.departments: 30=ENG, 31=CORR, 33=MAINT, 34=OPS, 35=GIS
@@ -23,16 +25,18 @@ function toDeptId(workspaceId: number | string | undefined): number {
 }
 
 function forwardHeaders(req: NextRequest): Record<string, string> {
-  const rawTenant = (req.headers.get('x-tenant-id') || req.cookies.get('tenant_id')?.value || '').trim();
   return {
     'Content-Type':  'application/json',
-    'X-Tenant-ID':   UUID_RE.test(rawTenant) ? rawTenant : DEFAULT_TENANT,
-    'X-Tenant-Code': req.headers.get('x-tenant-code')  || req.cookies.get('tenant_code')?.value || '',
+    'X-Tenant-ID':   resolveTenantId(req),
+    'X-Tenant-Code': req.headers.get('x-verified-tenant-code') || '',
     'Authorization': req.headers.get('authorization')  || `Bearer ${req.cookies.get('auth_token')?.value || ''}`,
   };
 }
 
 export async function POST(req: NextRequest) {
+  if (!resolveTenantId(req)) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   const headers = forwardHeaders(req);
   try {
     const body = await req.json();

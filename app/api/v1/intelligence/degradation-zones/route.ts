@@ -8,7 +8,11 @@ const BACKEND = 'http://127.0.0.1:7860';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
 export async function GET(req: NextRequest) {
-  const tenantId = req.headers.get('x-verified-tenant-id') || req.headers.get('x-tenant-id') || req.headers.get('X-Tenant-ID') || '';
+  // Tenant identity must come from middleware's verified JWT — never a client-supplied header.
+  const tenantId = (req.headers.get('x-verified-tenant-id') || '').trim();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
 
   try {
     const res = await fetch(

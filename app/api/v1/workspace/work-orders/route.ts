@@ -3,14 +3,18 @@ const BACKEND_WORK_ORDERS = 'http://localhost:7860/work-orders';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
 function buildTenantHeaders(request: Request) {
+  const tenantId = request.headers.get('x-verified-tenant-id')?.trim() || '';
   return {
-    'X-Tenant-ID': request.headers.get('X-Tenant-ID') || 'aaaaaaaa-0000-4000-a000-000000000001',
-    'X-Tenant-Code': request.headers.get('X-Tenant-Code') || 'INFRA_OPS',
+    'X-Tenant-ID': tenantId,
+    'X-Tenant-Code': request.headers.get('x-verified-tenant-code') || '',
     'X-Staff-Api-Key': STAFF_API_KEY,
   };
 }
 
 export async function GET(request: Request) {
+  if (!request.headers.get('x-verified-tenant-id')?.trim()) {
+    return new Response(JSON.stringify({ error: 'غير مصرح' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+  }
   const url = new URL(request.url);
   const backendUrl = `${BACKEND_WORK_ORDERS}${url.search}`;
   try {
@@ -32,6 +36,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!request.headers.get('x-verified-tenant-id')?.trim()) {
+    return new Response(JSON.stringify({ error: 'غير مصرح' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+  }
   try {
     const body = await request.json();
     const response = await fetch(BACKEND_WORK_ORDERS, {

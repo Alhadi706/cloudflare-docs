@@ -8,28 +8,18 @@ const ACTION_ROLES: Record<string, string[]> = {
   reject: ['section_manager', 'dept_manager', 'hr_manager', 'admin_officer', 'admin', 'founder'],
 };
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
 function resolveTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant'
-  ).trim();
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function resolveActor(req: NextRequest): { id: string; role: string } {
   return {
     id:
-      (req.headers.get('x-verified-email') ||
-        req.headers.get('x-user-id') ||
-        req.cookies.get('user_email')?.value ||
-        'system')
+      (req.headers.get('x-verified-email') || '')
         .trim(),
     role:
-      (req.headers.get('x-verified-role') ||
-        req.headers.get('x-user-role') ||
-        req.cookies.get('user_role')?.value ||
-        'employee')
+      (req.headers.get('x-verified-role') || '')
         .trim()
         .toLowerCase(),
   };
@@ -37,6 +27,9 @@ function resolveActor(req: NextRequest): { id: string; role: string } {
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const tenantId = resolveTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const actor = resolveActor(req);
   const body = await req.json().catch(() => ({}));
   const action = String(body?.action || '').trim();

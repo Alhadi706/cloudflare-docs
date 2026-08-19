@@ -5,34 +5,21 @@ import path from 'path';
 
 const ORG_ROLES_FILE = path.join(process.cwd(), '.data', 'org-roles.json');
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
 function resolveTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant'
-  ).trim();
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function resolveActor(req: NextRequest): { id: string; role: string; employee_no: string } {
   return {
     id:
-      (req.headers.get('x-verified-email') ||
-        req.headers.get('x-user-id') ||
-        req.cookies.get('user_email')?.value ||
-        'system')
+      (req.headers.get('x-verified-email') || '')
         .trim(),
     role:
-      (req.headers.get('x-verified-role') ||
-        req.headers.get('x-user-role') ||
-        req.cookies.get('user_role')?.value ||
-        'employee')
+      (req.headers.get('x-verified-role') || '')
         .trim(),
     employee_no:
-      (req.headers.get('x-verified-employee-no') ||
-        req.headers.get('x-employee-no') ||
-        req.cookies.get('employee_no')?.value ||
-        '')
+      (req.headers.get('x-verified-employee-no') || '')
         .trim(),
   };
 }
@@ -58,12 +45,18 @@ function findDepartmentsWithoutManager(targetDepartmentCodes: string[]): string[
 
 export async function GET(req: NextRequest) {
   const tenantId = resolveTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const rows = listTrainingNeeds(tenantId);
   return NextResponse.json({ needs: rows, source: 'training_workflow_store' });
 }
 
 export async function POST(req: NextRequest) {
   const tenantId = resolveTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const actor = resolveActor(req);
 
   if (!PROPOSER_ROLES.has(actor.role.toLowerCase())) {

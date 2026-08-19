@@ -233,7 +233,7 @@ const PRESET_AREAS = [
   { id: 'gmmr_shweref',   label: 'GMMR — الشويرف',     bbox: [13.8, 30.0, 14.8, 30.9]  as [number,number,number,number] },
   { id: 'misrata',        label: 'مصراتة',              bbox: [15.00,32.25,15.25,32.55] as [number,number,number,number] },
   { id: 'sabha',          label: 'سبها',                bbox: [14.25,26.88,14.65,27.22] as [number,number,number,number] },
-  { id: 'custom',         label: '📐 منطقة مخصصة',     bbox: null as any },
+  { id: 'custom',         label: '📐 منطقة مخصصة (ارسم + سمِّ)',     bbox: null as any },
 ];
 
 export default function InSARPanel({ polygon, onFlyTo }: Props) {
@@ -250,6 +250,7 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
 
   // ── Historical mode state ─────────────────────────────────────────────────
   const [hAreaId,    setHAreaId]    = useState('tripoli_center');
+  const [hCustomAreaName, setHCustomAreaName] = useState('');
   const [hYearFrom,  setHYearFrom]  = useState(2024);
   const [hYearTo,    setHYearTo]    = useState(2026);
   const [hMonthFrom, setHMonthFrom] = useState('01');
@@ -268,18 +269,14 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
   const setSelectedJob = useInSarStore((state) => state.setSelectedJob);
   const selectedResult = useInSarStore((state) => state.selectedResult);
 
-  const deriveActiveBbox = useCallback((): [number, number, number, number] => {
+  const deriveAreaName = useCallback((): string => {
     const area = PRESET_AREAS.find((a) => a.id === hAreaId);
-    if (hAreaId === 'custom' && polygon && polygon.length >= 3) {
-      return [
-        Math.min(...polygon.map((p) => p[0])),
-        Math.min(...polygon.map((p) => p[1])),
-        Math.max(...polygon.map((p) => p[0])),
-        Math.max(...polygon.map((p) => p[1])),
-      ];
+    if (hAreaId === 'custom') {
+      const n = hCustomAreaName.trim();
+      return n || 'منطقة مخصصة';
     }
-    return area?.bbox ?? [12.95, 32.75, 13.45, 33.05];
-  }, [hAreaId, polygon]);
+    return area?.label ?? 'منطقة مخصصة';
+  }, [hAreaId, hCustomAreaName]);
 
   const handleSelectHistoricalJob = useCallback(async (job: HistoricalJob) => {
     const nextExpand = hExpandJob === job.job_id ? null : job.job_id;
@@ -290,9 +287,9 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
     setHSelectingJobId(job.job_id);
     setHSelectError(null);
     try {
-      const fallbackBbox = deriveActiveBbox();
-      const isCustomNamed = /منطقة_مخصصة|custom/i.test(job.name || '');
-      const requestBbox = job.bbox || (isCustomNamed ? fallbackBbox : undefined);
+      // Always open historical jobs by their own identifiers/metadata.
+      // Do not inject current drawn polygon as fallback, it can misplace old jobs.
+      const requestBbox = job.bbox || undefined;
 
       const data = await setSelectedJob({
         id: job.id,
@@ -300,7 +297,6 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
         name: job.name,
         status: job.status,
         bbox: requestBbox,
-        polygon: polygon ?? undefined,
       });
 
       if (!data) {
@@ -333,7 +329,7 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
     } finally {
       setHSelectingJobId(null);
     }
-  }, [deriveActiveBbox, hExpandJob, onFlyTo, polygon, setSelectedJob]);
+  }, [hExpandJob, onFlyTo, setSelectedJob]);
 
   const loadHyP3Jobs = useCallback(async () => {
     setHJobsLoading(true);
@@ -371,12 +367,13 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
 
   const submitHistorical = async () => {
     const area = PRESET_AREAS.find(a => a.id === hAreaId);
-    const bbox = hAreaId === 'custom' && polygon && polygon.length >= 2
+    const bbox = hAreaId === 'custom' && polygon && polygon.length >= 3
       ? [
           Math.min(...polygon.map(p => p[0])), Math.min(...polygon.map(p => p[1])),
           Math.max(...polygon.map(p => p[0])), Math.max(...polygon.map(p => p[1])),
         ]
       : area?.bbox ?? [12.95,32.75,13.45,33.05];
+    const areaName = deriveAreaName();
 
     setHLoading(true); setHError(null); setHResult(null);
     try {
@@ -388,7 +385,7 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
           bbox,
           date_from: `${hYearFrom}-${hMonthFrom}-01`,
           date_to:   `${hYearTo}-${hMonthTo}-28`,
-          area_name: area?.label ?? 'منطقة مخصصة',
+          area_name: areaName,
           max_pairs: hMaxPairs,
         }),
       });
@@ -405,7 +402,12 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
 
   const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
   const MONTHS    = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-  const YEARS     = Array.from({ length: 8 }, (_,i) => 2018+i);
+  const CURRENT_YEAR = new Date().getFullYear();
+  const FIRST_INSAR_YEAR = 2014; // بداية أرشيف Sentinel-1 المناسب لـ InSAR
+  const YEARS = Array.from(
+    { length: Math.max(1, CURRENT_YEAR - FIRST_INSAR_YEAR + 1) },
+    (_, i) => FIRST_INSAR_YEAR + i,
+  );
 
   const runAnalysis = useCallback(async () => {
     if (!polygon || polygon.length < 3) { setError('ارسم منطقة على الخريطة أولاً'); return; }
@@ -458,6 +460,11 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
     return 'ok';
   }, [result]);
 
+  const customPolygonMissing = hAreaId === 'custom' && (!polygon || polygon.length < 3);
+  const customAreaNameMissing = hAreaId === 'custom' && !hCustomAreaName.trim();
+  const canSubmitHistorical = !hLoading && !customPolygonMissing && !customAreaNameMissing;
+  const currentAreaName = deriveAreaName();
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-900" dir="rtl">
 
@@ -485,6 +492,13 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
         <div className="flex-1 overflow-y-auto">
           {/* Form */}
           <div className="px-4 py-3 space-y-3 border-b border-slate-800">
+            <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-[11px] text-violet-200 leading-relaxed">
+              <p className="font-semibold mb-1">طريقة الاستخدام السريعة</p>
+              <p>1) ارسم المنطقة من تبويب الرسم.</p>
+              <p>2) اختر "منطقة مخصصة" ثم اكتب اسمًا واضحًا.</p>
+              <p>3) اضغط "إرسال" وسيتم حفظ الاسم والحدود في السجل.</p>
+            </div>
+
             {/* Area */}
             <div>
               <label className="block text-xs text-slate-400 mb-1.5 font-medium">📍 المنطقة</label>
@@ -492,9 +506,29 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-violet-500">
                 {PRESET_AREAS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
               </select>
-              {hAreaId === 'custom' && (!polygon || polygon.length < 3) && (
+              {hAreaId === 'custom' && (
+                <div className="mt-2 space-y-1.5">
+                  <label className="block text-[11px] text-slate-400">اسم المنطقة المرسومة</label>
+                  <input
+                    type="text"
+                    value={hCustomAreaName}
+                    onChange={(e) => setHCustomAreaName(e.target.value)}
+                    placeholder="مثال: مزرعة بئر الغنم — القطاع الشمالي"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-violet-500"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    هذا الاسم سيظهر في سجل الوظائف التاريخية لتتعرف على منطقتك لاحقاً.
+                  </p>
+                </div>
+              )}
+              {customPolygonMissing && (
                 <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
                   <AlertTriangle size={11} /> ارسم منطقة على الخريطة أولاً (تبويب رسم)
+                </p>
+              )}
+              {customAreaNameMissing && (
+                <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={11} /> اكتب اسم المنطقة المخصصة قبل الإرسال
                 </p>
               )}
             </div>
@@ -541,8 +575,13 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
               <span className="text-xs text-violet-300 w-4 text-center">{hMaxPairs}</span>
             </div>
 
+            <div className="rounded-lg border border-slate-700/60 bg-slate-800/35 px-3 py-2 text-[11px]">
+              <p className="text-slate-400">الاسم الذي سيتم حفظه:</p>
+              <p className="text-violet-200 font-semibold">{currentAreaName}</p>
+            </div>
+
             <button onClick={submitHistorical}
-              disabled={hLoading || (hAreaId === 'custom' && (!polygon || polygon.length < 3))}
+              disabled={!canSubmitHistorical}
               className="w-full py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-xs flex items-center justify-center gap-2 font-medium">
               {hLoading ? <><RefreshCw size={13} className="animate-spin" /> جاري الإرسال...</>
                         : <><Send size={13} /> إرسال للمعالجة (ASF HyP3)</>}
@@ -596,7 +635,10 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
                     {job.status==='RUNNING'   && <RefreshCw size={12} className="text-blue-400 animate-spin shrink-0" />}
                     {job.status==='PENDING'   && <Clock size={12} className="text-amber-400 shrink-0" />}
                     {job.status==='FAILED'    && <XCircle size={12} className="text-red-400 shrink-0" />}
-                    <span className="truncate text-slate-200">{job.name}</span>
+                    <div className="min-w-0">
+                      <p className="truncate text-slate-200">{job.name}</p>
+                      <p className="truncate text-[10px] text-violet-300">{job.area_name || 'اسم منطقة غير محفوظ'}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {hSelectingJobId===job.job_id && <Loader2 size={11} className="text-violet-300 animate-spin" />}
@@ -608,6 +650,14 @@ export default function InSARPanel({ polygon, onFlyTo }: Props) {
                 </button>
                 {hExpandJob===job.job_id && (
                   <div className="px-3 pb-3 pt-2 border-t border-slate-700/50 space-y-2">
+                    {job.area_name && (
+                      <p className="text-[10px] text-violet-300">المنطقة: {job.area_name}</p>
+                    )}
+                    {Array.isArray(job.bbox) && job.bbox.length === 4 && (
+                      <p className="font-mono text-[10px] text-slate-500">
+                        BBOX: {job.bbox.map((v) => Number(v).toFixed(4)).join(', ')}
+                      </p>
+                    )}
                     <p className="font-mono text-slate-500 text-[10px]">{job.job_id?.slice(0,16)}...</p>
                     {job.granules?.length > 0 && <p className="text-slate-600 text-[10px] truncate">{job.granules[0]?.slice(0,50)}...</p>}
                     {job.status==='SUCCEEDED' && (

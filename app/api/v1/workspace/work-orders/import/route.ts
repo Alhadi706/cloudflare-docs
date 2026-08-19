@@ -8,7 +8,10 @@ const BACKEND = 'http://127.0.0.1:7860';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
 export async function POST(req: NextRequest) {
-  const tenantId = req.headers.get('x-tenant-id') || req.headers.get('X-Tenant-ID') || '';
+  const tenantId = (req.headers.get('x-verified-tenant-id') || '').trim();
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
 
   try {
     const formData = await req.formData();

@@ -5,7 +5,7 @@ const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
 
 function applySessionCookies(
   res: NextResponse,
-  payload: { role: string; departmentCode?: string | null; tenantId?: string | null; tenantCode?: string | null; appScope?: string | null }
+  payload: { token: string; role: string; departmentCode?: string | null; tenantId?: string | null; tenantCode?: string | null; appScope?: string | null }
 ) {
   const secure = process.env.NODE_ENV === 'production';
   const base = {
@@ -16,7 +16,7 @@ function applySessionCookies(
     maxAge: SESSION_MAX_AGE,
   };
 
-  res.cookies.set('auth_session', '1', base);
+  res.cookies.set('auth_session', payload.token, base);
   res.cookies.set('user_role', payload.role || 'member', base);
 
   if (payload.departmentCode) {
@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
 
   const res = NextResponse.json({ ok: true });
   applySessionCookies(res, {
+    token,
     role: String(claims.role || 'member'),
     departmentCode: typeof claims.department_code === 'string' ? claims.department_code : null,
     tenantId: typeof claims.tenant_id === 'string' ? claims.tenant_id : null,

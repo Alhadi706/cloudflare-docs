@@ -14,12 +14,9 @@ const DATA_DIR = path.join(process.cwd(), '.data', 'workflow-orders');
 const BACKEND = 'http://127.0.0.1:7860';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header.
 function getTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    'aaaaaaaa-0000-4000-a000-000000000001'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function getFile(tenantId: string) {
@@ -42,6 +39,9 @@ function writeOrders(tenantId: string, orders: any[]) {
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
 
   // Try backend first (has authoritative data)
   try {
@@ -68,6 +68,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   let body: any;
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: 'بيانات غير صالحة' }, { status: 400 });

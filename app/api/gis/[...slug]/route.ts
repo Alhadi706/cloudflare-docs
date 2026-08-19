@@ -236,62 +236,266 @@ type InSarMeasuredStats = {
   raster_width: number;
   raster_height: number;
   nodata_value: number | null;
+  raster_bbox: [number, number, number, number] | null;
 };
+
+function isLikelyLonLatBounds(b: [number, number, number, number]): boolean {
+  const [w, s, e, n] = b;
+  return (
+    Number.isFinite(w) && Number.isFinite(s) && Number.isFinite(e) && Number.isFinite(n)
+    && Math.abs(w) <= 180 && Math.abs(e) <= 180
+    && Math.abs(s) <= 90 && Math.abs(n) <= 90
+  );
+}
+
+function utmToLonLat(easting: number, northing: number, zone: number, isSouthHemisphere: boolean): [number, number] | null {
+  if (!Number.isFinite(easting) || !Number.isFinite(northing) || !Number.isFinite(zone) || zone < 1 || zone > 60) return null;
+
+  const a = 6378137.0;
+  const f = 1 / 298.257223563;
+  const k0 = 0.9996;
+  const eccSq = 2 * f - f * f;
+  const eccPrimeSq = eccSq / (1 - eccSq);
+
+  const x = easting - 500000.0;
+  let y = northing;
+  if (isSouthHemisphere) y -= 10000000.0;
+
+  const m = y / k0;
+  const mu = m / (a * (1 - eccSq / 4 - 3 * eccSq * eccSq / 64 - 5 * eccSq * eccSq * eccSq / 256));
+
+  const e1 = (1 - Math.sqrt(1 - eccSq)) / (1 + Math.sqrt(1 - eccSq));
+  const j1 = 3 * e1 / 2 - 27 * Math.pow(e1, 3) / 32;
+  const j2 = 21 * e1 * e1 / 16 - 55 * Math.pow(e1, 4) / 32;
+  const j3 = 151 * Math.pow(e1, 3) / 96;
+  const j4 = 1097 * Math.pow(e1, 4) / 512;
+
+  const fp = mu + j1 * Math.sin(2 * mu) + j2 * Math.sin(4 * mu) + j3 * Math.sin(6 * mu) + j4 * Math.sin(8 * mu);
+
+  const sinFp = Math.sin(fp);
+  const cosFp = Math.cos(fp);
+  const tanFp = Math.tan(fp);
+
+  const c1 = eccPrimeSq * cosFp * cosFp;
+  const t1 = tanFp * tanFp;
+  const n1 = a / Math.sqrt(1 - eccSq * sinFp * sinFp);
+  const r1 = a * (1 - eccSq) / Math.pow(1 - eccSq * sinFp * sinFp, 1.5);
+  const d = x / (n1 * k0);
+
+  const lat = fp - (n1 * tanFp / r1) * (
+    (d * d) / 2
+    - (5 + 3 * t1 + 10 * c1 - 4 * c1 * c1 - 9 * eccPrimeSq) * Math.pow(d, 4) / 24
+    + (61 + 90 * t1 + 298 * c1 + 45 * t1 * t1 - 252 * eccPrimeSq - 3 * c1 * c1) * Math.pow(d, 6) / 720
+  );
+
+  const lon0Deg = zone * 6 - 183;
+  const lon = (
+    d
+    - (1 + 2 * t1 + c1) * Math.pow(d, 3) / 6
+    + (5 - 2 * c1 + 28 * t1 - 3 * c1 * c1 + 8 * eccPrimeSq + 24 * t1 * t1) * Math.pow(d, 5) / 120
+  ) / cosFp;
+
+  const latDeg = lat * 180 / Math.PI;
+  const lonDeg = lon0Deg + (lon * 180 / Math.PI);
+  if (!Number.isFinite(latDeg) || !Number.isFinite(lonDeg)) return null;
+  return [lonDeg, latDeg];
+}
+
+function normalizeRasterBoundsToLonLat(
+  bounds: [number, number, number, number] | null,
+  epsg: number | null,
+): [number, number, number, number] | null {
+  if (!bounds) return null;
+  if (isLikelyLonLatBounds(bounds)) return bounds;
+  if (!epsg) return null;
+
+  const isNorth = epsg >= 32601 && epsg <= 32660;
+  const isSouth = epsg >= 32701 && epsg <= 32760;
+  if (!isNorth && !isSouth) return null;
+
+  const zone = epsg % 100;
+  const [w, s, e, n] = bounds;
+  const corners = [
+    utmToLonLat(w, s, zone, isSouth),
+    utmToLonLat(e, s, zone, isSouth),
+    utmToLonLat(e, n, zone, isSouth),
+    utmToLonLat(w, n, zone, isSouth),
+  ].filter(Boolean) as [number, number][];
+
+  if (corners.length !== 4) return null;
+  const lons = corners.map((c) => c[0]);
+  const lats = corners.map((c) => c[1]);
+  const out: [number, number, number, number] = [
+    Math.min(...lons),
+    Math.min(...lats),
+    Math.max(...lons),
+    Math.max(...lats),
+  ];
+
+  return isLikelyLonLatBounds(out) ? out : null;
+}
+
+function boundsFromCmrEntry(entry: any): [number, number, number, number] | null {
+  const box = Array.isArray(entry?.boxes) ? entry.boxes[0] : null;
+  if (typeof box === 'string') {
+    const nums = box.split(/\s+/).map((x) => Number(x)).filter((x) => Number.isFinite(x));
+    if (nums.length === 4) {
+      const [s, w, n, e] = nums;
+      return [w, s, e, n];
+    }
+  }
+
+  const polyRaw = Array.isArray(entry?.polygons) ? entry.polygons[0] : null;
+  const polyStr = Array.isArray(polyRaw) ? polyRaw[0] : null;
+  if (typeof polyStr === 'string') {
+    const nums = polyStr.split(/\s+/).map((x) => Number(x)).filter((x) => Number.isFinite(x));
+    if (nums.length >= 6 && nums.length % 2 === 0) {
+      const lons: number[] = [];
+      const lats: number[] = [];
+      for (let i = 0; i < nums.length; i += 2) {
+        lons.push(nums[i]);
+        lats.push(nums[i + 1]);
+      }
+      return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+    }
+  }
+
+  return null;
+}
+
+async function resolveBoundsFromGranules(granules: string[]): Promise<[number, number, number, number] | null> {
+  for (const granule of granules.slice(0, 2)) {
+    const g = String(granule || '').trim();
+    if (!g) continue;
+    try {
+      const q = new URLSearchParams({
+        page_size: '1',
+        sort_key: '-start_date',
+        'options[producer_granule_id][pattern]': 'true',
+        producer_granule_id: `${g}*`,
+      });
+      const res = await fetch(`https://cmr.earthdata.nasa.gov/search/granules.json?${q.toString()}`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) continue;
+      const d = await res.json();
+      const entry = Array.isArray(d?.feed?.entry) ? d.feed.entry[0] : null;
+      const b = boundsFromCmrEntry(entry);
+      if (b) return b;
+    } catch {
+      // Continue with next granule.
+    }
+  }
+  return null;
+}
+
+async function extractInSarStatsFromArrayBuffer(ab: ArrayBuffer): Promise<InSarMeasuredStats | null> {
+  try {
+    const { fromArrayBuffer } = await import('geotiff');
+    const tiff = await fromArrayBuffer(ab);
+    const image = await tiff.getImage(0);
+    const width = image.getWidth();
+    const height = image.getHeight();
+    const bbRaw = (image as any).getBoundingBox?.() as [number, number, number, number] | undefined;
+    const rawRasterBbox = Array.isArray(bbRaw) && bbRaw.length === 4
+      ? [Number(bbRaw[0]), Number(bbRaw[1]), Number(bbRaw[2]), Number(bbRaw[3])] as [number, number, number, number]
+      : null;
+    const projectedEpsgRaw = Number((image as any).getGeoKeys?.()?.ProjectedCSTypeGeoKey);
+    const projectedEpsg = Number.isFinite(projectedEpsgRaw) ? projectedEpsgRaw : null;
+    const rasterBbox = normalizeRasterBoundsToLonLat(rawRasterBbox, projectedEpsg);
+    const noDataRaw = image.getGDALNoData?.() ?? null;
+    const noDataVal = noDataRaw === null || noDataRaw === undefined ? null : Number(noDataRaw);
+
+    const rasters = await image.readRasters({ interleave: true, samples: [0] });
+    const arr = (Array.isArray(rasters) ? rasters[0] : rasters) as Float32Array | Int16Array | Int32Array | undefined;
+    if (!arr || arr.length === 0) return null;
+
+    function compute(step: number, skipNoData: boolean) {
+      let min = Number.POSITIVE_INFINITY;
+      let max = Number.NEGATIVE_INFINITY;
+      let sum = 0;
+      let validCount = 0;
+      let deformCount = 0;
+      for (let i = 0; i < arr.length; i += step) {
+        const v = Number(arr[i]);
+        if (!Number.isFinite(v)) continue;
+        if (skipNoData && noDataVal !== null && Math.abs(v - noDataVal) < 1e-6) continue;
+        if (Math.abs(v) > 10_000) continue;
+        validCount += 1;
+        sum += v;
+        if (v < min) min = v;
+        if (v > max) max = v;
+        if (Math.abs(v) >= 2) deformCount += 1;
+      }
+      return { min, max, sum, validCount, deformCount };
+    }
+
+    const maxSamples = 250_000;
+    const sampledStep = Math.max(1, Math.floor(arr.length / maxSamples));
+    let pass = compute(sampledStep, true);
+
+    // Sparse displacement rasters can hide valid values in coarse sampling.
+    if (pass.validCount < 10 && sampledStep > 1) {
+      pass = compute(1, true);
+    }
+
+    // Some HyP3 products declare NoData=0 while valid displacement can include many zeros.
+    if (pass.validCount < 10 && noDataVal === 0) {
+      pass = compute(1, false);
+    }
+
+    if (pass.validCount < 10 || !Number.isFinite(pass.min) || !Number.isFinite(pass.max)) return null;
+
+    return {
+      max_subsidence_mm: +pass.min.toFixed(2),
+      max_uplift_mm: +pass.max.toFixed(2),
+      mean_displacement_mm: +(pass.sum / pass.validCount).toFixed(2),
+      annual_rate_mm_year: null,
+      deform_area_pct: +((pass.deformCount / pass.validCount) * 100).toFixed(2),
+      sample_count: pass.validCount,
+      valid_pixel_count: pass.validCount,
+      raster_width: width,
+      raster_height: height,
+      nodata_value: noDataVal,
+      raster_bbox: rasterBbox,
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function extractInSarStatsFromGeoTiff(url: string): Promise<InSarMeasuredStats | null> {
   try {
-    const { fromArrayBuffer } = await import('geotiff');
     const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
     if (!res.ok) return null;
 
     const rawBuf = Buffer.from(await res.arrayBuffer());
     const ab = rawBuf.buffer.slice(rawBuf.byteOffset, rawBuf.byteOffset + rawBuf.byteLength) as ArrayBuffer;
-    const tiff = await fromArrayBuffer(ab);
-    const image = await tiff.getImage(0);
-    const width = image.getWidth();
-    const height = image.getHeight();
-    const noDataRaw = image.getGDALNoData?.() ?? null;
-    const noDataVal = noDataRaw === null || noDataRaw === undefined ? null : Number(noDataRaw);
+    return await extractInSarStatsFromArrayBuffer(ab);
+  } catch {
+    return null;
+  }
+}
 
-    const rasters = await image.readRasters({ interleave: true });
-    const arr = rasters[0] as Float32Array | Int16Array | Int32Array | undefined;
-    if (!arr || arr.length === 0) return null;
+async function extractInSarStatsFromZip(url: string): Promise<InSarMeasuredStats | null> {
+  try {
+    const jszipMod = await import('jszip');
+    const JSZip = jszipMod.default;
+    const res = await fetch(url, { signal: AbortSignal.timeout(90_000) });
+    if (!res.ok) return null;
+    const rawBuf = Buffer.from(await res.arrayBuffer());
+    const zip = await JSZip.loadAsync(rawBuf);
+    const names = Object.keys(zip.files);
 
-    const maxSamples = 250_000;
-    const step = Math.max(1, Math.floor(arr.length / maxSamples));
-    let min = Number.POSITIVE_INFINITY;
-    let max = Number.NEGATIVE_INFINITY;
-    let sum = 0;
-    let validCount = 0;
-    let deformCount = 0;
+    const preferred = names.find((n) => /los.*disp|displacement|_disp/i.test(n) && /\.tif$/i.test(n));
+    const anyTif = names.find((n) => /\.tif$/i.test(n));
+    const tifName = preferred || anyTif;
+    if (!tifName) return null;
 
-    for (let i = 0; i < arr.length; i += step) {
-      const v = Number(arr[i]);
-      if (!Number.isFinite(v)) continue;
-      if (noDataVal !== null && Math.abs(v - noDataVal) < 1e-6) continue;
-      if (Math.abs(v) > 10_000) continue;
-
-      validCount += 1;
-      sum += v;
-      if (v < min) min = v;
-      if (v > max) max = v;
-      if (Math.abs(v) >= 2) deformCount += 1;
-    }
-
-    if (validCount < 10 || !Number.isFinite(min) || !Number.isFinite(max)) return null;
-
-    return {
-      max_subsidence_mm: +min.toFixed(2),
-      max_uplift_mm: +max.toFixed(2),
-      mean_displacement_mm: +(sum / validCount).toFixed(2),
-      annual_rate_mm_year: null,
-      deform_area_pct: +((deformCount / validCount) * 100).toFixed(2),
-      sample_count: validCount,
-      valid_pixel_count: validCount,
-      raster_width: width,
-      raster_height: height,
-      nodata_value: noDataVal,
-    };
+    const entry = zip.file(tifName);
+    if (!entry) return null;
+    const ab = await entry.async('arraybuffer');
+    return await extractInSarStatsFromArrayBuffer(ab);
   } catch {
     return null;
   }
@@ -300,13 +504,26 @@ async function extractInSarStatsFromGeoTiff(url: string): Promise<InSarMeasuredS
 async function handleInSARResults(body: Record<string, unknown>) {
   const jobId = String(body.job_id || body.id || '').trim();
   const jobName = String(body.name || 'InSAR Job');
-  const bounds = insarBoundsFromBody(body);
-  const centroid: [number, number] | null = bounds
-    ? [+(bounds[0] + bounds[2]) / 2, +(bounds[1] + bounds[3]) / 2]
-    : null;
+  let bounds = insarBoundsFromBody(body);
+  let boundsSource: 'request' | 'cmr_granule' | 'raster_georef' | 'unknown' = bounds ? 'request' : 'unknown';
 
   const token = await getEarthdataToken();
   const cloudJob = token && jobId ? await fetchHyP3JobById(token, jobId) : null;
+  const granules = Array.isArray(cloudJob?.job_parameters?.granules)
+    ? cloudJob.job_parameters.granules.map((g: any) => String(g || '').trim()).filter(Boolean)
+    : [];
+  if (!bounds && granules.length > 0) {
+    const gBounds = await resolveBoundsFromGranules(granules);
+    if (gBounds) {
+      bounds = gBounds;
+      boundsSource = 'cmr_granule';
+    }
+  }
+
+  let centroid: [number, number] | null = bounds
+    ? [+(bounds[0] + bounds[2]) / 2, +(bounds[1] + bounds[3]) / 2]
+    : null;
+
   const files = Array.isArray(cloudJob?.files)
     ? cloudJob.files.map((f: any) => ({
         name: f?.filename || f?.name || 'unknown',
@@ -315,12 +532,26 @@ async function handleInSARResults(body: Record<string, unknown>) {
       }))
     : [];
 
-  const displacementFile = files.find((f: any) => typeof f.name === 'string' && /los|disp|displacement/i.test(f.name));
+  const displacementFile = files.find((f: any) =>
+    typeof f.name === 'string'
+    && /\.tif$/i.test(f.name)
+    && /los|disp|displacement|vert/i.test(f.name)
+  );
+  const zipFile = files.find((f: any) => typeof f.name === 'string' && /\.zip$/i.test(f.name));
   const browseFile = files.find((f: any) => typeof f.name === 'string' && /\.png$/i.test(f.name));
 
-  const measuredStats = displacementFile?.url
+  let measuredStats = displacementFile?.url
     ? await extractInSarStatsFromGeoTiff(String(displacementFile.url))
     : null;
+  if (!measuredStats && zipFile?.url) {
+    measuredStats = await extractInSarStatsFromZip(String(zipFile.url));
+  }
+
+  if (!bounds && measuredStats?.raster_bbox) {
+    bounds = measuredStats.raster_bbox;
+    boundsSource = 'raster_georef';
+    centroid = [+(bounds[0] + bounds[2]) / 2, +(bounds[1] + bounds[3]) / 2];
+  }
   const timeSeries: Array<{ at: string; displacement_mm: number }> = [];
 
   let geojson: any = null;
@@ -375,6 +606,7 @@ async function handleInSARResults(body: Record<string, unknown>) {
     bounds,
     centroid,
     has_precise_bounds: !!bounds,
+    bounds_source: boundsSource,
     bounds_confidence: bounds ? 'provided' : 'unknown',
     raster: {
       displacement_url: displacementFile?.url || null,

@@ -33,30 +33,22 @@ function normalizeRole(raw: string): string {
   return ROLE_ALIASES[role] || role;
 }
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
 function tenantIdFromRequest(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function actorNameFromRequest(req: NextRequest): string {
   return (
     req.headers.get('x-verified-full-name') ||
     req.headers.get('x-verified-email') ||
-    req.cookies.get('user_role')?.value ||
     'system'
   );
 }
 
-function actorRoleFromRequest(req: NextRequest, bodyRole?: string): string {
+function actorRoleFromRequest(req: NextRequest): string {
   return normalizeRole(
-    req.headers.get('x-verified-role') ||
-      req.headers.get('x-user-role') ||
-      req.cookies.get('user_role')?.value ||
-      String(bodyRole || ''),
+    req.headers.get('x-verified-role') || '',
   );
 }
 
@@ -73,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ detail: 'السبب إلزامي في الرفض أو الإرجاع' }, { status: 400 });
   }
 
-  const actorRole = actorRoleFromRequest(req, body?.as_role);
+  const actorRole = actorRoleFromRequest(req);
   const allowedRoles = ACTION_ALLOWED_ROLES[action] || [];
 
   if (!allowedRoles.includes(actorRole)) {
@@ -84,6 +76,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const tenantId = tenantIdFromRequest(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const actorName = actorNameFromRequest(req);
 
   try {

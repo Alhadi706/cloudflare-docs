@@ -3,13 +3,9 @@ import { listTrainingFollowups, submitTrainingFollowup } from '@/lib/training-im
 
 const ALLOWED_ROLES = ['section_manager', 'dept_manager', 'hr_manager', 'admin_officer', 'admin', 'founder'];
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
 function resolveTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant'
-  ).trim();
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function resolveActor(req: NextRequest): {
@@ -21,36 +17,21 @@ function resolveActor(req: NextRequest): {
 } {
   return {
     id:
-      (req.headers.get('x-verified-email') ||
-        req.headers.get('x-user-id') ||
-        req.cookies.get('user_email')?.value ||
-        'system')
+      (req.headers.get('x-verified-email') || '')
         .trim(),
     role:
-      (req.headers.get('x-verified-role') ||
-        req.headers.get('x-user-role') ||
-        req.cookies.get('user_role')?.value ||
-        'employee')
+      (req.headers.get('x-verified-role') || '')
         .trim()
         .toLowerCase(),
     employee_no:
-      (req.headers.get('x-verified-employee-no') ||
-        req.headers.get('x-employee-no') ||
-        req.cookies.get('employee_no')?.value ||
-        '')
+      (req.headers.get('x-verified-employee-no') || '')
         .trim(),
     dept_code:
-      (req.headers.get('x-verified-dept-code') ||
-        req.headers.get('x-dept-code') ||
-        req.cookies.get('user_dept')?.value ||
-        '')
+      (req.headers.get('x-verified-dept-code') || '')
         .trim()
         .toUpperCase(),
     section_code:
-      (req.headers.get('x-verified-section-code') ||
-        req.headers.get('x-section-code') ||
-        req.cookies.get('section_code')?.value ||
-        '')
+      (req.headers.get('x-verified-section-code') || '')
         .trim()
         .toUpperCase(),
   };
@@ -58,6 +39,9 @@ function resolveActor(req: NextRequest): {
 
 export async function GET(req: NextRequest) {
   const tenantId = resolveTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const actor = resolveActor(req);
   const all = listTrainingFollowups(tenantId);
 
@@ -74,6 +58,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const tenantId = resolveTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
   const actor = resolveActor(req);
   const body = await req.json().catch(() => ({}));
 

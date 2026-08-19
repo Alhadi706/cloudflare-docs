@@ -32,7 +32,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const url = `${BACKEND}/api/v1/workspace/assets/${params.id}?tenant_id=${tenantId}`;
   try {
-    const res = await fetch(url, { headers: buildBackendHeaders(tenantId), signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { headers: buildBackendHeaders(tenantId, {
+      'X-User-Role': req.headers.get('x-verified-role') || '',
+    }), signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return NextResponse.json({ error: `${res.status}` }, { status: res.status });
     const data = await res.json();
     return NextResponse.json(featureToPrincipal(data));
@@ -52,17 +54,15 @@ function mapRole(role: string): string {
     case 'section_manager': return 'layer_owner';
     case 'engineer':      return 'layer_owner';
     case 'viewer':        return 'viewer';
-    default:              return role || 'super_admin'; // default to super_admin for system users
+    default:              return role || 'viewer';
   }
 }
 
 /** Forward user role + id headers from Next.js request → backend */
 function buildMutateHeaders(req: NextRequest, tenantId: string): Record<string, string> {
-  const rawRole = req.headers.get('x-verified-role') ??
-                  req.headers.get('x-user-role')     ??
-                  'admin';
-  const userId  = req.headers.get('x-verified-user-id') ??
-                  req.headers.get('x-user-id') ?? '1';
+  const rawRole = req.headers.get('x-verified-role') || '';
+  const userId  = req.headers.get('x-verified-employee-no') ||
+                  req.headers.get('x-verified-email') || '';
   return buildBackendHeaders(tenantId, {
     'x-user-role': mapRole(rawRole),
     'x-user-id':   userId,

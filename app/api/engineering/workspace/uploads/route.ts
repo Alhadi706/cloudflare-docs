@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 
@@ -16,6 +17,7 @@ type StoredFileRecord = {
   storedName: string;
   mimeType: string;
   size: number;
+  contentHash?: string;
   docType: string;
   uploadedAt: string;
 };
@@ -44,6 +46,18 @@ function writeIndex(index: Record<string, StoredFileRecord>): void {
   const tmp = `${INDEX_FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(index, null, 2), 'utf8');
   fs.renameSync(tmp, INDEX_FILE);
+}
+
+function findExistingByContent(index: Record<string, StoredFileRecord>, hash: string, size: number): StoredFileRecord | null {
+  const rows = Object.values(index);
+  for (const row of rows) {
+    if (!row) continue;
+    if (row.contentHash !== hash) continue;
+    if (Number(row.size || 0) !== Number(size || 0)) continue;
+    const absPath = path.join(BIN_DIR, row.storedName || '');
+    if (row.storedName && fs.existsSync(absPath)) return row;
+  }
+  return null;
 }
 
 function normalizeGeoJsonToFeatureCollection(input: any): { type: 'FeatureCollection'; features: any[] } | null {
@@ -166,6 +180,26 @@ export async function POST(req: NextRequest) {
     const absPath = path.join(BIN_DIR, storedName);
 
     const bytes = Buffer.from(await file.arrayBuffer());
+
+    const contentHash = createHash('sha256').update(bytes).digest('hex');
+    const index = readIndex();
+    const existing = findExistingByContent(index, contentHash, file.size);
+    if (existing) {
+      return NextResponse.json({
+        ok: true,
+        duplicate: true,
+        fileId: existing.id,
+        fileName: existing.originalName,
+        fileSize: existing.size,
+        mimeType: existing.mimeType,
+        docType: requestedDocType || existing.docType || 'other',
+        fileUrl: `/api/engineering/workspace/files/${existing.id}`,
+        spatialAvailable: fs.existsSync(path.join(SPATIAL_DIR, `${existing.id}.json`)),
+        spatialFeatureCount: 0,
+        spatialUrl: fs.existsSync(path.join(SPATIAL_DIR, `${existing.id}.json`)) ? `/api/engineering/workspace/files/${existing.id}/spatial` : null,
+      });
+    }
+
     fs.writeFileSync(absPath, bytes);
 
     const spatialFc = detectSpatialFeatureCollection(file.name, file.type || '', bytes);
@@ -180,11 +214,11 @@ export async function POST(req: NextRequest) {
       storedName,
       mimeType: file.type || 'application/octet-stream',
       size: file.size,
+      contentHash,
       docType: requestedDocType || 'other',
       uploadedAt: new Date().toISOString(),
     };
 
-    const index = readIndex();
     index[id] = record;
     writeIndex(index);
 

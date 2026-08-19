@@ -5,10 +5,10 @@ export const runtime = 'nodejs';
 
 function forwardHeaders(req: NextRequest): Record<string, string> {
   const headers: Record<string, string> = {};
-  const tenantId = (req.headers.get('x-tenant-id') || req.headers.get('X-Tenant-ID') || '').trim();
+  const tenantId = (req.headers.get('x-verified-tenant-id') || '').trim();
   const auth = (req.headers.get('authorization') || '').trim();
-  const userId = (req.headers.get('x-user-id') || 'system').trim();
-  const userRole = (req.headers.get('x-user-role') || 'viewer').trim();
+  const userId = (req.headers.get('x-verified-user-id') || '').trim();
+  const userRole = (req.headers.get('x-verified-role') || '').trim();
 
   if (tenantId) headers['X-Tenant-ID'] = tenantId;
   if (auth) headers.Authorization = auth;
@@ -75,6 +75,9 @@ function extractQuestionHint(question: string): string {
 }
 
 export async function POST(req: NextRequest, { params }: { params: { assetId: string } }) {
+  if (!req.headers.get('x-verified-tenant-id')?.trim()) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  }
   try {
     const assetId = String(params.assetId || '').trim();
     if (!assetId) {

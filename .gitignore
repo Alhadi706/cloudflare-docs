@@ -5,3 +5,18 @@ node_modules
 .data/gis/
 .data/mobile-field/
 .data/
+
+# Phase 0 security fix: never track local secrets
+.env.local
+.env*.local
+
+# Graphify knowledge graph: graph.json/GRAPH_REPORT.md are meant to be shared
+# with the team, but local cache/cost/query-log artifacts should not be committed
+graphify-out/cache/
+graphify-out/cost.json
+graphify-out/.graphify_analysis.json
+
+# Large desktop binaries are distributed as release assets, not Git blobs.
+dist-electron/maintenance/maintenance-0.1.0-x86_64.AppImage
+dist-electron/maintenance/linux-unpacked/digital-dashboard-v2
+public/downloads/maintenance-0.1.0-x86_64.AppImage

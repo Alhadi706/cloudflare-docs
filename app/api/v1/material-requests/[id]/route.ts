@@ -32,11 +32,11 @@ function normalizeEvents(events: unknown): Array<{ at: string; action: string; b
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const tenantId =
-    req.headers.get('x-verified-tenant-id') ||
-    req.headers.get('x-tenant-id') ||
-    req.cookies.get('tenant_id')?.value ||
-    'dev-default-tenant';
+  // Tenant identity must come from middleware's verified JWT — never a client-supplied header/cookie.
+  const tenantId = (req.headers.get('x-verified-tenant-id') || '').trim();
+  if (!tenantId) {
+    return NextResponse.json({ detail: 'غير مصرح — يرجى تسجيل الدخول' }, { status: 401 });
+  }
 
   const request = getMaterialRequestById(tenantId, params.id);
   if (!request) {

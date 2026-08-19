@@ -1,0 +1,28 @@
+# Graphify indexing exclusions (in addition to respected .gitignore rules).
+# Keeps the knowledge graph focused on source code and avoids indexing
+# build artifacts, vendored dependencies, ML model binaries, and anything
+# that could contain secrets.
+
+# Build/dist output not covered by root .gitignore
+dist-electron/
+flutter_dsf/build/
+flutter_dsf/.dart_tool/
+mobile-android/node_modules/
+mobile-android/android/.gradle/
+mobile-android/android/app/build/
+src-tauri/target/
+.venv/
+
+# Large binary ML model artifacts (not source, no useful graph value)
+*.pt
+*.traineddata
+
+# Secrets / environment / credentials (defense in depth beyond .gitignore)
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*secret*
+*credential*

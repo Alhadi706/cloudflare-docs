@@ -10,12 +10,9 @@ const DATA_DIR = path.join(process.cwd(), '.data', 'workflow-orders');
 const BACKEND = 'http://127.0.0.1:7860';
 const STAFF_API_KEY = process.env.STAFF_API_KEY || '';
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header.
 function getTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    'aaaaaaaa-0000-4000-a000-000000000001'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function getFile(tenantId: string) {
@@ -41,11 +38,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   const { id } = params;
   let body: any;
   try { body = await req.json(); } catch { body = {}; }
 
-  const { new_status, note, actor } = body;
+  const { new_status, note } = body;
+  const actor = req.headers.get('x-verified-email') || req.headers.get('x-verified-employee-no') || '';
   if (!new_status) {
     return NextResponse.json({ error: 'new_status مطلوب' }, { status: 400 });
   }

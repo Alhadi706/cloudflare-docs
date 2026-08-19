@@ -1,5 +1,9 @@
 /**
  * owner-auth.ts — helper to verify platform owner bearer tokens
+ *
+ * Phase 0 security fix: shares the same required AUTH_SECRET as
+ * lib/auth-tokens.ts — no hardcoded fallback secret (previously a different
+ * fallback string than auth-tokens.ts, which was itself a bug).
  */
 import crypto from 'crypto';
 
@@ -7,6 +11,16 @@ export interface OwnerClaims {
   email: string;
   role: string;
   iat: number;
+}
+
+function getSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      'AUTH_SECRET environment variable is required (no default fallback is provided for security reasons).'
+    );
+  }
+  return secret;
 }
 
 export function verifyOwnerToken(authHeader: string | null): OwnerClaims | null {
@@ -17,7 +31,7 @@ export function verifyOwnerToken(authHeader: string | null): OwnerClaims | null 
 
   const [payloadB64, sig] = parts;
   const expectedSig = crypto
-    .createHmac('sha256', process.env.AUTH_SECRET || 'sovereign-dev-secret')
+    .createHmac('sha256', getSecret())
     .update(payloadB64)
     .digest('base64url');
 

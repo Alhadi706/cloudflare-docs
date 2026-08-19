@@ -4,12 +4,11 @@
 // Width: w-56, Engineering Workspace LeftPanel pattern.
 
 import React from 'react';
-import { Satellite, MapPin, ChevronRight, Camera, Layers3, Plus, RefreshCw, Eye, EyeOff, Settings2 } from 'lucide-react';
+import { Satellite, MapPin, ChevronRight, Camera } from 'lucide-react';
 import type { SceneListItem } from '@/lib/satelliteIntelAPI';
 import type { AreaIntelResult } from '@/lib/areaIntelEngine';
 import { parseSceneLabel, classifyDataType, parseSensorInfo } from '@/lib/sceneLabels';
 import type { ServiceLayerRecord } from '@/lib/serviceLayersAPI';
-import { LAYER_TEMPLATES } from './ServiceLayerCreateDialog';
 
 interface Props {
   scenes:         SceneListItem[];
@@ -41,10 +40,6 @@ export default function SatIntelLeftPanel({
   svcLayerFeatureCounts = {},
   drawnPolygon, areaResult, areaLoading,
 }: Props) {
-  const handleCreateLayer = () => {
-    onCreateServiceLayer?.('');
-  };
-
   return (
     <div className="w-64 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col overflow-hidden">
 
@@ -141,78 +136,6 @@ export default function SatIntelLeftPanel({
               </button>
             );
           })
-        )}
-      </div>
-
-      {/* ── Service layers ───────────────────────────────────────── */}
-      <div className="border-t border-slate-800 px-3 py-2.5 shrink-0 bg-slate-900/80">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <Layers3 size={12} className="text-cyan-400" />
-            <span className="text-xs font-bold text-slate-300">طبقات الخدمات</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleCreateLayer}
-              title="إضافة طبقة"
-              className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center"
-            >
-              <Plus size={12} />
-            </button>
-            <button
-              onClick={onReloadServiceLayers}
-              title="تحديث الطبقات"
-              className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center"
-            >
-              <RefreshCw size={11} className={serviceLayersLoading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        {serviceLayersError && (
-          <p className="text-xs text-rose-400 mb-1">{serviceLayersError}</p>
-        )}
-
-        {serviceLayers.length === 0 ? (
-          <p className="text-xs text-slate-500">لا توجد طبقات خدمات بعد</p>
-        ) : (
-          <div className="space-y-1 max-h-44 overflow-y-auto">
-            {[...serviceLayers].sort((a, b) => a.order - b.order).map((layer) => {
-              const meta = layer.metadata as any ?? {};
-              const tpl = LAYER_TEMPLATES.find((t) => t.type === meta.facility_type);
-              const emoji = meta.emoji ?? tpl?.emoji ?? '📍';
-              const color = meta.color ?? tpl?.color ?? '#6366f1';
-              const count = svcLayerFeatureCounts[layer.id] ?? 0;
-              return (
-                <div
-                  key={layer.id}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-800/60 bg-slate-800/30 px-2 py-1.5 group"
-                >
-                  <span className="text-base leading-none shrink-0" style={{ filter: layer.visible ? 'none' : 'grayscale(1) opacity(0.4)' }}>{emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-200 truncate font-semibold">{layer.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {count > 0 ? `${count} عنصر` : 'فارغ'} · {layer.municipality_key || 'كل ليبيا'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => onOpenLayerPanel?.(layer)}
-                    className="w-5 h-5 rounded bg-slate-700/50 hover:bg-slate-600 text-slate-400 hover:text-slate-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="إدارة العناصر"
-                  ><Settings2 size={10} /></button>
-                  <button
-                    onClick={() => onToggleServiceLayer?.(layer.id, !layer.visible)}
-                    className="text-slate-500 hover:text-slate-200 shrink-0"
-                    title={layer.visible ? 'إخفاء' : 'إظهار'}
-                  >
-                    {layer.visible
-                      ? <Eye size={12} style={{ color }} />
-                      : <EyeOff size={12} />}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
         )}
       </div>
 

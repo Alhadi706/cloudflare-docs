@@ -9,12 +9,9 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), '.data', 'corrosion-engineering');
 
+// Tenant identity must come from middleware's verified JWT — never a client-supplied header.
 function getTenantId(req: NextRequest): string {
-  return (
-    req.headers.get('x-tenant-id') ||
-    req.headers.get('X-Tenant-ID') ||
-    'aaaaaaaa-0000-4000-a000-000000000001'
-  );
+  return (req.headers.get('x-verified-tenant-id') || '').trim();
 }
 
 function getFile(tenantId: string) {
@@ -37,6 +34,9 @@ function writeCalcs(tenantId: string, calcs: any[]) {
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   const url = new URL(req.url);
   const limit = Number(url.searchParams.get('limit') || '120');
   const calcs = readCalcs(tenantId).slice(-limit).reverse();
@@ -45,6 +45,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const tenantId = getTenantId(req);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  }
   let body: any;
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: 'بيانات غير صالحة' }, { status: 400 });

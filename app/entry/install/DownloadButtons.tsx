@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, MonitorSmartphone } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 interface Props {
   appId: string;
@@ -13,143 +13,112 @@ interface Props {
 }
 
 type AppFile = { linux: string | null; windows: string | null; linuxSize: string; winSize: string };
+type ScopeId = 'corrosion' | 'maintenance' | 'admin-affairs' | 'finance' | 'materials' | 'services' | 'remote-sensing';
+type DashboardInfo = { name: string; url: string; scope: ScopeId };
 
 // ── خريطة اختصارات الداشبورد لكل إدارة/قسم ──────────────────────────────────
-const APP_DASHBOARD: Record<string, { name: string; url: string }> = {
-  'corrosion':      { name: 'إدارة التآكل',               url: '/dashboard/admin-gateway/corrosion' },
-  'maintenance':    { name: 'إدارة الهندسة والدعم الفني',  url: '/dashboard/admin-gateway/maintenance' },
-  'admin-affairs':  { name: 'إدارة الموارد البشرية',       url: '/dashboard/hr-center' },
-  'finance':        { name: 'إدارة المالية',               url: '/dashboard/admin-gateway/finance' },
-  'materials':      { name: 'إدارة المواد والأصول',         url: '/dashboard/admin-gateway/materials' },
-  'services':       { name: 'إدارة الذكاء والخدمات',       url: '/dashboard/admin-gateway/services' },
-  'remote-sensing': { name: 'مركز الاستشعار عن بعد',       url: '/dashboard/admin-gateway/gis' },
-  'section-maintenance-planning':   { name: 'قسم تخطيط الصيانة',    url: '/dashboard/admin-gateway/maintenance/planning' },
-  'section-maintenance-wells':      { name: 'قسم مراقبة الآبار',     url: '/dashboard/admin-gateway/maintenance/wells' },
-  'section-maintenance-support':    { name: 'قسم الدعم الفني',       url: '/dashboard/admin-gateway/maintenance/support' },
-  'section-maintenance-operations': { name: 'قسم مراقبة التشغيل',    url: '/dashboard/admin-gateway/maintenance/operations' },
-  'section-corrosion-monitoring':   { name: 'قسم المراقبة الدورية',  url: '/dashboard/admin-gateway/corrosion/monitoring' },
-  'section-corrosion-support':      { name: 'قسم الدعم الفني (تآكل)', url: '/dashboard/admin-gateway/corrosion/support' },
-  'section-corrosion-coating':      { name: 'قسم المكونات الهندسية', url: '/dashboard/admin-gateway/corrosion/coating' },
-  'section-finance-budgets':        { name: 'قسم الميزانيات',        url: '/dashboard/admin-gateway/finance/budgets' },
-  'section-finance-expenses':       { name: 'قسم النفقات',           url: '/dashboard/admin-gateway/finance/expenses' },
-  'section-finance-accounting':     { name: 'قسم المحاسبة',          url: '/dashboard/admin-gateway/finance/accounting' },
-  'section-finance-reports':        { name: 'قسم التقارير المالية',   url: '/dashboard/admin-gateway/finance/reports' },
-  'section-admin-affairs-hr':             { name: 'قسم شؤون المستخدمين', url: '/dashboard/hr-center' },
-  'section-admin-affairs-correspondence': { name: 'قسم المراسلات',        url: '/dashboard/hr-center/correspondence' },
-  'section-admin-affairs-contracts':      { name: 'قسم العقود',           url: '/dashboard/hr-center/contracts' },
-  'section-admin-affairs-workflow':       { name: 'قسم سير العمل',         url: '/dashboard/hr-center/workflow' },
-  'section-materials-assets':      { name: 'قسم سجل الأصول',     url: '/dashboard/admin-gateway/materials/assets' },
-  'section-materials-inventory':   { name: 'قسم المخزون',         url: '/dashboard/admin-gateway/materials/inventory' },
-  'section-materials-fleet':       { name: 'قسم الأسطول',         url: '/dashboard/admin-gateway/materials/fleet' },
-  'section-materials-procurement': { name: 'قسم المشتريات',       url: '/dashboard/admin-gateway/materials/procurement' },
-  'section-services-intelligence': { name: 'قسم الاستخبارات',     url: '/dashboard/admin-gateway/services/intelligence' },
-  'section-services-projects':     { name: 'قسم متابعة المشاريع', url: '/dashboard/admin-gateway/services/projects' },
-  'section-services-analytics':    { name: 'قسم التحليلات',       url: '/dashboard/admin-gateway/services/analytics' },
-  'section-rs-remote-sensing':     { name: 'قسم الاستشعار',       url: '/dashboard/admin-gateway/gis/remote-sensing' },
-  'section-rs-spatial':            { name: 'قسم التحليل المكاني', url: '/dashboard/admin-gateway/gis/spatial' },
-  'section-rs-satellite-intel':    { name: 'قسم الاستخبارات الفضائية', url: '/dashboard/admin-gateway/gis/satellite' },
-  'section-rs-engineering':        { name: 'قسم مساحة العمل الهندسية', url: '/dashboard/admin-gateway/gis/engineering' },
+const APP_DASHBOARD: Record<string, DashboardInfo> = {
+  'corrosion':      { name: 'إدارة التآكل',              url: '/dashboard/admin-gateway/corrosion', scope: 'corrosion' },
+  'maintenance':    { name: 'إدارة الهندسة والدعم الفني', url: '/dashboard/admin-gateway/maintenance', scope: 'maintenance' },
+  'admin-affairs':  { name: 'إدارة الموارد البشرية',      url: '/dashboard/hr-center', scope: 'admin-affairs' },
+  'finance':        { name: 'إدارة المالية',              url: '/dashboard/admin-gateway/finance', scope: 'finance' },
+  'materials':      { name: 'إدارة المواد والأصول',        url: '/dashboard/admin-gateway/materials', scope: 'materials' },
+  'services':       { name: 'إدارة الذكاء والخدمات',      url: '/dashboard/intelligence', scope: 'services' },
+  'remote-sensing': { name: 'مركز الاستشعار عن بعد',      url: '/dashboard/gis-sovereignty/remote-sensing-center', scope: 'remote-sensing' },
+
+  // Maintenance sections
+  'section-maintenance-planning':   { name: 'قسم تخطيط الصيانة',   url: '/dashboard/admin-gateway/maintenance/planning', scope: 'maintenance' },
+  'section-maintenance-wells':      { name: 'قسم مراقبة الآبار',    url: '/dashboard/admin-gateway/maintenance/wells', scope: 'maintenance' },
+  'section-maintenance-support':    { name: 'قسم الدعم الفني',      url: '/dashboard/admin-gateway/maintenance/technical', scope: 'maintenance' },
+  'section-maintenance-operations': { name: 'قسم مراقبة التشغيل',   url: '/dashboard/maintenance/operations', scope: 'maintenance' },
+
+  // Corrosion sections
+  'section-corrosion-monitoring':   { name: 'قسم المراقبة الدورية',  url: '/dashboard/admin-gateway/corrosion/monitoring', scope: 'corrosion' },
+  'section-corrosion-support':      { name: 'قسم الدعم الفني (تآكل)', url: '/dashboard/admin-gateway/corrosion/support', scope: 'corrosion' },
+  'section-corrosion-coating':      { name: 'قسم المكونات الهندسية', url: '/dashboard/admin-gateway/corrosion/coating', scope: 'corrosion' },
+
+  // Finance sections
+  'section-finance-budgets':        { name: 'قسم الميزانيات',       url: '/dashboard/admin-gateway/finance/budgets', scope: 'finance' },
+  'section-finance-expenses':       { name: 'قسم النفقات',          url: '/dashboard/admin-gateway/finance/expenses', scope: 'finance' },
+  'section-finance-accounting':     { name: 'قسم المحاسبة',         url: '/dashboard/admin-gateway/accounting', scope: 'finance' },
+  'section-finance-reports':        { name: 'قسم التقارير المالية',  url: '/dashboard/admin-gateway/finance/reports', scope: 'finance' },
+  'section-finance-payroll':        { name: 'قسم الرواتب والأجور',   url: '/dashboard/admin-gateway/finance/payroll', scope: 'finance' },
+
+  // HR / admin-affairs sections (supports both old and current IDs)
+  'section-admin-hr':                     { name: 'قسم شؤون المستخدمين',  url: '/dashboard/hr-center/personnel', scope: 'admin-affairs' },
+  'section-admin-training':               { name: 'قسم التدريب',           url: '/dashboard/hr-center/training', scope: 'admin-affairs' },
+  'section-admin-data-stats':             { name: 'قسم البيانات والإحصاء',  url: '/dashboard/hr-center/data', scope: 'admin-affairs' },
+  'section-admin-systems-staffing':       { name: 'قسم النظم والملاكات',    url: '/dashboard/hr-center/staffing', scope: 'admin-affairs' },
+  'section-admin-medical-affairs':        { name: 'قسم الشؤون الطبية',      url: '/dashboard/hr-center/medical', scope: 'admin-affairs' },
+  'section-admin-affairs-hr':             { name: 'قسم شؤون المستخدمين',   url: '/dashboard/hr-center/personnel', scope: 'admin-affairs' },
+  'section-admin-affairs-correspondence': { name: 'قسم المراسلات',         url: '/dashboard/admin-gateway/correspondence', scope: 'admin-affairs' },
+  'section-admin-affairs-contracts':      { name: 'قسم العقود',            url: '/dashboard/admin-gateway/contracts', scope: 'admin-affairs' },
+  'section-admin-affairs-workflow':       { name: 'قسم سير العمل',          url: '/dashboard/admin-gateway/workflow', scope: 'admin-affairs' },
+
+  // Materials sections
+  'section-materials-assets':      { name: 'قسم سجل الأصول',     url: '/dashboard/admin-gateway/assets/registry', scope: 'materials' },
+  'section-materials-inventory':   { name: 'قسم المخزون',         url: '/dashboard/admin-gateway/materials/inventory', scope: 'materials' },
+  'section-materials-fleet':       { name: 'قسم الأسطول',         url: '/dashboard/admin-gateway/fleet', scope: 'materials' },
+  'section-materials-procurement': { name: 'قسم المشتريات',       url: '/dashboard/admin-gateway/materials/procurement', scope: 'materials' },
+
+  // Services sections
+  'section-services-intelligence': { name: 'قسم الاستخبارات',     url: '/dashboard/intelligence', scope: 'services' },
+  'section-services-projects':     { name: 'قسم متابعة المشاريع',  url: '/dashboard/projects-control', scope: 'services' },
+  'section-services-analytics':    { name: 'قسم التحليلات',       url: '/dashboard/spatial-analytics', scope: 'services' },
+
+  // Remote sensing sections
+  'section-rs-remote-sensing':   { name: 'قسم الاستشعار',          url: '/dashboard/gis-sovereignty/remote-sensing-center', scope: 'remote-sensing' },
+  'section-rs-spatial':          { name: 'قسم التحليل المكاني',    url: '/dashboard/gis-sovereignty/spatial-analytics', scope: 'remote-sensing' },
+  'section-rs-satellite-intel':  { name: 'قسم الاستخبارات الفضائية', url: '/dashboard/gis-sovereignty/satellite-intelligence-center', scope: 'remote-sensing' },
+  'section-rs-engineering':      { name: 'قسم مساحة العمل الهندسية', url: '/dashboard/gis-sovereignty/engineering-workspace', scope: 'remote-sensing' },
 };
 
-// ── توليد ملف الاختصار وتنزيله ───────────────────────────────────────────────
-function downloadShortcut(displayName: string, dashPath: string, os: 'linux' | 'windows' | 'unknown') {
-  const origin = window.location.origin;
-  const fullUrl = `${origin}${dashPath}`;
-  const safeName = displayName.replace(/\s+/g, '-');
+function resolveScope(appId: string, parentScopeId?: string): ScopeId {
+  const fromMap = APP_DASHBOARD[appId]?.scope;
+  if (fromMap) return fromMap;
 
-  let content: string;
-  let filename: string;
-  let mimeType: string;
-
-  if (os === 'windows') {
-    // Internet Shortcut (.url) for Windows
-    content = `[InternetShortcut]\r\nURL=${fullUrl}\r\nIconIndex=0\r\n`;
-    filename = `DSF-${safeName}.url`;
-    mimeType = 'text/plain';
-  } else {
-    // XDG Desktop Entry (.desktop) for Linux
-    content = [
-      '[Desktop Entry]',
-      `Name=${displayName}`,
-      `Name[ar]=${displayName}`,
-      `GenericName=DSF Gateway`,
-      `Comment=نظام إدارة البنية التحتية — ${displayName}`,
-      `Exec=xdg-open ${fullUrl}`,
-      `Icon=web-browser`,
-      `Type=Application`,
-      `Terminal=false`,
-      `StartupNotify=true`,
-      `Categories=Network;WebBrowser;`,
-    ].join('\n') + '\n';
-    filename = `dsf-${safeName}.desktop`;
-    mimeType = 'application/x-desktop';
-  }
-
-  const blob = new Blob([content], { type: mimeType });
-  const href = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = href;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(href);
+  const candidate = parentScopeId || appId;
+  if (candidate === 'corrosion') return 'corrosion';
+  if (candidate === 'maintenance') return 'maintenance';
+  if (candidate === 'admin-affairs') return 'admin-affairs';
+  if (candidate === 'finance') return 'finance';
+  if (candidate === 'materials') return 'materials';
+  if (candidate === 'services') return 'services';
+  return 'remote-sensing';
 }
 
-// خريطة كل إدارة/قسم → ملف التنزيل المخصص له
-// null = لم يُبنَ بعد → يظهر "قيد الرفع"
+function buildLaunchUrl(appId: string, dashPath: string, scope: ScopeId): string {
+  const origin = window.location.origin;
+  const launch = new URL('/entry', origin);
+  launch.searchParams.set('auto', '1');
+  launch.searchParams.set('app', appId);
+  launch.searchParams.set('scope', scope);
+  launch.searchParams.set('redirect', dashPath);
+  return launch.toString();
+}
+
+// ── توليد ملف الاختصار وتنزيله ───────────────────────────────────────────────
+const APP_VERSION = '0.1.0';
 const APP_FILES: Record<string, AppFile> = {
-  // ── الإدارات الرئيسية ──────────────────────────────────────────────────────
-  'maintenance':    { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '2.8 MB' },
-  'corrosion':      { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '2.8 MB' },
-  'admin-affairs':  { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '2.8 MB' },
-  'finance':        { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '2.8 MB' },
-  'materials':      { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '2.8 MB' },
-  'services':       { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '2.8 MB' },
-  'remote-sensing': { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '2.8 MB' },
-
-  // ── أقسام الشؤون الإدارية ──────────────────────────────────────────────────
-  'section-admin-affairs-hr':             { linux: null, windows: 'DSF-AdminHR_0.1.0_x64-setup.exe',             linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-admin-affairs-correspondence': { linux: null, windows: 'DSF-AdminCorrespondence_0.1.0_x64-setup.exe', linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-admin-affairs-contracts':      { linux: null, windows: 'DSF-AdminContracts_0.1.0_x64-setup.exe',      linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-admin-affairs-workflow':       { linux: null, windows: 'DSF-AdminWorkflow_0.1.0_x64-setup.exe',       linuxSize: '77 MB', winSize: '2.8 MB' },
-
-  // ── أقسام الصيانة ──────────────────────────────────────────────────────────
-  'section-maintenance-planning':    { linux: null, windows: 'DSF-MaintPlanning_0.1.0_x64-setup.exe',    linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-maintenance-wells':       { linux: null, windows: 'DSF-MaintWells_0.1.0_x64-setup.exe',       linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-maintenance-support':     { linux: null, windows: 'DSF-Maintenance_0.1.0_x64-setup.exe',      linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-maintenance-operations':  { linux: null, windows: 'DSF-MaintOperations_0.1.0_x64-setup.exe',  linuxSize: '77 MB', winSize: '2.8 MB' },
-
-  // ── أقسام التآكل — قيد البناء ─────────────────────────────────────────────
-  'section-corrosion-monitoring': { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-corrosion-support':    { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-corrosion-coating':    { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-
-  // ── أقسام المالية — قيد البناء ────────────────────────────────────────────
-  'section-finance-budgets':     { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-finance-expenses':    { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-finance-accounting':  { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-finance-reports':     { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-
-  // ── أقسام المواد — قيد البناء ─────────────────────────────────────────────
-  'section-materials-assets':      { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-materials-inventory':   { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-materials-fleet':       { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-materials-procurement': { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-
-  // ── أقسام الخدمات — قيد البناء ────────────────────────────────────────────
-  'section-services-intelligence': { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-services-projects':     { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-services-analytics':    { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-
-  // ── أقسام الاستشعار — قيد البناء ──────────────────────────────────────────
-  'section-rs-remote-sensing':    { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-rs-spatial':           { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-rs-satellite-intel':   { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
-  'section-rs-engineering':       { linux: null, windows: null, linuxSize: '77 MB', winSize: '2.8 MB' },
+  // Keep compatibility with legacy prebuilt Flutter package for now.
+  'legacy-flutter-linux': { linux: 'dsf_gateway_flutter-linux-x64.tar.gz', windows: null, linuxSize: '9.7 MB', winSize: '—' },
 };
 
 const EMPTY_FILE: AppFile = { linux: null, windows: null, linuxSize: '—', winSize: '—' };
+
+function toSafeId(raw: string): string {
+  return String(raw).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function nativeFilesFor(appId: string): AppFile {
+  const safe = toSafeId(appId);
+  return {
+    linux: `${safe}-${APP_VERSION}-x86_64.AppImage`,
+    windows: `${safe}-${APP_VERSION}-setup.exe`,
+    linuxSize: '≈140 MB',
+    winSize: '≈120 MB',
+  };
+}
 
 /** Resolve which file record to use for a given appId.
  *  Sections fall back to their parent department scope. */
@@ -170,15 +139,16 @@ function resolveFiles(appId: string, parentScopeId?: string): AppFile {
   ];
   for (const [keyword, scope] of SCOPES) {
     if (appId === keyword || appId.startsWith(`${keyword}-`) || appId.includes(`-${keyword}-`) || appId.endsWith(`-${keyword}`)) {
-      return APP_FILES[scope] ?? EMPTY_FILE;
+      return APP_FILES[scope] ?? nativeFilesFor(appId);
     }
   }
+  // 4. Any app present in dashboard map gets a native package name.
+  if (APP_DASHBOARD[appId]) return nativeFilesFor(appId);
   return EMPTY_FILE;
 }
 
 export default function DownloadButtons({ appId, parentScopeId, accentBorder, accentText }: Props) {
   const [os, setOs] = useState<'linux' | 'windows' | 'unknown'>('unknown');
-  const [shortcutDone, setShortcutDone] = useState(false);
 
   useEffect(() => {
     const ua = navigator.userAgent.toLowerCase();
@@ -194,13 +164,6 @@ export default function DownloadButtons({ appId, parentScopeId, accentBorder, ac
   // Resolve dashboard info (fall back to parent scope)
   const dashInfo = APP_DASHBOARD[appId]
     ?? (parentScopeId ? APP_DASHBOARD[parentScopeId] : undefined);
-
-  const handleShortcut = () => {
-    if (!dashInfo) return;
-    downloadShortcut(dashInfo.name, dashInfo.url, os);
-    setShortcutDone(true);
-    setTimeout(() => setShortcutDone(false), 3000);
-  };
 
   const PendingUpload = ({ label }: { label: string }) => (
     <div className="flex items-center justify-center gap-2 w-full rounded-xl border border-slate-700/40 bg-slate-800/20 py-2.5 text-sm text-slate-500 cursor-not-allowed select-none">
@@ -263,25 +226,10 @@ export default function DownloadButtons({ appId, parentScopeId, accentBorder, ac
         <PendingUpload label="🪟 Windows Flutter" />
       )}
 
-      {/* زر اختصار سطح المكتب */}
       {dashInfo && (
-        <button
-          onClick={handleShortcut}
-          className={`
-            flex items-center justify-center gap-2 w-full rounded-xl border py-2 text-xs font-medium transition-all
-            ${shortcutDone
-              ? 'border-emerald-500/50 bg-emerald-950/30 text-emerald-300'
-              : 'border-slate-600/40 bg-slate-800/30 hover:bg-slate-700/30 text-slate-400 hover:text-slate-200 hover:border-slate-500/50'
-            }
-          `}
-          title="تنزيل ملف اختصار يفتح الداشبورد مباشرةً على سطح المكتب"
-        >
-          <MonitorSmartphone className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>{shortcutDone ? '✓ تم تنزيل الاختصار' : '📌 اختصار سطح المكتب'}</span>
-          <span className="text-[9px] opacity-50 mr-auto">
-            {os === 'windows' ? '.url' : '.desktop'}
-          </span>
-        </button>
+        <div className="text-[10px] text-slate-500 px-1">
+          يتم فتح التطبيق كمنصة مستقلة عند تثبيت ملف البرنامج (AppImage/Installer).
+        </div>
       )}
     </div>
   );
