@@ -1,16 +1,16 @@
 # Graph Report - digital-dashboard  (2026-08-19)
 
 ## Corpus Check
-- 1048 files · ~1,170,349 words
+- 1047 files · ~1,169,264 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 8678 nodes · 15030 edges · 604 communities (520 shown, 84 thin omitted)
+- 8660 nodes · 15013 edges · 618 communities (514 shown, 104 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 108 edges (avg confidence: 0.58)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `75d5aa48`
+- Built from commit: `af5c9602`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -18,7 +18,7 @@
 - SatelliteIntelLegacyShell.tsx
 - satelliteIntelAPI.ts
 - datetime
-- ArcGisReadinessPanel.tsx
+- SatIntelRightPanel.tsx
 - LeftPanel.tsx
 - BehaviorProfileBuilder
 - fault-analysis/page.tsx
@@ -44,7 +44,7 @@
 - financial/page.tsx
 - MapCenterCanvas.tsx
 - BenchmarkRunner
-- auth-tokens.ts
+- rbac.ts
 - login/route.ts
 - operations-maintenance-demo/page.tsx
 - training-workflow-store.ts
@@ -69,7 +69,7 @@
 - runner.py
 - prediction/__init__.py
 - authorize
-- AoiBoundaryPopover.tsx
+- EngineeringCore.tsx
 - metrics.py
 - assets/[id]/page.tsx
 - useAIBridge.ts
@@ -92,7 +92,7 @@
 - RootShell.tsx
 - phase3_proof.py
 - LivingKnowledgeGraph
-- materials/procurement/orders/page.tsx
+- auth-tokens.ts
 - material-requests-store.ts
 - picDB.ts
 - PredictionWidgets.tsx
@@ -101,12 +101,12 @@
 - extractTenantId
 - searchSTAC
 - AdvancedEngineeringPanel.tsx
-- UploadPanel.tsx
+- constants.ts
 - buildResultFromEngines.ts
 - training-impact-store.ts
 - leak-detector/route.ts
 - hr/training/page.tsx
-- corrosion/types.ts
+- ActivatedDepartmentsState
 - my_application.cc
 - email-service.ts
 - auth-store-backend.ts
@@ -127,10 +127,10 @@
 - AssetNetwork
 - app.dart
 - Win32Window
-- CommandCenterLive.tsx
+- LoginPanel.tsx
 - gisUnifiedStore.ts
 - admin-gateway/gm-office/page.tsx
-- erpBinding.ts
+- gisEngine.ts
 - hr-structure-store.ts
 - circulars-store.ts
 - useUserStore.ts
@@ -138,7 +138,7 @@
 - system-explorer/page.tsx
 - dependencies
 - ContextResolver
-- ReportPanel.tsx
+- corrosion/types.ts
 - CorridorMap.tsx
 - control-center/manager/page.tsx
 - proxyGet
@@ -151,7 +151,7 @@
 - readJSON
 - journal-entries/page.tsx
 - PersonnelRequestsPage
-- SatIntelRightPanel.tsx
+- s12API.ts
 - scoped_home_screen.dart
 - session_store.dart
 - POST
@@ -168,7 +168,7 @@
 - material-requests/[id]/action/route.ts
 - insar-subsidence/route.ts
 - AdminReportsPanel.tsx
-- org-structure/page.tsx
+- OrgStructurePage
 - CorrosionInbox.tsx
 - ImportButton.tsx
 - phase2_proof.py
@@ -193,7 +193,7 @@
 - intelligence/command/page.tsx
 - تدقيق شامل: بنية الهوية / المؤسسات / الأدوار / الصلاحيات — DSP
 - InSARPanel.tsx
-- ReportCharts.tsx
+- SuitabilityPanel.tsx
 - AssetDigitalTwin.tsx
 - GeneratedPluginRegistrant.swift
 - ExecutiveDashboard.tsx
@@ -217,15 +217,15 @@
 - CVAAdvancedPanel.tsx
 - NetworkDesignPanel.tsx
 - SICHeader.tsx
-- constants.ts
+- SegmentsTab.tsx
 - Create
 - serviceLayerFeaturesStore.ts
 - ModisLSTAdapter
 - test-advanced-filters.js
 - test-e2e-workflow.js
 - routing-sessions/[id]/route.ts
-- daysAgo
-- DSP Phase 1 Final Status: Tenant Context / Tenant Isolation
+- today
+- makeAuthToken
 - seed-dev-data.ts
 - ImportButton
 - forecast/page.tsx
@@ -311,7 +311,7 @@
 - terrainUtils.ts
 - monthly-phases/[id]/route.ts
 - budgets/page.tsx
-- GisLayerManager.tsx
+- grades/page.tsx
 - briefing/page.tsx
 - admin-gateway/inventory/warehouses/page.tsx
 - bot-control/page.tsx
@@ -342,7 +342,7 @@
 - MonthlyPhasesTab.tsx
 - payroll/page.tsx
 - assignments/page.tsx
-- PipelineLinearMap.tsx
+- employees/page.tsx
 - reports/operations/page.tsx
 - join-requests/page.tsx
 - mobile-access/page.tsx
@@ -371,7 +371,7 @@
 - spare-parts/page.tsx
 - admin-gateway/procurement/suppliers/page.tsx
 - projects/dashboard/page.tsx
-- arcgisParity.ts
+- pdf-parse
 - lab/page.tsx
 - PipelineRouteEditor.tsx
 - LinearSchematicMap.tsx
@@ -379,7 +379,7 @@
 - EmployeeForm.tsx
 - main.js
 - apiConfig.ts
-- CsvUploader.tsx
+- tenantDepartmentAccess.ts
 - KGEdge
 - build-desktop-app.mjs
 - transition/route.ts
@@ -399,7 +399,7 @@
 - MobileFieldPage
 - ProjectForm.tsx
 - WorkOrderForm.tsx
-- aiAPI.ts
+- plotly.js-dist-min
 - nsis
 - monitoring-teams/[id]/route.ts
 - monitoring-teams/route.ts
@@ -407,7 +407,7 @@
 - shift-log/[id]/[action]/route.ts
 - shift-log/route.ts
 - spatial/route.ts
-- my-portal/page.tsx
+- react-dom
 - inbox/route.ts
 - outbox/route.ts
 - send/route.ts
@@ -431,7 +431,7 @@
 - procurement/manager/page.tsx
 - budget/page.tsx
 - projects/manager/page.tsx
-- engineering/page.tsx
+- communications/page.tsx
 - documentation-hub/page.tsx
 - MINERVAShell
 - data/performance/page.tsx
@@ -450,7 +450,7 @@
 - auth-permissions.ts
 - DiagnosticReport
 - compute_30d_precipitation
-- intelligence/page.tsx
+- package.json
 - alarms/[id]/[action]/route.ts
 - analyze/route.ts
 - imagery/route.ts
@@ -460,9 +460,9 @@
 - work-orders/route.ts
 - categories/page.tsx
 - admin-gateway/contracts/page.tsx
-- ProjectSmartSidebar.tsx
+- outgoing/page.tsx
 - hr/data/page.tsx
-- gisActionBridge.ts
+- tailwind-merge
 - hr/medical/page.tsx
 - payroll-config/page.tsx
 - salary-info/page.tsx
@@ -533,16 +533,30 @@
 - SetupWizard
 - build_linux_release.sh
 - framer-motion
-- departments/page.tsx
-- ol
+- lucide-react
+- mammoth
+- maplibre-gl
 - lab/__init__.py
 - next.config.js
 - next-env.d.ts
+- geotiff
+- gsap
+- jspdf-autotable
 - pg
+- react-plotly.js
+- recharts
+- sharp
+- three
+- @tmcw/togeojson
+- @types/nodemailer
+- @types/pg
 - @types/sharp
+- xlsx
+- zustand
 - tailwind.config.ts
 - css.d.ts
 - String?
+- @types/three
 
 ## God Nodes (most connected - your core abstractions)
 1. `useGisEngine` - 109 edges
@@ -565,33 +579,33 @@
   app/dashboard/gis-sovereignty/components/GisLayerManager.tsx → package.json
 - `AutoMonitorPanel()` --references--> `react`  [EXTRACTED]
   app/dashboard/gis-sovereignty/satellite-intelligence-center/components/CVAAdvancedPanel.tsx → package.json
-- `Props` --references--> `SceneSummaryContract`  [EXTRACTED]
-  app/dashboard/gis-sovereignty/satellite-intelligence-center/components/SceneSummaryCard.tsx → lib/satelliteIntelAPI.ts
+- `SceneMapPanelProps` --references--> `SceneListItem`  [EXTRACTED]
+  app/dashboard/gis-sovereignty/satellite-intelligence-center/components/SceneMapPanel.tsx → lib/satelliteIntelAPI.ts
 
 ## Import Cycles
 - 3-file cycle: `lib/auth-store-backend.ts -> lib/tenant-store.ts -> lib/central-provisioning.ts -> lib/auth-store-backend.ts`
 
-## Communities (604 total, 84 thin omitted)
+## Communities (618 total, 104 thin omitted)
 
 ### Community 0 - "SatelliteIntelLegacyShell.tsx"
-Cohesion: 0.07
-Nodes (49): extractCoords(), polygonToBbox(), SatelliteIntelLegacyShell(), Props, SatIntelBottomBar(), FacilityType, LAYER_TEMPLATES, LayerTemplate (+41 more)
+Cohesion: 0.06
+Nodes (58): ArcGisReadinessPanel(), calcScore(), ExtensionScore, Props, RequirementRow, RequirementStatus, stageFromScore(), extractCoords() (+50 more)
 
 ### Community 1 - "satelliteIntelAPI.ts"
-Cohesion: 0.03
-Nodes (83): ActiveSignal, AlertsSignalsPanel(), CLASSIFICATION_AR, OUTPUT_TYPE_AR, Props, AreaAnalysisPanel(), Props, ChangeCategories (+75 more)
+Cohesion: 0.04
+Nodes (84): ActiveSignal, AlertsSignalsPanel(), CLASSIFICATION_AR, OUTPUT_TYPE_AR, Props, AreaAnalysisPanel(), Props, ChangeCategories (+76 more)
 
 ### Community 2 - "datetime"
 Cohesion: 0.04
 Nodes (50): datetime, get_expected_values(), print_section(), run_phase1_proof(), EvidenceCollector, Evidence Collector — يجمع الأدلة من مصادر مختلفة ويُصنِّفها. المصادر: 1.…, يُحوِّل "HOT_DRY|DRY|NORMAL|NORMAL" إلى dict., يُحوِّل AnomalyResult + Context + ERP إلى EvidenceBundle. (+42 more)
 
-### Community 3 - "ArcGisReadinessPanel.tsx"
-Cohesion: 0.11
-Nodes (28): ArcGisReadinessPanel(), calcScore(), ExtensionScore, Props, RequirementRow, RequirementStatus, stageFromScore(), Props (+20 more)
+### Community 3 - "SatIntelRightPanel.tsx"
+Cohesion: 0.06
+Nodes (65): approxBboxAreaM2(), AuditAxisStatus, bboxFromRing(), bufferBboxMeters(), buildDemoAoi(), CanonicalKpiSnapshot, closeRing(), computeAuditVerdict() (+57 more)
 
 ### Community 4 - "LeftPanel.tsx"
 Cohesion: 0.04
-Nodes (94): emptyForm, ProjectSitesContent(), Site, SITE_STATUSES, SITE_TYPES, AssetTopBar(), Props, CognitiveSidebar() (+86 more)
+Nodes (91): emptyForm, ProjectSitesContent(), Site, SITE_STATUSES, SITE_TYPES, CognitiveSidebar(), detectSpatialShortcut(), Message (+83 more)
 
 ### Community 5 - "BehaviorProfileBuilder"
 Cohesion: 0.05
@@ -626,12 +640,12 @@ Cohesion: 0.08
 Nodes (50): buildRefMap(), isHealthQuestion(), isMaintenanceTimelineQuestion(), isRingChangeQuestion(), POST(), RefItem, runtime, sentenceForEvent() (+42 more)
 
 ### Community 13 - "tenant-store.ts"
-Cohesion: 0.06
-Nodes (62): InstalledAppScope, TenantProvisioningPackage, compact(), generateTenantActivationCode(), normalizeActivationCode(), approveTenantJoinRequest(), approveTenantRequest(), attachProvisioningPackageToRequest() (+54 more)
+Cohesion: 0.07
+Nodes (56): InstalledAppScope, TenantProvisioningPackage, compact(), generateTenantActivationCode(), normalizeActivationCode(), approveTenantJoinRequest(), approveTenantRequest(), attachProvisioningPackageToRequest() (+48 more)
 
 ### Community 14 - "useErpContextStore"
-Cohesion: 0.10
-Nodes (22): AssetsPage(), getColorClasses(), submodules, EmployeeLocationTableProps, EmployeeRow, ERPContextHeader(), SITE_TYPE_LABELS, FinancePage() (+14 more)
+Cohesion: 0.06
+Nodes (45): AssetsPage(), getColorClasses(), submodules, EmployeeLocationTableProps, EmployeeRow, ERPContextHeader(), SITE_TYPE_LABELS, LocationPickerModal() (+37 more)
 
 ### Community 15 - "benchmark.py"
 Cohesion: 0.06
@@ -662,8 +676,8 @@ Cohesion: 0.04
 Nodes (52): scripts, audit:ops, build, check:asset-governance, check:tenant-security, cleanup:ops:apply, cleanup:ops:critical:apply, cleanup:ops:critical:dry (+44 more)
 
 ### Community 22 - "user-store.ts"
-Cohesion: 0.07
-Nodes (55): POST(), hashPw(), POST(), POST(), POST(), ALLOWED_INVITE, GET(), POST() (+47 more)
+Cohesion: 0.12
+Nodes (35): POST(), POST(), ALLOWED_INVITE, GET(), POST(), isValidEmail(), POST(), POST() (+27 more)
 
 ### Community 23 - "access-requests/route.ts"
 Cohesion: 0.10
@@ -678,24 +692,24 @@ Cohesion: 0.06
 Nodes (38): Attachment, DEPT_HUB_URL, DEPT_LABELS, DeptAdminPage(), DOC_TYPE_ICONS, DOC_TYPE_LABELS, DocStatus, Document (+30 more)
 
 ### Community 26 - "financial/page.tsx"
-Cohesion: 0.09
-Nodes (35): ExecData, ExecutiveReportPage(), FinancialReportPage(), FinData, FuelByProject, InvByProject, JEByProject, ProcByProject (+27 more)
+Cohesion: 0.06
+Nodes (45): ExecData, ExecutiveReportPage(), FinancialReportPage(), FinData, FuelByProject, InvByProject, JEByProject, ProcByProject (+37 more)
 
 ### Community 27 - "MapCenterCanvas.tsx"
-Cohesion: 0.07
-Nodes (43): DEPTS, GisLayerGovernancePanel(), GisLayerGovernancePanel, GisMapShell(), MapCenterCanvas, WS_LABELS, AnyRef, applyPreviewMode() (+35 more)
+Cohesion: 0.08
+Nodes (37): AnyRef, applyPreviewMode(), isDigitizationFeature(), PreviewMode, usePreviewGeoJsonBridge(), BasemapKey, buildAoiSpatialIndex(), buildRingSpatialIndex() (+29 more)
 
 ### Community 28 - "BenchmarkRunner"
 Cohesion: 0.06
 Nodes (29): AlertSimulator, Any, MINERVA Lab — Alert Simulator ================================ Generates…, Generate n random synthetic alerts (test data only)., Generate a sequence of escalation events for testing the escalation engine UI., A synthetic alert for UI/workflow testing. ALWAYS tagged as test data — never…, Generates synthetic alerts for UI and workflow testing., SimulatedAlert (+21 more)
 
-### Community 29 - "auth-tokens.ts"
-Cohesion: 0.06
-Nodes (64): BOOTSTRAP_FILE, POST(), GET(), POST(), applySessionCookies(), POST(), GET(), ALL_DEPARTMENTS (+56 more)
+### Community 29 - "rbac.ts"
+Cohesion: 0.09
+Nodes (40): GET(), GET(), getCallerFromRequest(), POST(), sanitise(), GET(), ALL_DEPARTMENTS, DEFAULT_GRANTS (+32 more)
 
 ### Community 30 - "login/route.ts"
 Cohesion: 0.09
-Nodes (38): POST(), CTRL_TEAMS_DIR, detectHrRole(), getCorrosionTeamForEmployee(), getCtrlTeamForEmployee(), higherRole(), MANAGER_ROLES, POST() (+30 more)
+Nodes (39): POST(), CTRL_TEAMS_DIR, detectHrRole(), getCorrosionTeamForEmployee(), getCtrlTeamForEmployee(), higherRole(), MANAGER_ROLES, POST() (+31 more)
 
 ### Community 31 - "operations-maintenance-demo/page.tsx"
 Cohesion: 0.07
@@ -710,12 +724,12 @@ Cohesion: 0.08
 Nodes (35): ANALYSIS_MODEL_CANDIDATE_VERSION, ANALYSIS_MODEL_VERSION, EARLY_WARNING_ETA_BASE_HOURS_V1, EARLY_WARNING_ETA_MIN_HOURS_V1, EARLY_WARNING_THRESHOLD_V1, EARLY_WARNING_WEIGHTS_V1, PRIORITY_DQ_PENALTY_MULTIPLIER_V1, PRIORITY_WEIGHTS_V1 (+27 more)
 
 ### Community 35 - "gis-sovereignty/spatial-analytics/page.tsx"
-Cohesion: 0.05
-Nodes (34): CommandCenterContent(), EventFeed(), MapCenterCanvas, PRIORITY_AR, PRIORITY_COLOR, STATUS_AR, GisErrorBoundary, Props (+26 more)
+Cohesion: 0.06
+Nodes (27): CommandCenterContent(), EventFeed(), MapCenterCanvas, PRIORITY_AR, PRIORITY_COLOR, STATUS_AR, GisErrorBoundary, Props (+19 more)
 
 ### Community 36 - "normalizeAppScope"
-Cohesion: 0.06
-Nodes (52): ActivateContent(), PageStatus, CATEGORY_AR, CATEGORY_BADGE, fetchPendingCount(), GenericDepartmentShell(), DashboardLayout(), classifyBackendDepartment() (+44 more)
+Cohesion: 0.08
+Nodes (42): CATEGORY_AR, CATEGORY_BADGE, fetchPendingCount(), GenericDepartmentShell(), classifyBackendDepartment(), coreActions, DashboardHome(), departmentToRoute() (+34 more)
 
 ### Community 37 - "alert.py"
 Cohesion: 0.09
@@ -723,11 +737,11 @@ Nodes (28): AlertSeverity, AlertLocation, AlertSeverity, AlertStatus, ChecklistI
 
 ### Community 38 - "react"
 Cohesion: 0.07
-Nodes (32): ALT_COLORS, AlternativesMiniMap(), CrossSectionPanel(), DIFFICULTY_COLOR, DIFFICULTY_LABEL, exportGeoJSON(), exportKML(), exportPDF() (+24 more)
+Nodes (34): CorrosionCoatingPage(), CorrosionSupportPage(), ALT_COLORS, AlternativesMiniMap(), CrossSectionPanel(), DIFFICULTY_COLOR, DIFFICULTY_LABEL, exportGeoJSON() (+26 more)
 
 ### Community 39 - "InternalMailTab.tsx"
 Cohesion: 0.07
-Nodes (24): HEADERS, OutgoingLetter, ManagerModule, SectionHeadCard, CardDef, links, MailTab, CardDef (+16 more)
+Nodes (23): ManagerModule, SectionHeadCard, CardDef, links, analyticsLinks, CardDef, opsLinks, riskLinks (+15 more)
 
 ### Community 40 - "PredictionTimelineTab.tsx"
 Cohesion: 0.09
@@ -750,8 +764,8 @@ Cohesion: 0.11
 Nodes (35): analyzeSpots(), computeBbox(), distKm(), GET(), MONTH_AR, distKm(), fetchAndCluster(), parseCSV() (+27 more)
 
 ### Community 45 - "sentinel-hub.ts"
-Cohesion: 0.09
-Nodes (36): handleCVAReal(), handleImageAnalyst(), handleSatelliteTrendReal(), analyzeUrbanZone(), classifyLeak(), POST(), URBAN_WATER_ZONES, UrbanZone (+28 more)
+Cohesion: 0.10
+Nodes (33): analyzeUrbanZone(), classifyLeak(), POST(), URBAN_WATER_ZONES, UrbanZone, UrbanZoneResult, Bbox, bboxAreaKm2() (+25 more)
 
 ### Community 46 - "engineering-workspace/page.tsx"
 Cohesion: 0.09
@@ -785,9 +799,9 @@ Nodes (28): EarlyWarning, EventAwareAdjuster, Forecast, ForecastEngine, Forecast
 Cohesion: 0.09
 Nodes (30): DATA_DIR, fetchWorkOrders(), GET(), readTeams(), resolveEmpNo(), DATA_DIR, GET(), LEAVE_LABELS (+22 more)
 
-### Community 54 - "AoiBoundaryPopover.tsx"
-Cohesion: 0.23
-Nodes (8): AoiBoundaryPopover(), BoundaryItem, calcBbox(), parseLevel(), parseName(), Props, AoiSelection, GeoJSON_Geometry
+### Community 54 - "EngineeringCore.tsx"
+Cohesion: 0.06
+Nodes (25): AoiBoundaryPopover(), BoundaryItem, calcBbox(), parseLevel(), parseName(), Props, AdoptCandidate, Asset (+17 more)
 
 ### Community 55 - "metrics.py"
 Cohesion: 0.07
@@ -798,8 +812,8 @@ Cohesion: 0.09
 Nodes (23): AssetDetailPage(), load(), getTenantId(), TabKey, TABS, AssetDocumentPanel(), DocList(), docTypeLabel() (+15 more)
 
 ### Community 57 - "useAIBridge.ts"
-Cohesion: 0.10
-Nodes (17): AIBridgeInput, detectDeptMention(), detectNavIntent(), extractCoordinates(), extractReportId(), extractWorkflowId(), findMentionedProject(), NAV_RULES (+9 more)
+Cohesion: 0.08
+Nodes (33): AlertsStrip(), CommandCenterLive(), ContextBanner(), DepartmentSummaryStrip(), fetchPendingReportCount(), fetchPendingWorkflowCount(), fetchSupervisedCount(), LiveCounterStrip() (+25 more)
 
 ### Community 58 - "payroll-cycle-store.ts"
 Cohesion: 0.11
@@ -822,12 +836,12 @@ Cohesion: 0.10
 Nodes (25): Card(), CLR, EngineOutput, FlowMeter(), fmt(), isFlowing(), isRunning(), MV (+17 more)
 
 ### Community 63 - "DepartmentAssetInbox.tsx"
-Cohesion: 0.10
-Nodes (17): CardDef, links, CardDef, procLinks, reportLinks, warehouseLinks, coreLinks, finLinks (+9 more)
+Cohesion: 0.07
+Nodes (21): assetLinks, CardDef, supportLinks, workspaceLinks, CardDef, links, CardDef, procLinks (+13 more)
 
 ### Community 64 - "SICLayerEditorPanel.tsx"
-Cohesion: 0.06
-Nodes (48): AddChildAssetModal(), ASSET_TYPES, DEPARTMENTS, GEOM_MODES, GeomMode, getTenantId(), Props, AssetLeftPanel() (+40 more)
+Cohesion: 0.07
+Nodes (44): AddChildAssetModal(), ASSET_TYPES, DEPARTMENTS, GEOM_MODES, GeomMode, getTenantId(), Props, PrincipalAsset (+36 more)
 
 ### Community 65 - "reasoning/engine.ts"
 Cohesion: 0.10
@@ -842,16 +856,16 @@ Cohesion: 0.20
 Nodes (16): AIAssistantPage(), AIResponse, getTenantHeader(), Message, Message, UnifiedAIAssistant(), UnifiedAIAssistantProps, aiAPI (+8 more)
 
 ### Community 68 - "useGisEngine"
-Cohesion: 0.04
-Nodes (78): ProjectsListPage(), GisTimeEngine, GisTimeEngine(), BottomPanel(), DRAWING_LABELS, zoomToScale(), ProjectSmartSidebar(), TopBar() (+70 more)
+Cohesion: 0.07
+Nodes (49): AssetLeftPanel(), ChildAsset, DEPT_LABELS, deptLabel(), geomIcon(), normalizeGeometry(), Props, BottomPanel() (+41 more)
 
 ### Community 69 - "MaintenanceSchedule.tsx"
 Cohesion: 0.10
 Nodes (28): assignMonths(), buildSchedule(), Dept, DEPT_META, DISPATCH_RECIPIENTS, DISPATCH_REPORTS, Frequency, getTaskDetails() (+20 more)
 
 ### Community 71 - "corrosion/technical/page.tsx"
-Cohesion: 0.12
-Nodes (25): ALLOWED_TABS, CorrosionCoatingPage(), CipsPreview, CipsSampleRow, CipsToolsPanel(), getHeaders(), GpsSession, Props (+17 more)
+Cohesion: 0.10
+Nodes (26): ALLOWED_TABS, CipsPreview, CipsSampleRow, CipsToolsPanel(), getHeaders(), GpsSession, Props, RouteGeometry (+18 more)
 
 ### Community 72 - "preventive/SCADAView.tsx"
 Cohesion: 0.11
@@ -862,8 +876,8 @@ Cohesion: 0.08
 Nodes (23): APP_DASHBOARD, APP_FILES, AppFile, DashboardInfo, DownloadButtons(), EMPTY_FILE, nativeFilesFor(), Props (+15 more)
 
 ### Community 74 - "RootShell.tsx"
-Cohesion: 0.09
-Nodes (25): dynamic, inter, metadata, canAttemptRecovery(), ChunkLoadGuard(), isChunkLoadError(), resetRecoveryStateLater(), GlobalMapBackground() (+17 more)
+Cohesion: 0.10
+Nodes (23): dynamic, inter, metadata, canAttemptRecovery(), ChunkLoadGuard(), isChunkLoadError(), resetRecoveryStateLater(), Header() (+15 more)
 
 ### Community 75 - "phase3_proof.py"
 Cohesion: 0.13
@@ -873,9 +887,9 @@ Nodes (23): Counter, print_section(), تجهيز البيانات — إعادة
 Cohesion: 0.11
 Nodes (12): LivingKnowledgeGraph, يُضيف حافة وتُسجِّل في الـ edge_data. يُعيد مفتاح الحافة., ما الإشارات التي تدعم هذا الحدث؟ Returns: [(signal_id, weight), ...] مرتبة…, الأسباب الجذرية لحدث معين مع احتمالاتها., التسلسل السببي للإشارات المتوقعة بعد حدوث الحدث., يجد مسارات الاستدلال بين عقدتين., يُحمِّل المعرفة الفيزيائية الأولية. هذا هو "الدماغ المولود" — ما يعرفه النظام…, علاقات الإشارات بالأحداث — قلب المعرفة الفيزيائية. الأوزان مبنية على: - قوة… (+4 more)
 
-### Community 77 - "materials/procurement/orders/page.tsx"
-Cohesion: 0.10
-Nodes (23): LocationPickerModal(), LocationPickerModalProps, SelectedLocation, SITE_TYPE_COLORS, SITE_TYPE_LABELS, emptyForm(), getTenantId(), POItem (+15 more)
+### Community 77 - "auth-tokens.ts"
+Cohesion: 0.14
+Nodes (21): BOOTSTRAP_FILE, POST(), applySessionCookies(), POST(), AuthTenantContext, AuthTenantContextResult, extractAuthToken(), resolveAuthTenantContext() (+13 more)
 
 ### Community 78 - "material-requests-store.ts"
 Cohesion: 0.17
@@ -886,8 +900,8 @@ Cohesion: 0.12
 Nodes (25): GET(), POST(), GET(), PUT(), extractCoords(), GET(), POST(), acknowledgeAlert() (+17 more)
 
 ### Community 80 - "PredictionWidgets.tsx"
-Cohesion: 0.19
-Nodes (24): accColor(), buildAlerts(), escapeHtml(), healthLabel(), healthScore(), MARGINAL_THRESHOLD, monthsToMarginal(), parseSegmentRange() (+16 more)
+Cohesion: 0.18
+Nodes (25): accColor(), buildAlerts(), escapeHtml(), healthLabel(), healthScore(), MARGINAL_THRESHOLD, monthsToMarginal(), parseSegmentRange() (+17 more)
 
 ### Community 81 - "RemoteSensingShell.tsx"
 Cohesion: 0.12
@@ -902,16 +916,16 @@ Cohesion: 0.19
 Nodes (20): mapRole(), POST(), GET(), POST(), buildMutateHeaders(), DELETE(), featureToPrincipal(), GET() (+12 more)
 
 ### Community 84 - "searchSTAC"
-Cohesion: 0.17
-Nodes (23): runSatelliteCheck(), dynamic, isoDate(), monitoringReadiness(), POST(), runtime, scenesBrief(), GET() (+15 more)
+Cohesion: 0.16
+Nodes (22): dynamic, isoDate(), monitoringReadiness(), POST(), runtime, scenesBrief(), GET(), POST() (+14 more)
 
 ### Community 85 - "AdvancedEngineeringPanel.tsx"
 Cohesion: 0.15
 Nodes (25): AdvancedEngineeringModule(), AdvancedEngineeringPanel(), AnalysisPoint, avg(), ChartMetric, CpPipeline, CpSession, Plot (+17 more)
 
-### Community 86 - "UploadPanel.tsx"
-Cohesion: 0.14
-Nodes (13): StatBox(), SvyAnalysisPanel(), detectSpatialMode(), PopupState, SpatialMode, SvyMapPanel(), SvyMapPanelProps, SvyOlMap() (+5 more)
+### Community 86 - "constants.ts"
+Cohesion: 0.08
+Nodes (27): Props, CpCompareTab(), segCfg(), StatBox(), SvyAnalysisPanel(), detectSpatialMode(), PopupState, SpatialMode (+19 more)
 
 ### Community 87 - "buildResultFromEngines.ts"
 Cohesion: 0.11
@@ -929,10 +943,6 @@ Nodes (24): analyzeSegment(), buildRouteLineGeoJSON(), classifyLeak(), computeCo
 Cohesion: 0.10
 Nodes (25): FollowupForm, labelNeedStatus(), labelNomStatus(), NeedForm, NomForm, OrgDepartment, OrgEmployee, OverdueFollowup (+17 more)
 
-### Community 91 - "corrosion/types.ts"
-Cohesion: 0.13
-Nodes (18): Props, UploadDetailPanel(), STATUS_BADGE, AutoForecastAccuracy, AutoForecastPipeline, AutoForecastSession, AutoForecastSummary, CpMlHistory (+10 more)
-
 ### Community 92 - "my_application.cc"
 Cohesion: 0.09
 Nodes (22): FlPluginRegistry, fl_register_plugins(), main(), first_frame_cb(), my_application_activate(), my_application_class_init(), my_application_dispose(), my_application_init() (+14 more)
@@ -942,8 +952,8 @@ Cohesion: 0.17
 Nodes (22): POST(), resetCodeKey(), POST(), POST(), generateActivationToken(), generateOTP(), storeCode(), baseWrapper() (+14 more)
 
 ### Community 94 - "auth-store-backend.ts"
-Cohesion: 0.18
-Nodes (27): POST(), resetCodeKey(), POST(), AUTH_BACKEND, authBackendStatus(), authCreateTenant(), authCreateUser(), authEnsureTenantDepartmentLink() (+19 more)
+Cohesion: 0.24
+Nodes (23): POST(), resetCodeKey(), AUTH_BACKEND, authBackendStatus(), authCreateTenant(), authCreateUser(), authEnsureTenantDepartmentLink(), authEnsureTenantForOrganization() (+15 more)
 
 ### Community 95 - "manager/route.ts"
 Cohesion: 0.16
@@ -970,8 +980,8 @@ Cohesion: 0.14
 Nodes (14): OptimizationResult, Recommendation Optimizer — اختر أقل تكلفة تحقق أعلى يقين. يبني "مسار التحقق"…, مسار بديل: الأسرع (بغض النظر عن التكلفة)., يُرتِّب الإجراءات بحسب نسبة الفائدة / التكلفة. يُنشئ مسار أقل تكلفة للوصول إلى…, RecommendationOptimizer, RecommendationStep, InformationAction, Value of Information Engine — نظرية القرار. يُجيب على السؤال الأهم في العمليات:… (+6 more)
 
 ### Community 101 - "field-teams/route.ts"
-Cohesion: 0.30
-Nodes (11): DATA_DIR, GET(), getTeamsFile(), getTenantCode(), getTenantId(), MOBILE_DIR, POST(), readTeams() (+3 more)
+Cohesion: 0.15
+Nodes (19): DATA_DIR, GET(), getTeamsFile(), getTenantCode(), getTenantId(), MOBILE_DIR, POST(), readTeams() (+11 more)
 
 ### Community 102 - "asset-grounded.ts"
 Cohesion: 0.14
@@ -982,8 +992,8 @@ Cohesion: 0.18
 Nodes (14): POST(), DELETE(), POST(), GET(), DELETE(), PATCH(), ensureTable(), GET() (+6 more)
 
 ### Community 104 - "getClientTenantHeaders"
-Cohesion: 0.10
-Nodes (20): PlatformIntelligence(), Project, SITE_TYPE_COLORS, SITE_TYPE_LABELS, SiteItem, SitesPage(), typeColor(), AdminControlCenter() (+12 more)
+Cohesion: 0.07
+Nodes (31): AttendanceRecord, PlatformIntelligence(), Project, SITE_TYPE_COLORS, SITE_TYPE_LABELS, SiteItem, SitesPage(), typeColor() (+23 more)
 
 ### Community 105 - "CommandCenter.tsx"
 Cohesion: 0.07
@@ -1013,9 +1023,9 @@ Nodes (24): _booting, _bootstrap, build, _buildHome, createState, _deptCode, _ho
 Cohesion: 0.17
 Nodes (23): OnCreate, HWND, LPARAM, LRESULT, UINT, WPARAM, EnableFullDpiSupportIfAvailable(), HWND (+15 more)
 
-### Community 112 - "CommandCenterLive.tsx"
-Cohesion: 0.23
-Nodes (10): AlertsStrip(), CommandCenterLive(), ContextBanner(), DepartmentSummaryStrip(), fetchPendingReportCount(), fetchPendingWorkflowCount(), fetchSupervisedCount(), LiveCounterStrip() (+2 more)
+### Community 112 - "LoginPanel.tsx"
+Cohesion: 0.10
+Nodes (25): ActivateContent(), PageStatus, DEFAULT_DEPARTMENTS, DEFAULT_SECTIONS, Department, Employee, ORG_ROLE_COLORS, ORG_ROLE_LABELS (+17 more)
 
 ### Community 113 - "gisUnifiedStore.ts"
 Cohesion: 0.15
@@ -1025,9 +1035,9 @@ Nodes (20): MapCoreProps, SiteDetailPanel(), UnifiedGISPanel(), UnifiedGISPanelP
 Cohesion: 0.12
 Nodes (18): ApprovalItem, DOT, ENTITY_AR, EscRow(), ExecData, fmt(), formatAge(), getAuthHeaders() (+10 more)
 
-### Community 115 - "erpBinding.ts"
-Cohesion: 0.18
-Nodes (15): GisBindingPanel(), GisBindingPanel, BindingReport, entityTypeLabel(), runBindingValidation(), validateAsset(), validateEmployee(), validateProject() (+7 more)
+### Community 115 - "gisEngine.ts"
+Cohesion: 0.05
+Nodes (57): GisBindingPanel(), DEPTS, GisLayerGovernancePanel(), CATEGORY_LABELS, CATEGORY_ORDER, CategoryGroup(), GisLayerManager(), LayerRow() (+49 more)
 
 ### Community 116 - "hr-structure-store.ts"
 Cohesion: 0.22
@@ -1038,8 +1048,8 @@ Cohesion: 0.19
 Nodes (21): GET(), PATCH(), POST(), resolveEmpNo(), SUPERVISOR_ROLES, Circular, CircularAttachment, CircularType (+13 more)
 
 ### Community 118 - "useUserStore.ts"
-Cohesion: 0.08
-Nodes (26): EmployeeLocationTable(), Budget, BudgetAllocation, BudgetAllocationsPage(), BudgetTransfer, BudgetTransfersPage(), Employee, EMPTY_FORM (+18 more)
+Cohesion: 0.11
+Nodes (19): EmployeeLocationTable(), Budget, BudgetAllocation, BudgetAllocationsPage(), BudgetTransfer, BudgetTransfersPage(), ApprovalItem, getRoleGroup() (+11 more)
 
 ### Community 119 - "AssetCenterPanelSections.tsx"
 Cohesion: 0.15
@@ -1050,16 +1060,16 @@ Cohesion: 0.15
 Nodes (17): DepartmentCard(), PHASE_COLORS, StatCard(), DB_DOMAIN_KEYS, DbStatus, MapStatus, Mod, PhaseNum (+9 more)
 
 ### Community 121 - "dependencies"
-Cohesion: 0.03
-Nodes (63): axios, clsx, gsap, html2canvas, ioredis, jspdf-autotable, lucide-react, mammoth (+55 more)
+Cohesion: 0.08
+Nodes (25): axios, clsx, html2canvas, ioredis, next, nodemailer, ol, dependencies (+17 more)
 
 ### Community 122 - "ContextResolver"
 Cohesion: 0.14
 Nodes (15): ContextResolver, date, Context Resolver — يُحوِّل بيانات الطقس + ERP إلى 4-dimensional Context.…, البعد الأول: الموسم الحراري., يُعيد (season, moisture, ops, vicinity) للتاريخ المعطى., يحل الـ Context لسلسلة زمنية كاملة. maintenance_periods: قائمة من (start, end)…, البعد الثاني: حالة الرطوبة الأخيرة., البعد الثالث: الحالة التشغيلية. (+7 more)
 
-### Community 123 - "ReportPanel.tsx"
-Cohesion: 0.21
-Nodes (13): buildRecommendations(), buildReportPrintHtml(), calcStats(), deriveRiskPosition(), getRiskColor(), RecommendationRow, ReportPanel(), downloadJSON() (+5 more)
+### Community 123 - "corrosion/types.ts"
+Cohesion: 0.10
+Nodes (25): buildRecommendations(), buildReportPrintHtml(), calcStats(), deriveRiskPosition(), getRiskColor(), RecommendationRow, ReportPanel(), downloadJSON() (+17 more)
 
 ### Community 124 - "CorridorMap.tsx"
 Cohesion: 0.08
@@ -1109,9 +1119,9 @@ Nodes (11): Account, CostCenter, emptyLine(), H, JELine, JournalEntriesPage(), a
 Cohesion: 0.14
 Nodes (13): CreatePayload, getCookieValue(), LeaveBalance, PersonnelRequest, PersonnelRequestsPage(), editRequest(), loadLeaveBalance(), loadRequests() (+5 more)
 
-### Community 136 - "SatIntelRightPanel.tsx"
-Cohesion: 0.04
-Nodes (79): ARABIC_KEY_CONFIGS, changePct(), ComparisonProps, fmt(), METRIC_LABELS, MetricKey, MultiSeriesProps, MultiTimeSeriesCharts() (+71 more)
+### Community 136 - "s12API.ts"
+Cohesion: 0.06
+Nodes (42): ARABIC_KEY_CONFIGS, changePct(), ComparisonProps, fmt(), METRIC_LABELS, MetricKey, MultiSeriesProps, MultiTimeSeriesCharts() (+34 more)
 
 ### Community 137 - "scoped_home_screen.dart"
 Cohesion: 0.10
@@ -1122,8 +1132,8 @@ Cohesion: 0.10
 Nodes (19): clear, deptCode, homeRoute, _kDeptCode, _kHomeRoute, _kRole, _kScope, _kTenantCode (+11 more)
 
 ### Community 139 - "POST"
-Cohesion: 0.13
-Nodes (16): bboxArea(), gridFeatures(), handleAnalyzeCorridor(), handleAreaReport(), handleAutoNetwork(), handleChangeDetection(), handleCVA(), handleGroundTruth() (+8 more)
+Cohesion: 0.11
+Nodes (19): bboxArea(), gridFeatures(), handleAnalyzeCorridor(), handleAreaReport(), handleAutoNetwork(), handleChangeDetection(), handleCVA(), handleCVAReal() (+11 more)
 
 ### Community 140 - "reviews/page.tsx"
 Cohesion: 0.14
@@ -1162,8 +1172,8 @@ Cohesion: 0.15
 Nodes (9): Any, MINERVA Phase 9 — Real Sentinel-2 EO Adapter…, Add SAS tokens to asset hrefs using planetary_computer., Read a single band value (median of patch) from a COG url. Returns surface…, Sign the item, read required bands, compute indices., Extract real spectral indices (NDMI, NDVI, NDWI) for a point location from…, Return a time-series of spectral indices for a point. Each entry: {"date": str,…, Return the most recent valid observation. (+1 more)
 
 ### Community 149 - "build"
-Cohesion: 0.08
-Nodes (23): build, appId, copyright, directories, extraResources, linux, mac, productName (+15 more)
+Cohesion: 0.11
+Nodes (19): build, appId, copyright, directories, extraResources, linux, mac, productName (+11 more)
 
 ### Community 150 - "material-requests/[id]/action/route.ts"
 Cohesion: 0.16
@@ -1174,12 +1184,12 @@ Cohesion: 0.18
 Nodes (16): BBox, dynamic, estimateCoherence(), fetchHyP3Jobs(), GET(), getEdToken(), inferBboxFromName(), INSAR_META_FILE (+8 more)
 
 ### Community 152 - "AdminReportsPanel.tsx"
-Cohesion: 0.17
-Nodes (17): AdminReportsPanel(), AdminReportsPanelProps, AggData, buildAgg(), buildNarrative(), buildPrintHtml(), getHeaders(), getPeriodLabel() (+9 more)
+Cohesion: 0.19
+Nodes (15): AdminReportsPanel(), AdminReportsPanelProps, AggData, buildAgg(), buildNarrative(), buildPrintHtml(), getHeaders(), getPeriodLabel() (+7 more)
 
-### Community 153 - "org-structure/page.tsx"
-Cohesion: 0.16
-Nodes (17): DEFAULT_DEPARTMENTS, DEFAULT_SECTIONS, Department, Employee, ORG_ROLE_COLORS, ORG_ROLE_LABELS, OrgStructurePage(), assignManager() (+9 more)
+### Community 153 - "OrgStructurePage"
+Cohesion: 0.38
+Nodes (10): OrgStructurePage(), assignManager(), createDept(), createSection(), getAuthHeaders(), refreshMyToken(), removeManager(), seedDefaults() (+2 more)
 
 ### Community 154 - "CorrosionInbox.tsx"
 Cohesion: 0.15
@@ -1214,7 +1224,7 @@ Cohesion: 0.08
 Nodes (25): dom, dom.iterable, esnext, next-env.d.ts, .next/types/**/*.ts, .restore_backups, **/*.ts, **/*.tsx (+17 more)
 
 ### Community 162 - "auto-check/route.ts"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (16): alertBbox(), GET(), GIS_DIR, MOBILE_DIR, NOTIF_FILE, NOTIFY_ROLES, POST(), readJson() (+8 more)
 
 ### Community 163 - "intelligence/performance/page.tsx"
@@ -1226,12 +1236,16 @@ Cohesion: 0.15
 Nodes (11): avgActive(), C, dailySeries(), daysRunning(), EngineOutput, EngineReading, MotorStatusView(), MotorStatusViewProps (+3 more)
 
 ### Community 165 - "sceneLabels.ts"
-Cohesion: 0.19
-Nodes (15): Props, SatIntelLeftPanel(), SatIntelTopBar(), AR_MONTHS, classifyDataType(), parseArea(), parseDateFromUid(), parseSatellite() (+7 more)
+Cohesion: 0.21
+Nodes (14): Props, SatIntelLeftPanel(), AR_MONTHS, classifyDataType(), parseArea(), parseDateFromUid(), parseSatellite(), parseSceneLabel() (+6 more)
 
 ### Community 166 - "login_screen.dart"
 Cohesion: 0.12
 Nodes (16): _api, build, createState, dispose, _error, _loading, _login, onLoginSuccess (+8 more)
+
+### Community 167 - "AIAssistantAPI"
+Cohesion: 0.11
+Nodes (10): AIAssistantAPI, AskRequest, AskResponse, BrainAction, BrainAlert, BrainEntity, EvidenceRecord, ModelsStatus (+2 more)
 
 ### Community 168 - "asset360/utils.ts"
 Cohesion: 0.17
@@ -1273,9 +1287,9 @@ Nodes (28): 10. بنية التنقل/الوحدات/الأيقونات (Navigat
 Cohesion: 0.17
 Nodes (14): cohColor(), dispColor(), HistoricalFile, HistoricalJob, Hotspot, InSARMap(), InSARPanel(), InSARResult (+6 more)
 
-### Community 178 - "ReportCharts.tsx"
-Cohesion: 0.14
-Nodes (10): AreaSeries, DonutSlice, HBarItem, HorizontalBarChart(), LineSeries, PIE_COLORS, StackSeries, TS (+2 more)
+### Community 178 - "SuitabilityPanel.tsx"
+Cohesion: 0.20
+Nodes (7): CRITERIA_LABELS, Props, SuitabilityPin, SuitabilityResult, USE_CASE_OPTIONS, UseCase, SuitabilityPanel
 
 ### Community 179 - "AssetDigitalTwin.tsx"
 Cohesion: 0.17
@@ -1369,9 +1383,9 @@ Nodes (14): AutoNetworkResult, HydroResult, Material, NetNode, NetPipe, NetworkD
 Cohesion: 0.19
 Nodes (13): Props, SICHeader(), GisNotificationBell(), Props, SEV_AR, SEV_BG, SEV_COLOR, SEV_ICON (+5 more)
 
-### Community 202 - "constants.ts"
-Cohesion: 0.13
-Nodes (14): CpAnalysisTab(), segCfg(), CLASS_AR, segCfg(), SegmentsTab(), CP_RISK_EXPLANATIONS, CP_STATUS_CONFIG, OVERALL_STATUS_CONFIG (+6 more)
+### Community 202 - "SegmentsTab.tsx"
+Cohesion: 0.16
+Nodes (11): PipelineResult, CpAnalysisTab(), segCfg(), CLASS_AR, segCfg(), SegmentsTab(), CP_RISK_EXPLANATIONS, OVERALL_STATUS_CONFIG (+3 more)
 
 ### Community 203 - "Create"
 Cohesion: 0.16
@@ -1397,21 +1411,21 @@ Nodes (7): FAULT_CODES, mockTeams, mockWorkOrders, newSupportRequest, suggestedT
 Cohesion: 0.24
 Nodes (12): DATA_FILE, DELETE(), GET(), PATCH(), readSessions(), writeSessions(), DATA_FILE, DesignSession (+4 more)
 
-### Community 209 - "daysAgo"
-Cohesion: 0.22
-Nodes (10): DEFAULT_COLLECTIONS, dynamic, POST(), runtime, fetchPower(), GET(), POST(), PowerResponse (+2 more)
+### Community 209 - "today"
+Cohesion: 0.23
+Nodes (11): DEFAULT_COLLECTIONS, dynamic, POST(), runtime, fetchPower(), GET(), POST(), PowerResponse (+3 more)
 
-### Community 210 - "DSP Phase 1 Final Status: Tenant Context / Tenant Isolation"
-Cohesion: 0.14
-Nodes (13): 1. What Was Fixed, 2. What Was Verified, 3. Remaining Findings, 4. Known Unrelated Issues, 5. Security Conclusion, CANNOT CONFIRM, DSP Phase 1 Final Status: Tenant Context / Tenant Isolation, FIXED (+5 more)
+### Community 210 - "makeAuthToken"
+Cohesion: 0.29
+Nodes (8): hashPw(), POST(), POST(), POST(), makeAuthToken(), CodeEntry, getStoredName(), verifyCode()
 
 ### Community 211 - "seed-dev-data.ts"
 Cohesion: 0.33
 Nodes (10): GET(), POST(), resolveActor(), resolveTenantId(), listPersonnelRequests(), listPersonnelRequestsForRequester(), ensureNotProduction(), main() (+2 more)
 
 ### Community 212 - "ImportButton"
-Cohesion: 0.18
-Nodes (11): Contract, ContractsPage(), getTenantId(), EMPTY, getTenantId(), Grade, GradesPage(), getTenantId() (+3 more)
+Cohesion: 0.19
+Nodes (10): Contract, ContractsPage(), getTenantId(), Department, DepartmentsPage(), getTenantId(), getTenantId(), Task (+2 more)
 
 ### Community 213 - "forecast/page.tsx"
 Cohesion: 0.20
@@ -1482,8 +1496,8 @@ Cohesion: 0.19
 Nodes (12): CAT_CONFIG, compact(), deriveRisks(), ExecData, FinData, FinJEProject, getTenantId(), RiskCategory (+4 more)
 
 ### Community 230 - "projects/list/page.tsx"
-Cohesion: 0.20
-Nodes (5): Project, MapLocationPicker(), MapLocationPickerProps, createProjectBoundary(), formatCurrency()
+Cohesion: 0.21
+Nodes (6): Project, ProjectsListPage(), MapLocationPicker(), MapLocationPickerProps, createProjectBoundary(), formatCurrency()
 
 ### Community 231 - "collections/page.tsx"
 Cohesion: 0.17
@@ -1745,9 +1759,9 @@ Nodes (8): DATA_DIR, DELETE(), getFile(), getTenantId(), PATCH(), PUT(), readPha
 Cohesion: 0.31
 Nodes (7): Budget, BudgetsPage(), getTenantId(), BudgetForm(), BudgetFormData, BudgetFormProps, getTenantHeaders()
 
-### Community 296 - "GisLayerManager.tsx"
-Cohesion: 0.22
-Nodes (10): CATEGORY_LABELS, CATEGORY_ORDER, CategoryGroup(), GisLayerManager(), LayerRow(), GisLayerManager, LiveLayersSection(), LAYER_REGISTRY (+2 more)
+### Community 296 - "grades/page.tsx"
+Cohesion: 0.50
+Nodes (4): EMPTY, getTenantId(), Grade, GradesPage()
 
 ### Community 297 - "briefing/page.tsx"
 Cohesion: 0.36
@@ -1869,9 +1883,9 @@ Nodes (7): ACTIONS_BY_STATUS, FinancePayrollPage(), formatCurrency(), PayrollCyc
 Cohesion: 0.29
 Nodes (7): Assignment, AssignmentsPage(), EmpRef, EMPTY, getTenantId(), PosRef, ProjRef
 
-### Community 327 - "PipelineLinearMap.tsx"
-Cohesion: 0.22
-Nodes (7): ChartPoint, hexToRgba(), PipelineData, PipelineLinearMap(), RISK_COLOR, RISK_LABEL, SessionData
+### Community 327 - "employees/page.tsx"
+Cohesion: 0.25
+Nodes (7): Employee, EMPTY_FORM, GeoAnchor, Grade, ImportSummary, ParsedEmployeeRow, Position
 
 ### Community 328 - "reports/operations/page.tsx"
 Cohesion: 0.29
@@ -1973,10 +1987,6 @@ Nodes (6): emptyForm(), getTenantId(), STATUS_LABELS, Supplier, SUPPLIER_TYPES, 
 Cohesion: 0.38
 Nodes (6): DashStats, DEFAULT_STATS, fmt(), getHeaders(), ProjectsDashboardPage(), load()
 
-### Community 356 - "arcgisParity.ts"
-Cohesion: 0.24
-Nodes (9): ArcGisParityBaseline, ArcGisParityResult, AuditAxisStatus, BASELINE, CanonicalKpiForParity, evaluateArcGisParity(), FullAuditSnapshotForParity, statusPoints() (+1 more)
-
 ### Community 358 - "PipelineRouteEditor.tsx"
 Cohesion: 0.29
 Nodes (5): PipelineRoute, Props, ROUTE_COLORS, ROUTE_LABELS, RouteWaypoint
@@ -2001,9 +2011,9 @@ Nodes (9): { app, BrowserWindow, shell, Menu }, buildLaunchUrl(), createMainWind
 Cohesion: 0.48
 Nodes (6): API_CONFIG, apiDelete(), apiGet(), apiPost(), apiPut(), fetchWithTenant()
 
-### Community 364 - "CsvUploader.tsx"
-Cohesion: 0.25
-Nodes (6): AttendanceRecord, CsvUploader(), CsvUploaderProps, MODULE_HINTS, MODULE_LABELS, UploadResult
+### Community 364 - "tenantDepartmentAccess.ts"
+Cohesion: 0.48
+Nodes (6): getTenantById(), ALIAS_MAP, hasAnyAlias(), isTenantAllowedForModule(), ModuleGate, normalizeValue()
 
 ### Community 365 - "KGEdge"
 Cohesion: 0.29
@@ -2081,41 +2091,33 @@ Nodes (5): getTenantHeaders(), ProjectForm(), ProjectFormData, ProjectFormProps,
 Cohesion: 0.40
 Nodes (5): Asset, getTenantHeaders(), WorkOrderForm(), WorkOrderFormData, WorkOrderFormProps
 
-### Community 384 - "aiAPI.ts"
-Cohesion: 0.22
-Nodes (8): AskRequest, AskResponse, BrainAction, BrainAlert, BrainEntity, EvidenceRecord, ModelsStatus, ReportRequest
-
 ### Community 385 - "nsis"
 Cohesion: 0.33
 Nodes (6): nsis, allowToChangeInstallationDirectory, createDesktopShortcut, createStartMenuShortcut, oneClick, shortcutName
 
 ### Community 387 - "monitoring-teams/[id]/route.ts"
-Cohesion: 0.53
-Nodes (5): DELETE(), dynamic, getTenantHeader(), PATCH(), sanitizeBody()
+Cohesion: 0.60
+Nodes (4): DELETE(), dynamic, getTenantHeader(), PATCH()
 
 ### Community 388 - "monitoring-teams/route.ts"
-Cohesion: 0.53
-Nodes (5): dynamic, GET(), getTenantHeader(), POST(), sanitizeBody()
+Cohesion: 0.60
+Nodes (4): dynamic, GET(), getTenantHeader(), POST()
 
 ### Community 389 - "readings/route.ts"
 Cohesion: 0.60
 Nodes (4): backendFetch(), dynamic, GET(), POST()
 
 ### Community 390 - "shift-log/[id]/[action]/route.ts"
-Cohesion: 0.47
-Nodes (5): ALLOWED, dynamic, getTenant(), POST(), sanitizeBody()
+Cohesion: 0.60
+Nodes (4): ALLOWED, dynamic, getTenant(), POST()
 
 ### Community 391 - "shift-log/route.ts"
-Cohesion: 0.53
-Nodes (5): dynamic, GET(), getTenant(), POST(), sanitizeBody()
+Cohesion: 0.60
+Nodes (4): dynamic, GET(), getTenant(), POST()
 
 ### Community 392 - "spatial/route.ts"
 Cohesion: 0.40
 Nodes (3): ROOT_DIR, runtime, SPATIAL_DIR
-
-### Community 393 - "my-portal/page.tsx"
-Cohesion: 0.29
-Nodes (6): getHeaders(), LeaveRequest, MyPortalPage(), PRIORITY_LABELS, STATUS_LABELS, WorkOrder
 
 ### Community 394 - "inbox/route.ts"
 Cohesion: 0.67
@@ -2197,9 +2199,9 @@ Nodes (4): getTenantId(), ProjectBudget, ProjectBudgetPage(), ProjectExpense
 Cohesion: 0.40
 Nodes (3): mgmtLinks, monitoringLinks, sections
 
-### Community 417 - "engineering/page.tsx"
-Cohesion: 0.29
-Nodes (4): assetLinks, CardDef, supportLinks, workspaceLinks
+### Community 417 - "communications/page.tsx"
+Cohesion: 0.40
+Nodes (3): CardDef, links, MailTab
 
 ### Community 418 - "documentation-hub/page.tsx"
 Cohesion: 0.50
@@ -2261,9 +2263,9 @@ Nodes (3): DiagnosticReport, التقرير الكامل لحادثة واحدة
 Cohesion: 0.40
 Nodes (5): compute_30d_precipitation(), compute_monthly_avg_temp(), date, حساب مجموع الهطول في آخر 30 يومًا قبل target_date., حساب متوسط درجة الحرارة في الشهر الذي يقع فيه target_date.
 
-### Community 436 - "intelligence/page.tsx"
-Cohesion: 0.29
-Nodes (4): analyticsLinks, CardDef, opsLinks, riskLinks
+### Community 436 - "package.json"
+Cohesion: 0.40
+Nodes (4): main, name, private, version
 
 ### Community 437 - "alarms/[id]/[action]/route.ts"
 Cohesion: 0.67
@@ -2284,14 +2286,6 @@ Nodes (3): AssetCategoriesPage(), AssetCategory, getTenantId()
 ### Community 445 - "admin-gateway/contracts/page.tsx"
 Cohesion: 0.67
 Nodes (3): ContractsOverview(), getTenantId(), Summary
-
-### Community 446 - "ProjectSmartSidebar.tsx"
-Cohesion: 0.40
-Nodes (5): AIInsight, Project, ProjectDetails, ProjectSmartSidebarProps, RelatedDataCounts
-
-### Community 448 - "gisActionBridge.ts"
-Cohesion: 0.53
-Nodes (5): bridgeGISResult(), buildAlertMessage(), GISAnalysisResult, resolveAlertType(), useGISActionBridge()
 
 ### Community 450 - "payroll-config/page.tsx"
 Cohesion: 0.67
@@ -2345,29 +2339,25 @@ Nodes (3): forwardHeaders(), GET(), resolveTenantId()
 Cohesion: 0.67
 Nodes (3): detectDegradation(), ELECTRICAL, PUMPS
 
-### Community 562 - "departments/page.tsx"
-Cohesion: 0.67
-Nodes (3): Department, DepartmentsPage(), getTenantId()
-
 ## Knowledge Gaps
-- **2619 isolated node(s):** `graphify`, `1. الملخص التنفيذي (Executive Summary)`, `2. البنية الحالية للمصادقة (Authentication Architecture)`, `الدليل من قاعدة البيانات الفعلية (وليس تخميناً):`, `طبقة JSON إضافية (`lib/tenant-store.ts`)` (+2614 more)
+- **2608 isolated node(s):** `graphify`, `1. الملخص التنفيذي (Executive Summary)`, `2. البنية الحالية للمصادقة (Authentication Architecture)`, `الدليل من قاعدة البيانات الفعلية (وليس تخميناً):`, `طبقة JSON إضافية (`lib/tenant-store.ts`)` (+2603 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **84 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **104 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `SatelliteIntelLegacyShell.tsx`, `satelliteIntelAPI.ts`, `LeftPanel.tsx`, `scada/page.tsx`, `preventive/page.tsx`, `ScenariosTab.tsx`, `CorrosionInbox.tsx`, `GisLayerManager.tsx`, `SICLayerEditorPanel.tsx`, `useGisEngine`, `corrosion/technical/page.tsx`, `CVAAdvancedPanel.tsx`, `NetworkDesignPanel.tsx`, `constants.ts`, `layout-client.tsx`, `system/page.tsx`, `dependencies`, `ReportPanel.tsx`, `CorridorMap.tsx`?**
-  _High betweenness centrality (0.223) - this node is a cross-community bridge._
-- **Why does `dependencies` connect `dependencies` to `react`, `@xmldom/xmldom`, `@types/sharp`, `framer-motion`, `ol`, `build`, `BenchmarkRunner`, `pg`?**
-  _High betweenness centrality (0.190) - this node is a cross-community bridge._
-- **Why does `uuid` connect `BenchmarkRunner` to `runner.py`, `alert.py`?**
-  _High betweenness centrality (0.168) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `SatelliteIntelLegacyShell.tsx`, `satelliteIntelAPI.ts`, `LeftPanel.tsx`, `scada/page.tsx`, `preventive/page.tsx`, `ScenariosTab.tsx`, `CorrosionInbox.tsx`, `SICLayerEditorPanel.tsx`, `useGisEngine`, `corrosion/technical/page.tsx`, `CVAAdvancedPanel.tsx`, `NetworkDesignPanel.tsx`, `SegmentsTab.tsx`, `layout-client.tsx`, `system/page.tsx`, `gisEngine.ts`, `dependencies`, `corrosion/types.ts`, `CorridorMap.tsx`?**
+  _High betweenness centrality (0.217) - this node is a cross-community bridge._
+- **Why does `dependencies` connect `dependencies` to `plotly.js-dist-min`, `react-dom`, `BenchmarkRunner`, `react`, `framer-motion`, `lucide-react`, `package.json`, `mammoth`, `maplibre-gl`, `geotiff`, `gsap`, `jspdf-autotable`, `pg`, `react-plotly.js`, `recharts`, `sharp`, `tailwind-merge`, `three`, `@tmcw/togeojson`, `@types/nodemailer`, `@types/pg`, `@types/sharp`, `@xmldom/xmldom`, `xlsx`, `zustand`, `pdf-parse`, `@types/three`?**
+  _High betweenness centrality (0.180) - this node is a cross-community bridge._
+- **Why does `uuid` connect `BenchmarkRunner` to `dependencies`?**
+  _High betweenness centrality (0.150) - this node is a cross-community bridge._
 - **What connects `graphify`, `1. الملخص التنفيذي (Executive Summary)`, `2. البنية الحالية للمصادقة (Authentication Architecture)` to the rest of the system?**
-  _2619 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2608 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `SatelliteIntelLegacyShell.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.07213114754098361 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05837837837837838 - nodes in this community are weakly interconnected._
 - **Should `satelliteIntelAPI.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.03435399551904406 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.03534798534798535 - nodes in this community are weakly interconnected._
 - **Should `datetime` be split into smaller, more focused modules?**
   _Cohesion score 0.041666666666666664 - nodes in this community are weakly interconnected._
